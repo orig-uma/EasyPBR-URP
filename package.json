@@ -1,0 +1,32 @@
+{
+  "name": "com.origuma.easypbr-urp",
+  "version": "0.1.0",
+  "displayName": "EasyPBR for URP",
+  "description": "Stylized PBR + Toon hybrid character shader for the Universal Render Pipeline. Designed for figure/doll-like characters, with automatic face self-shadow fixing, decoupled cast/receive shadows to avoid toon-edge banding, dual-lobe specular with energy conservation, and optional SSS / Rim / Peach Fuzz / MatCap effects.",
+  "unity": "6000.3",
+  "documentationUrl": "https://github.com/orig-uma/EasyPBR-URP",
+  "changelogUrl": "https://github.com/orig-uma/EasyPBR-URP/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/orig-uma/EasyPBR-URP/blob/main/LICENSE.md",
+  "keywords": [
+    "shader",
+    "urp",
+    "toon",
+    "pbr",
+    "character",
+    "stylized",
+    "doll",
+    "vrm"
+  ],
+  "author": {
+    "name": "Origuma",
+    "url": "https://github.com/orig-uma"
+  },
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "17.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orig-uma/EasyPBR-URP.git"
+  },
+  "license": "SEE LICENSE IN LICENSE.md"
+}
