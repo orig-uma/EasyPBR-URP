@@ -59,7 +59,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#0.1.0
 
 ## ライセンス
 
-`LICENSE.md` を参照してください。
+[MIT License](LICENSE.md)
 
 ## 作者
 

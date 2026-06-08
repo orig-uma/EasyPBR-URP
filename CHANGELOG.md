@@ -6,6 +6,10 @@
 
 ## [0.1.0] - 2026-06-08
 
+### Changed
+
+- ライセンスを MIT に変更（source-available から緩和）。
+
 ### Added
 
 - 初回リリース。`Origuma/EasyPBR_URP/Doll` シェーダー（ForwardLit + ShadowCaster）。
