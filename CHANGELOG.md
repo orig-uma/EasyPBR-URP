@@ -18,6 +18,6 @@
 - 落ち影と陰影を分離合成する仕組み（トゥーン境界のマッハバンド回避、ブルーノイズディザ）。
 - Dual-Lobe スペキュラ + エネルギー保存。
 - 任意効果（既定OFF）: SSS / Rim Light / Peach Fuzz / MatCap。
-- 無効効果を uniform 分岐でスキップする軽量化（バリアント増なし）。
+- 任意効果（SSS / Rim / Peach Fuzz）の Intensity 0 時は uniform 分岐で GPU 計算をスキップ（効果ごとの keyword variant は増やさない設計）。
 - ブルーノイズテクスチャ `BlueNoise_RGB_256.png` を同梱（grain / shadow dither 用）。
 - カスタムマテリアルインスペクター `DollShaderGUI`（機能別の折りたたみ表示・依存項目の出し分け）。

@@ -2,7 +2,8 @@
 
 `Origuma/EasyPBR_URP/Doll`
 
-Universal Render Pipeline (URP) 向けの、PBR と トゥーンを両立させたキャラクター/フィギュア用シェーダーです。フィギュアや人形のような「質感のあるハイライト」と「平面的で破綻しない陰影」を同時に狙っています。
+Universal Render Pipeline (URP) 向けの、PBR と トゥーンを両立させたキャラクター用シェーダーです。
+フィギュアや人形のような「質感のあるハイライト」と「平面的で破綻しない陰影」を同時に狙っています。
 
 ## 特徴
 
@@ -11,7 +12,7 @@ Universal Render Pipeline (URP) 向けの、PBR と トゥーンを両立させ�
 - **落ち影(shadow map)と陰影(NdotL)を分離合成** し、トゥーン境界に出やすいマッハバンド（縞）を回避。ブルーノイズディザで量子化バンドも分解
 - **Dual-Lobe スペキュラ + エネルギー保存**（鋭い／柔らかいの2ローブ）
 - **任意効果**（既定OFF・Intensity 0 で無効）: SSS / Rim Light / Peach Fuzz / MatCap
-- **uniform 分岐による軽量化**: 無効な効果は実行時にスキップ（シェーダーバリアントは増やさない）
+- **任意効果の実行時スキップ**: SSS / Rim / Peach Fuzz は Intensity 0 のとき GPU 計算を省略。これらは keyword 化していないため、効果ごとの material variant は増えない（Toon / MatCap / Alpha Clip や URP のライト・影用 `multi_compile` による variant は通常の URP Forward 系と同程度に存在する）
 
 ## 動作環境
 
