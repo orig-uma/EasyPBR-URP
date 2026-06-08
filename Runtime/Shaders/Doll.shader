@@ -544,4 +544,6 @@ Shader "Origuma/EasyPBR_URP/Doll"
             ENDHLSL
         }
     }
+
+    CustomEditor "Origuma.EasyPBR.URP.Editor.DollShaderGUI"
 }

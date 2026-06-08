@@ -1,0 +1,16 @@
+{
+    "name": "Origuma.EasyPBR.URP.Editor",
+    "rootNamespace": "Origuma.EasyPBR.URP.Editor",
+    "references": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

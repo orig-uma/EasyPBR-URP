@@ -2,7 +2,12 @@ fileFormatVersion: 2
 guid: c38ebfa2aded376448f56d69236e5557
 ShaderImporter:
   externalObjects: {}
-  defaultTextures: []
+  defaultTextures:
+  - _MainTex: {instanceID: 0}
+  - _ReceiveShadowMask: {instanceID: 0}
+  - _BlueNoiseTex: {fileID: 2800000, guid: e7d4b9a160c34f2e8a5f1c0d6b3927a4, type: 3}
+  - _SpecularMask: {instanceID: 0}
+  - _MatCapTex: {instanceID: 0}
   nonModifiableTextures: []
   userData: 
   assetBundleName: 
