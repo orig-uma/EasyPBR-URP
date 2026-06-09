@@ -381,7 +381,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 // Forward+ のライトループ(LIGHT_LOOP_BEGIN)が参照する入力
                 InputData inputData = (InputData)0;
                 inputData.positionWS = input.positionWS;
-                inputData.normalizedScreenSpaceUV = input.positionCS.xy / _ScreenParams.xy;
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
 
                 half3 finalColor = half3(0, 0, 0);
                 float4 shadowCoord = input.shadowCoord;
