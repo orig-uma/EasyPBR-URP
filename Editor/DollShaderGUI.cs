@@ -7,8 +7,9 @@ namespace Origuma.EasyPBR.URP.Editor
     /// "Origuma/EasyPBR_URP/Doll" 用のカスタムマテリアルインスペクター。
     ///
     /// 利用者視点の工夫:
-    ///  - 言語切替（English / 日本語）と「説明の表示」トグルを上部に配置。設定は
-    ///    EditorPrefs に保存され、全マテリアルで共有される（日本語環境では初期ON）。
+    ///  - 言語切替（English / 日本語）、カスタム/デフォルト UI 切替、
+    ///    「説明の表示」トグルを上部に配置。設定は EditorPrefs に保存され、
+    ///    全マテリアルで共有される（日本語環境では初期ON）。
     ///  - 各プロパティにローカライズしたラベルとツールチップ（ホバー説明）を付与。
     ///  - 機能ごとの折りたたみセクション。開閉状態も EditorPrefs に保存。
     ///  - 文脈警告（例: ブルーノイズ未設定で Grain/Dither を使っている等）。
@@ -22,15 +23,23 @@ namespace Origuma.EasyPBR.URP.Editor
         const string KeyPrefix = "Origuma.EasyPBR.URP.Doll.";
         const string LangKey = KeyPrefix + "lang.jp";
         const string HelpKey = KeyPrefix + "show.help";
+        const string CustomUIKey = KeyPrefix + "use.custom.ui";
 
         bool _jp;
         bool _showHelp;
+        bool _useCustomUI = true;
         bool _prefsLoaded;
 
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
             LoadPrefs();
             DrawToolbar();
+
+            if (!_useCustomUI)
+            {
+                base.OnGUI(materialEditor, properties);
+                return;
+            }
 
             // ===== Base Core =====
             if (Section("base", true, "Base Core", "基本設定",
@@ -326,6 +335,7 @@ namespace Origuma.EasyPBR.URP.Editor
             if (_prefsLoaded) return;
             _jp = EditorPrefs.GetBool(LangKey, Application.systemLanguage == SystemLanguage.Japanese);
             _showHelp = EditorPrefs.GetBool(HelpKey, true);
+            _useCustomUI = EditorPrefs.GetBool(CustomUIKey, true);
             _prefsLoaded = true;
         }
 
@@ -336,6 +346,16 @@ namespace Origuma.EasyPBR.URP.Editor
             {
                 EditorGUILayout.LabelField("EasyPBR / Doll", EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
+
+                EditorGUI.BeginChangeCheck();
+                int uiMode = EditorGUILayout.Popup(_useCustomUI ? 0 : 1,
+                    _jp ? new[] { "カスタム", "デフォルト" } : new[] { "Custom", "Default" },
+                    GUILayout.Width(90));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    _useCustomUI = uiMode == 0;
+                    EditorPrefs.SetBool(CustomUIKey, _useCustomUI);
+                }
 
                 EditorGUI.BeginChangeCheck();
                 int lang = EditorGUILayout.Popup(_jp ? 1 : 0, new[] { "English", "日本語" }, GUILayout.Width(90));

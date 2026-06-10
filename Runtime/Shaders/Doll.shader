@@ -305,10 +305,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 //  ブルーノイズのディザでバンドを分解してから滑らかなランプにする。
                 // =========================================================================
                 float rawShadow = lerp(1.0, light.shadowAttenuation, receiveShadowMask * _ReceiveShadowStrength);
-                // ディザは落ち影の境界付近だけに掛け、平坦な明暗面にはノイズを乗せない
-                float shadowEdgeMask = saturate(1.0 - abs(rawShadow * 2.0 - 1.0));
-                shadowEdgeMask = pow(shadowEdgeMask, 2.0);
-                float ditheredShadow = rawShadow + (ditherValue - 0.5) * _ShadowDither * shadowEdgeMask;
+                float ditheredShadow = rawShadow + (ditherValue - 0.5) * _ShadowDither * 0.1; // 効きをマイルドにするため0.1を乗算
                 float castShadow = smoothstep(0.5 - _ShadowMapSoftness * 0.5, 0.5 + _ShadowMapSoftness * 0.5, ditheredShadow);
                 // 顔の正面（マスクの強い所）では落ち影も消す
                 castShadow = lerp(castShadow, 1.0, proceduralMask);
