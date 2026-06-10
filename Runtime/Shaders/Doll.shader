@@ -10,7 +10,8 @@
 //   - 「落ち影(shadow map)」と「陰影(NdotL)」を分離合成し、トゥーン境界の
 //     マッハバンド（縞）を回避
 //   - Dual-Lobe スペキュラ + エネルギー保存
-//   - SSS / Rim / Peach Fuzz / MatCap など任意効果（既定OFF）
+//   - 白飛び＆過剰ブルーム防止（Anti-Blowout & Anti-Bloom）機能
+//   - SSS / Rim / Peach Fuzz / MatCap など追加効果（既定OFF）
 //
 //  パス構成: ForwardLit（本体） + ShadowCaster（影を落とすため）。
 // =============================================================================
@@ -56,6 +57,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
         // Half Lambert の wrap 量。陰側を持ち上げて陰影を柔らかくする（Smooth向け）
         _HalfLambertWrap ("Light Wrap (Smooth Mode)", Range(0.0, 1.0)) = 0.5
+        // 白飛び対策
+        _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
         
         [Space(10)]
         // Toon モード時の明暗境界の位置と、境界の柔らかさ
@@ -78,10 +81,12 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SpecularColor ("Primary Specular Color (Sharp)", Color) = (1, 1, 1, 1)
         _Smoothness ("Primary Smoothness", Range(0.01, 1.0)) = 0.8
         _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 1.5
+        _PriSpecularLightLimit ("Primary Specular Limit (Core Bloom)", Range(0.1, 10.0)) = 2
         [Space(10)]
         _SecSpecularColor ("Secondary Specular Color (Matte)", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.5
+        _SecSpecularLightLimit ("Secondary Specular Limit (Soft Sheen)", Range(0.1, 5.0)) = 1.2
         [Space(10)]
         // MatCap: ビュー空間法線でテクスチャを引く擬似ライティング（球状の映り込み風）
         [Toggle(_MATCAP_ON)] _UseMatCap ("Enable MatCap", Float) = 0
@@ -90,7 +95,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _MatCapColor ("MatCap Tint", Color) = (1, 1, 1, 1)
         _MatCapIntensity ("MatCap Intensity", Range(0.0, 5.0)) = 1.0
 
-        // --- 任意効果（Intensity を 0 にすると完全にOFF。既定はすべてOFF寄り） ---
+        // --- 追加効果（Intensity を 0 にすると完全にOFF。既定はすべてOFF寄り） ---
         [Header(Optional Effects (Intensity 0 turns them Off))]
         [Space(4)]
         // SSS: 逆光時に肌が透けるような表面下散乱の擬似表現。
@@ -159,7 +164,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 half _AlphaClip;
                 half _Cutoff;
                 half _Cull;
-                
+
                 half _FrontMaskStrength;
                 half _UpMaskStrength;
                 half _MaskFalloff;
@@ -173,6 +178,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 half _HalfLambertWrap;
                 half _ToonStep;
                 half _ToonFeather;
+                half _DiffuseLightLimit;
+                half _PriSpecularLightLimit;
+                half _SecSpecularLightLimit;
                 half4 _SpecularColor;
                 half _Smoothness;
                 half _SpecularIntensity;
@@ -244,6 +252,27 @@ Shader "Origuma/EasyPBR_URP/Doll"
             half3 CalculateSingleLight(Light light, half3 detailNormalWS, half3 viewDirectionWS, float3 objectForwardWS, half3 baseColor, half receiveShadowMask, half specMask, half ditherValue, float baseProceduralMask, float rimFresnel, float fuzzFresnel)
             {
                 // =========================================================================
+                // Anti-Blowout: Diffuse / Primary Spec / Secondary Spec で光源輝度上限を分離
+                //  各成分が独立した Light Limit を持ち、白飛びと過剰ブルームを抑える。
+                // =========================================================================
+                float lightLuminance = max(0.001, dot(light.color, float3(0.299, 0.587, 0.114)));
+                
+                // Diffuse用
+                float safeDiffuseLum = min(lightLuminance, _DiffuseLightLimit);
+                float3 diffuseLightColor = light.color * (safeDiffuseLum / lightLuminance);
+                float3 diffuseLightEnergy = diffuseLightColor * light.distanceAttenuation;
+
+                // Primary Specular用
+                float safePriSpecLum = min(lightLuminance, _PriSpecularLightLimit);
+                float3 priSpecLightColor = light.color * (safePriSpecLum / lightLuminance);
+                float3 priSpecLightEnergy = priSpecLightColor * light.distanceAttenuation;
+
+                // Secondary Specular用
+                float safeSecSpecLum = min(lightLuminance, _SecSpecularLightLimit);
+                float3 secSpecLightColor = light.color * (safeSecSpecLum / lightLuminance);
+                float3 secSpecLightEnergy = secSpecLightColor * light.distanceAttenuation;
+
+                // =========================================================================
                 // 1. 影消しマスク（顔の自己陰を消すためのマスク）
                 //    ライト非依存の土台 baseProceduralMask は frag で算出済み。
                 //    ここでは「逆光時は陰を残す」ための光源依存項 backlightFade だけ掛ける。
@@ -276,7 +305,10 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 //  ブルーノイズのディザでバンドを分解してから滑らかなランプにする。
                 // =========================================================================
                 float rawShadow = lerp(1.0, light.shadowAttenuation, receiveShadowMask * _ReceiveShadowStrength);
-                float ditheredShadow = rawShadow + (ditherValue - 0.5) * _ShadowDither;
+                // ディザは落ち影の境界付近だけに掛け、平坦な明暗面にはノイズを乗せない
+                float shadowEdgeMask = saturate(1.0 - abs(rawShadow * 2.0 - 1.0));
+                shadowEdgeMask = pow(shadowEdgeMask, 2.0);
+                float ditheredShadow = rawShadow + (ditherValue - 0.5) * _ShadowDither * shadowEdgeMask;
                 float castShadow = smoothstep(0.5 - _ShadowMapSoftness * 0.5, 0.5 + _ShadowMapSoftness * 0.5, ditheredShadow);
                 // 顔の正面（マスクの強い所）では落ち影も消す
                 castShadow = lerp(castShadow, 1.0, proceduralMask);
@@ -301,7 +333,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 // 陰では _ShadowColor、明では baseColor へ補間
                 half3 diffuseColor = lerp(_ShadowColor.rgb, baseColor, finalShade);
 
-                half3 finalDiffuse = diffuseColor * light.color * light.distanceAttenuation;
+                // ① Diffuse（専用のエネルギーを使用）
+                half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
 
                 // ② Dual-Lobe Specular (Blinn-Phong を 2 つ重ねる)
                 //  ハイライトは「平滑化していない元の法線(detailNormalWS)」で計算する。
@@ -311,17 +344,19 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 float NdotH = saturate(dot(detailNormalWS, halfVector));
 
                 // smoothness(0..1) を exp2 で鏡面指数へ変換（大きいほど鋭いハイライト）
+                // Primary（鋭いハイライト）-> priSpecLightEnergy を掛ける
                 float specPower1 = exp2(10.0 * _Smoothness + 1.0);
                 float specTerm1 = pow(NdotH, specPower1);
-                half3 spec1 = _SpecularColor.rgb * specTerm1 * _SpecularIntensity;
+                half3 spec1 = _SpecularColor.rgb * specTerm1 * _SpecularIntensity * priSpecLightEnergy;
 
+                // Secondary（広いハイライト）-> secSpecLightEnergy を掛ける
                 float specPower2 = exp2(10.0 * _SecSmoothness + 1.0);
                 float specTerm2 = pow(NdotH, specPower2);
-                half3 spec2 = _SecSpecularColor.rgb * specTerm2 * _SecSpecularIntensity;
+                half3 spec2 = _SecSpecularColor.rgb * specTerm2 * _SecSpecularIntensity * secSpecLightEnergy;
 
                 // ライトの裏側ではハイライトを出さない + マスク + 落ち影で減衰
                 float specularMaskVal = saturate(NdotL_Specular * 10.0) * specMask * castShadow;
-                half3 finalSpecular = (spec1 + spec2) * light.color * light.distanceAttenuation * specularMaskVal;
+                half3 finalSpecular = (spec1 + spec2) * specularMaskVal;
 
                 // エネルギー保存: 反射が強い箇所はその分ディフューズを落とす（白飛び防止）
                 float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
@@ -330,6 +365,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 // ③ SSS (擬似サブサーフェス): 逆光側で光が透ける表現。
                 //  backlightDir がライト方向依存のため frag へ巻き上げできない。
                 //  Intensity=0（既定OFF）のときは分岐で pow/normalize ごとスキップ。
+                //  Diffuse用の光エネルギーを使用。
                 half3 finalSSS = half3(0, 0, 0);
                 UNITY_BRANCH
                 if (_SSSIntensity > 0.0)
@@ -337,17 +373,19 @@ Shader "Origuma/EasyPBR_URP/Doll"
                     float3 backlightDir = normalize(light.direction + detailNormalWS * _SSSDistortion);
                     float backlightTerm = pow(saturate(dot(viewDirectionWS, -backlightDir)), _SSSPower);
                     float sssShadow = lerp(0.4, 1.0, castShadow);
-                    finalSSS = _SSSColor.rgb * backlightTerm * _SSSIntensity * light.color * light.distanceAttenuation * sssShadow;
+                    finalSSS = _SSSColor.rgb * backlightTerm * _SSSIntensity * diffuseLightEnergy * sssShadow;
                 }
 
                 // ④ Rim Light: フレネル項 rimFresnel = (1-NdotV)^power は frag で算出済み。
                 //    OFF 時は rimFresnel=0 なので寄与は自動的に 0。
+                //    Diffuse用の光エネルギーを使用。
                 float rimLightMask = saturate(NdotL_Specular * 5.0) * castShadow;
-                half3 finalRim = _RimColor.rgb * rimFresnel * _RimIntensity * light.color * light.distanceAttenuation * rimLightMask;
+                half3 finalRim = _RimColor.rgb * rimFresnel * _RimIntensity * diffuseLightEnergy * rimLightMask;
 
                 // ⑤ Peach Fuzz: 同様に fuzzFresnel は frag で算出済み（縁の柔らかい光沢）
+                //    Diffuse用の光エネルギーを使用。
                 float fuzzMask = fuzzFresnel * saturate(NdotL_Specular) * castShadow;
-                half3 finalFuzz = _FuzzColor.rgb * fuzzMask * _FuzzIntensity * light.color * light.distanceAttenuation;
+                half3 finalFuzz = _FuzzColor.rgb * fuzzMask * _FuzzIntensity * diffuseLightEnergy;
 
                 return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz;
             }
@@ -375,7 +413,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
                 // 落ち影の量子化バンドを分解するためのディザ値。
                 // UV ではなく「スクリーン座標」基準でサンプルし、模様が表面に
                 // 貼り付く(UVロック)のを防ぐ。
-                float2 ditherUV = input.positionCS.xy / 64.0;
+                float2 ditherUV = input.positionCS.xy / 256.0;
                 half ditherValue = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, ditherUV).r;
 
                 // Forward+ のライトループ(LIGHT_LOOP_BEGIN)が参照する入力

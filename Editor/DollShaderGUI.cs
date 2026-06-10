@@ -150,6 +150,13 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Softness of the toon boundary.",
                             "トゥーン境界の柔らかさ。");
                     }
+
+                    // ベースカラー用の白飛び防止
+                    SubHeader("Anti-Blowout", "白飛び防止");
+                    P(materialEditor, properties, "_DiffuseLightLimit",
+                        "Diffuse Light Limit", "ベース明るさ上限",
+                        "Limits maximum brightness of skin/clothes to prevent blowout under strong lights.",
+                        "肌や服の明るさ上限。強いライト環境下での白飛びを防止します。");
                 }
             }
 
@@ -202,6 +209,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         "Higher = sharper and smaller highlight.", "大きいほど鋭く小さいハイライト。");
                     P(materialEditor, properties, "_SpecularIntensity", "Intensity", "強度",
                         "Primary highlight strength.", "鋭いハイライトの強さ。");
+                    // Primary用リミッター
+                    P(materialEditor, properties, "_PriSpecularLightLimit", "Light Limit", "明るさ上限",
+                        "Limits maximum highlight brightness to control bloom.", "明るさの上限。過剰なブルーム（発光）を抑えます。");
 
                     SubHeader("Secondary (Matte)", "Secondary（マット）");
                     P(materialEditor, properties, "_SecSpecularColor", "Color", "色",
@@ -210,6 +220,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         "Lower = broader, softer highlight.", "小さいほど広く柔らかいハイライト。");
                     P(materialEditor, properties, "_SecSpecularIntensity", "Intensity", "強度",
                         "Secondary highlight strength.", "柔らかいハイライトの強さ。");
+                    // Secondary用リミッター
+                    P(materialEditor, properties, "_SecSpecularLightLimit", "Light Limit", "明るさ上限",
+                        "Limits maximum brightness to prevent sweaty/plastic look.", "明るさの上限。過剰なテカリ（汗だく感）を抑えます。");
 
                     SubHeader("MatCap", "MatCap");
                     P(materialEditor, properties, "_UseMatCap",

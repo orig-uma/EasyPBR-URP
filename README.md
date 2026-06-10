@@ -56,7 +56,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#0.1.0
 | Specular and Reflection | Dual-Lobe スペキュラ、MatCap |
 | Optional Effects | SSS / Peach Fuzz / Rim（いずれも Intensity 0 で OFF） |
 
-> 任意効果（SSS / Peach Fuzz）は初期状態では OFF です。必要に応じて Intensity を上げてください。
+> 追加効果（SSS / Peach Fuzz）は初期状態では OFF です。必要に応じて Intensity を上げてください。
 
 ## ライセンス
 
