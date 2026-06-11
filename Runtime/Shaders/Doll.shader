@@ -47,7 +47,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         // Smooth = なめらかな陰影 / Toon = 二値的なトゥーン境界（keyword 切替）
         [KeywordEnum(Smooth, Toon)] _ShadingStyle ("Shading Style", Float) = 0
         // 影部分に乗る色。黒だと素直に暗くなるだけ（色相シフトなし）
-        _ShadowColor ("Shadow Color Shift", Color) = (0, 0, 0, 1)
+        _ShadowColor ("Shadow Color Tint", Color) = (0.7, 0.7, 0.75, 1)
         // R チャンネルで「落ち影をどれだけ受けるか」を部位ごとに制御するマスク
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         _ReceiveShadowStrength ("Receive Shadow Strength", Range(0.0, 1.0)) = 1.0
@@ -249,28 +249,35 @@ Shader "Origuma/EasyPBR_URP/Doll"
             // 1 つのライト（メイン or 追加）に対する寄与色を計算して返す。
             // 各ライトで共通の「ライト非依存」な値（baseProceduralMask / rimFresnel /
             // fuzzFresnel）は frag 側で 1 回だけ算出して渡す（再計算を避ける最適化）。
-            half3 CalculateSingleLight(Light light, half3 detailNormalWS, half3 viewDirectionWS, float3 objectForwardWS, half3 baseColor, half receiveShadowMask, half specMask, half ditherValue, float baseProceduralMask, float rimFresnel, float fuzzFresnel)
+            half3 CalculateSingleLight(Light light, half3 detailNormalWS, half3 viewDirectionWS, float3 objectForwardWS, half3 baseColor, half receiveShadowMask, half specMask, half ditherValue, float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight)
             {
                 // =========================================================================
-                // Anti-Blowout: Diffuse / Primary Spec / Secondary Spec で光源輝度上限を分離
-                //  各成分が独立した Light Limit を持ち、白飛びと過剰ブルームを抑える。
+                // 白飛び防止(Anti-Blowout) ＆ 環境光統合(Ambient Integration)
+                // 
+                // 1. 各成分の分離: Diffuse / Primary Spec / Secondary Spec で独立した輝度上限
+                //    (Light Limit) を持たせ、強い光環境下での白飛びと過剰ブルームを個別に抑える。
+                // 2. 環境光の統合: 環境光(SH)を後から単純加算するとトゥーンシャドウが濁るため、
+                //    Diffuseの計算前に環境光を合算し、その合計輝度に対してLimitをかけることで
+                //    明るいSkybox環境下でも、設定した影色(Tint)を美しく保つ。
                 // =========================================================================
-                float lightLuminance = max(0.001, dot(light.color, float3(0.299, 0.587, 0.114)));
+                // ① Diffuse用（メインライト ＋ 環境光 の合計）
+                float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
+                float diffLum = max(0.001, dot(rawDiffuseLight, float3(0.299, 0.587, 0.114)));
+                float safeDiffLum = min(diffLum, _DiffuseLightLimit);
+                float3 diffuseLightEnergy = rawDiffuseLight * (safeDiffLum / diffLum);
+
+                // ② Specular用（ライトのみ・環境光は含めない）
+                float3 rawSpecLight = light.color * light.distanceAttenuation;
+                float specLum = max(0.001, dot(rawSpecLight, float3(0.299, 0.587, 0.114)));
                 
                 // Diffuse用
-                float safeDiffuseLum = min(lightLuminance, _DiffuseLightLimit);
-                float3 diffuseLightColor = light.color * (safeDiffuseLum / lightLuminance);
-                float3 diffuseLightEnergy = diffuseLightColor * light.distanceAttenuation;
+                float safePriSpecLum = min(specLum, _PriSpecularLightLimit);
+                float3 priSpecLightEnergy = rawSpecLight * (safePriSpecLum / specLum);
 
                 // Primary Specular用
-                float safePriSpecLum = min(lightLuminance, _PriSpecularLightLimit);
-                float3 priSpecLightColor = light.color * (safePriSpecLum / lightLuminance);
-                float3 priSpecLightEnergy = priSpecLightColor * light.distanceAttenuation;
-
                 // Secondary Specular用
-                float safeSecSpecLum = min(lightLuminance, _SecSpecularLightLimit);
-                float3 secSpecLightColor = light.color * (safeSecSpecLum / lightLuminance);
-                float3 secSpecLightEnergy = secSpecLightColor * light.distanceAttenuation;
+                float safeSecSpecLum = min(specLum, _SecSpecularLightLimit);
+                float3 secSpecLightEnergy = rawSpecLight * (safeSecSpecLum / specLum);
 
                 // =========================================================================
                 // 1. 影消しマスク（顔の自己陰を消すためのマスク）
@@ -327,10 +334,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
                 // 顔の陰(litMask)と落ち影(castShadow)を min で合成（暗い方が勝つ）
                 float finalShade = min(litMask, castShadow);
-                // 陰では _ShadowColor、明では baseColor へ補間
-                half3 diffuseColor = lerp(_ShadowColor.rgb, baseColor, finalShade);
 
-                // ① Diffuse（専用のエネルギーを使用）
+                // 元のテクスチャの色味を残しつつ、影色を乗算で重ねる
+                half3 shadedBaseColor = baseColor * _ShadowColor.rgb;
+                // 影色（乗算後）と明るい色をブレンドする
+                half3 diffuseColor = lerp(shadedBaseColor, baseColor, finalShade);
+
+                // ① Diffuse (環境光を含んだエネルギーを使用)
                 half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
 
                 // ② Dual-Lobe Specular (Blinn-Phong を 2 つ重ねる)
@@ -447,22 +457,22 @@ Shader "Origuma/EasyPBR_URP/Doll"
                     fuzzFresnel = pow(saturate(1.0 - NdotV), _FuzzPower);
                 }
 
+                // 環境光を取得し、メインライトの計算に組み込む
+                half3 indirectLight = SampleSH(cleanNormalWS);
+
                 // --- メインライト（Directional 1 灯）の寄与 ---
                 Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
-                finalColor += CalculateSingleLight(mainLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel);
+                finalColor += CalculateSingleLight(mainLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, indirectLight);
 
                 // --- 追加ライト（ポイント/スポット等）の寄与 ---
                 #if defined(_ADDITIONAL_LIGHTS) || defined(_FORWARD_PLUS)
                     uint pixelLightCount = GetAdditionalLightsCount();
                     LIGHT_LOOP_BEGIN(pixelLightCount)
                         Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
-                        finalColor += CalculateSingleLight(addLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel);
+                        // 追加ライトには環境光を足さない（2重加算防止のため 0,0,0 を渡す）
+                        finalColor += CalculateSingleLight(addLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, half3(0,0,0));
                     LIGHT_LOOP_END
                 #endif
-
-                // 環境光: Spherical Harmonics（Light Probe / Ambient）をアルベドに乗算
-                half3 ambient = SampleSH(cleanNormalWS) * albedo.rgb;
-                finalColor += ambient;
 
                 // MatCap: ビュー空間法線の XY を UV にしてテクスチャを引く擬似反射
                 #if defined(_MATCAP_ON)
