@@ -85,7 +85,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Space(10)]
         _SecSpecularColor ("Secondary Specular Color (Matte)", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
-        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.5
+        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.15
         _SecSpecularLightLimit ("Secondary Specular Limit (Soft Sheen)", Range(0.1, 5.0)) = 1.2
         [Space(10)]
         // MatCap: ビュー空間法線でテクスチャを引く擬似ライティング（球状の映り込み風）
