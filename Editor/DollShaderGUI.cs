@@ -3,32 +3,17 @@ using UnityEngine;
 
 namespace Origuma.EasyPBR.URP.Editor
 {
-    /// <summary>
-    /// "Origuma/EasyPBR_URP/Doll" 用のカスタムマテリアルインスペクター。
-    ///
-    /// 利用者視点の工夫:
-    ///  - 言語切替（English / 日本語）、カスタム/デフォルト UI 切替、
-    ///    「説明の表示」トグルを上部に配置。設定は EditorPrefs に保存され、
-    ///    全マテリアルで共有される（日本語環境では初期ON）。
-    ///  - 各プロパティにローカライズしたラベルとツールチップ（ホバー説明）を付与。
-    ///  - 機能ごとの折りたたみセクション。開閉状態も EditorPrefs に保存。
-    ///  - 文脈警告（例: ブルーノイズ未設定で Grain/Dither を使っている等）。
-    ///
-    /// キーワード(_ALPHATEST_ON / _SHADINGSTYLE_* / _MATCAP_ON / _MATCAPBLEND_*)の
-    /// 切り替えは [Toggle]/[KeywordEnum] ドロワーが行うため、ShaderProperty 経由で
-    /// 描画する。手動の SetKeyword は不要。
-    /// </summary>
     public class DollShaderGUI : ShaderGUI
     {
-        const string KeyPrefix = "Origuma.EasyPBR.URP.Doll.";
-        const string LangKey = KeyPrefix + "lang.jp";
-        const string HelpKey = KeyPrefix + "show.help";
-        const string CustomUIKey = KeyPrefix + "use.custom.ui";
+        private const string KeyPrefix = "Origuma.EasyPBR.URP.Doll.";
+        private const string LangKey = KeyPrefix + "lang.jp";
+        private const string HelpKey = KeyPrefix + "show.help";
+        private const string CustomUIKey = KeyPrefix + "use.custom.ui";
 
-        bool _jp;
-        bool _showHelp;
-        bool _useCustomUI = true;
-        bool _prefsLoaded;
+        private bool _jp;
+        private bool _showHelp;
+        private bool _useCustomUI = true;
+        private bool _prefsLoaded;
 
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
@@ -41,296 +26,322 @@ namespace Origuma.EasyPBR.URP.Editor
                 return;
             }
 
-            // ===== Base Core =====
-            if (Section("base", true, "Base Core", "基本設定",
-                "Albedo, color, transparency and culling.",
-                "アルベド・色・透過・カリングといった基本の設定です。"))
+            // ===== 1. Surface Options =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                using (new EditorGUI.IndentLevelScope())
+                if (Section("surface", true, "Surface Options", "サーフェス設定", "", ""))
                 {
-                    var mainTex = FindProperty("_MainTex", properties, false);
-                    var baseColor = FindProperty("_BaseColor", properties, false);
-                    if (mainTex != null)
+                    using (new EditorGUI.IndentLevelScope())
                     {
-                        materialEditor.TexturePropertySingleLine(
-                            Label("Base Map (RGB / Alpha)", "ベースマップ (RGB/Alpha)",
-                                  "Albedo texture. Its alpha is used for Alpha Clipping.",
-                                  "アルベド。アルファは Alpha Clipping に使われます。"),
-                            mainTex, baseColor);
-                        materialEditor.TextureScaleOffsetProperty(mainTex);
-                    }
+                        P(materialEditor, properties, "_Cull", "Cull", "Cull", "", "描画する面 (Off / Front / Back)");
+                        P(materialEditor, properties, "_ZWrite", "ZWrite", "ZWrite", "", "深度バッファへの書き込み (On / Off)");
+                        P(materialEditor, properties, "_ZTest", "ZTest", "ZTest", "", "深度テストの条件 (LEqual: 通常, Always: 常に前面に描画 など)");
+                        P(materialEditor, properties, "_SrcBlend", "Source Blend", "Source Blend", "", "背景と合成する際の元カラーの係数");
+                        P(materialEditor, properties, "_DstBlend", "Destination Blend", "Destination Blend", "", "背景と合成する際の背景カラーの係数");
 
-                    P(materialEditor, properties, "_AlphaClip",
-                        "Alpha Clipping", "アルファクリッピング",
-                        "Discard pixels whose alpha is below Cutoff (hair, eyelashes, etc.).",
-                        "アルファが Cutoff 未満のピクセルを破棄します（髪・睫毛など）。");
-                    if (PropOn(properties, "_AlphaClip"))
-                        P(materialEditor, properties, "_Cutoff",
-                            "Alpha Cutoff", "アルファカットオフ",
-                            "Threshold used by Alpha Clipping.",
-                            "Alpha Clipping のしきい値。");
+                        EditorGUILayout.Space(4);
+                        materialEditor.RenderQueueField();
+                        
+                        EditorGUILayout.Space(4);
+                        P(materialEditor, properties, "_SurfaceTransparent", "Output Alpha (_SURFACE_TRANSPARENT)", "Output Alpha (_SURFACE_TRANSPARENT)", "", "アルファ値を出力するかどうか");
+                        P(materialEditor, properties, "_AlphaClip", "Alpha Clipping (_ALPHATEST_ON)", "Alpha Clipping (_ALPHATEST_ON)", "", "アルファ値によるピクセルの破棄");
 
-                    P(materialEditor, properties, "_Cull",
-                        "Cull Mode", "カリング",
-                        "Which faces to skip. Off draws both sides (for thin meshes).",
-                        "描画しない面。Off で両面描画（薄いメッシュ向け）。");
-                }
-            }
-
-            // ===== Auto Shadow Fix =====
-            if (Section("shadowfix", true, "Auto Shadow Fix", "影補正",
-                "Automatically reduces harsh self-shadows on front/up-facing areas (e.g. nose and cheek bumps on the face). No mask texture required.",
-                "正面・上向きの面でできる余計な影を自動で目立たなくします（例: 顔の鼻や頬の凹凸）。マスクは不要です。"))
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    P(materialEditor, properties, "_FrontMaskStrength",
-                        "Front Brightness", "正面の明るさ",
-                        "Brightens surfaces pointing toward the model's front.",
-                        "モデルの正面を向いた面を明るくします。");
-                    P(materialEditor, properties, "_UpMaskStrength",
-                        "Up Brightness", "上向きの明るさ",
-                        "Brightens upward-facing surfaces.",
-                        "上を向いた面を明るくします。");
-                    P(materialEditor, properties, "_MaskFalloff",
-                        "Erase Breadth", "補正の範囲",
-                        "Higher values focus the effect on the most front/up facing areas.",
-                        "大きいほど、正面・上向きの面に絞って効きます。");
-                    P(materialEditor, properties, "_BacklightPreserve",
-                        "Backlight Preserve", "逆光時の陰を維持",
-                        "Keeps the shadows when the light is behind the model.",
-                        "光源が背後にあるとき、陰を残します。");
-                    P(materialEditor, properties, "_FaceNormalSmoothness",
-                        "Normal Smoothing", "法線のならし",
-                        "Flattens normals so mesh bumps (e.g. on the face) don't cast harsh shadows.",
-                        "法線をならして、ポリゴンの凹凸（例: 顔の鼻や頬）が余計な影を作らないようにします。");
-                }
-            }
-
-            // ===== Light and Shadow =====
-            if (Section("light", true, "Light and Shadow", "ライトと影",
-                "Shading mode, and how cast/received shadows look.",
-                "シェーディングの種類と、影の見え方を調整します。"))
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    P(materialEditor, properties, "_ShadingStyle",
-                        "Shading Style", "シェーディング",
-                        "Smooth = soft gradient shading. Toon = hard two-tone boundary.",
-                        "Smooth = なめらかな陰影 / Toon = 二値的なトゥーン境界。");
-                    P(materialEditor, properties, "_ShadowColor",
-                        "Shadow Color", "影の色",
-                        "Color tint applied to shaded areas. Black simply darkens.",
-                        "陰部分に乗る色。黒なら単純に暗くなります。");
-
-                    var recvMask = FindProperty("_ReceiveShadowMask", properties, false);
-                    if (recvMask != null)
-                        materialEditor.TexturePropertySingleLine(
-                            Label("Receive Shadow Mask (R)", "落ち影マスク (R)",
-                                  "R channel controls how much cast shadow each area receives.",
-                                  "Rチャンネルで、各部位が落ち影をどれだけ受けるか制御します。"),
-                            recvMask);
-                    P(materialEditor, properties, "_ReceiveShadowStrength",
-                        "Receive Strength", "落ち影の強さ",
-                        "How strongly cast shadows darken the surface.",
-                        "落ち影が表面を暗くする強さ。");
-                    P(materialEditor, properties, "_ShadowMapSoftness",
-                        "Shadow Softness", "落ち影のソフトさ",
-                        "Softens the cast-shadow edge to hide shadow-map stair-stepping.",
-                        "落ち影の境界をぼかし、シャドウマップの階段状ノイズを隠します。");
-                    P(materialEditor, properties, "_ShadowDither",
-                        "Shadow Dither", "影のディザ",
-                        "Breaks up shadow banding with blue noise. Requires a Blue Noise texture (see Surface Micro Detail).",
-                        "ブルーノイズで影の縞を分解します。ブルーノイズの設定が必要です（Surface Micro Detail）。");
-                    P(materialEditor, properties, "_HalfLambertWrap",
-                        "Light Wrap", "ライトラップ",
-                        "Lifts the shaded side for softer, wrapped shading.",
-                        "陰側を持ち上げ、陰影を柔らかくします。");
-
-                    if (IsToon(properties))
-                    {
-                        EditorGUILayout.Space(2);
-                        P(materialEditor, properties, "_ToonStep",
-                            "Toon Threshold", "トゥーン境界位置",
-                            "Position of the light/shadow boundary (Toon mode).",
-                            "明暗境界の位置（Toonモード）。");
-                        P(materialEditor, properties, "_ToonFeather",
-                            "Toon Softness", "トゥーン境界の柔らかさ",
-                            "Softness of the toon boundary.",
-                            "トゥーン境界の柔らかさ。");
-                    }
-
-                    // ベースカラー用の白飛び防止
-                    SubHeader("Anti-Blowout", "白飛び防止");
-                    P(materialEditor, properties, "_DiffuseLightLimit",
-                        "Diffuse Light Limit", "ベース明るさ上限",
-                        "Limits maximum brightness of skin/clothes to prevent blowout under strong lights.",
-                        "肌や服の明るさ上限。強いライト環境下での白飛びを防止します。");
-                }
-            }
-
-            // ===== Surface Micro Detail =====
-            if (Section("detail", false, "Surface Micro Detail", "表面の質感",
-                "Subtle grain via blue noise. The same texture is also used for shadow dithering.",
-                "ブルーノイズで表面に細かな質感を加えます。影のディザにも同じテクスチャを使います。"))
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    var noise = FindProperty("_BlueNoiseTex", properties, false);
-                    if (noise != null)
-                        materialEditor.TexturePropertySingleLine(
-                            Label("Micro Grain (Blue Noise)", "グレイン (ブルーノイズ)",
-                                  "Blue noise texture for grain and shadow dither. A texture is bundled with this package.",
-                                  "grain と影ディザ用のブルーノイズ。本パッケージに同梱テクスチャがあります。"),
-                            noise);
-                    P(materialEditor, properties, "_GrainIntensity",
-                        "Grain Intensity", "グレイン強度",
-                        "Amount of micro normal perturbation.",
-                        "法線を揺らす量。");
-                    P(materialEditor, properties, "_GrainScale",
-                        "Grain Scale", "グレインのスケール",
-                        "Tiling of the grain pattern.",
-                        "グレインのタイリング。");
-
-                    DrawBlueNoiseWarning(properties, noise);
-                }
-            }
-
-            // ===== Specular and Reflection =====
-            if (Section("specular", false, "Specular and Reflection", "ハイライトと映り込み",
-                "Dual-lobe specular highlights and optional MatCap.",
-                "2種類のハイライトと、MatCapによる擬似的な映り込みです。"))
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    var specMask = FindProperty("_SpecularMask", properties, false);
-                    if (specMask != null)
-                        materialEditor.TexturePropertySingleLine(
-                            Label("Specular Mask (R)", "スペキュラマスク (R)",
-                                  "R channel masks where specular appears.",
-                                  "Rチャンネルでスペキュラの出る場所を制御します。"),
-                            specMask);
-
-                    SubHeader("Primary (Sharp)", "Primary（シャープ）");
-                    P(materialEditor, properties, "_SpecularColor", "Color", "色",
-                        "Primary (sharp) highlight color.", "鋭いハイライトの色。");
-                    P(materialEditor, properties, "_Smoothness", "Smoothness", "なめらかさ",
-                        "Higher = sharper and smaller highlight.", "大きいほど鋭く小さいハイライト。");
-                    P(materialEditor, properties, "_SpecularIntensity", "Intensity", "強度",
-                        "Primary highlight strength.", "鋭いハイライトの強さ。");
-                    // Primary用リミッター
-                    P(materialEditor, properties, "_PriSpecularLightLimit", "Light Limit", "明るさ上限",
-                        "Limits maximum highlight brightness to control bloom.", "明るさの上限。過剰なブルーム（発光）を抑えます。");
-
-                    SubHeader("Secondary (Matte)", "Secondary（マット）");
-                    P(materialEditor, properties, "_SecSpecularColor", "Color", "色",
-                        "Secondary (broad, matte) highlight color.", "広く柔らかいハイライトの色。");
-                    P(materialEditor, properties, "_SecSmoothness", "Smoothness", "なめらかさ",
-                        "Lower = broader, softer highlight.", "小さいほど広く柔らかいハイライト。");
-                    P(materialEditor, properties, "_SecSpecularIntensity", "Intensity", "強度",
-                        "Secondary highlight strength.", "柔らかいハイライトの強さ。");
-                    // Secondary用リミッター
-                    P(materialEditor, properties, "_SecSpecularLightLimit", "Light Limit", "明るさ上限",
-                        "Limits maximum brightness to prevent sweaty/plastic look.", "明るさの上限。過剰なテカリ（汗だく感）を抑えます。");
-
-                    SubHeader("MatCap", "MatCap");
-                    P(materialEditor, properties, "_UseMatCap",
-                        "Enable MatCap", "MatCapを使う",
-                        "Pseudo reflection sampled from the view-space normal.",
-                        "ビュー空間の法線でテクスチャを引く擬似反射。");
-                    if (PropOn(properties, "_UseMatCap"))
-                    {
-                        using (new EditorGUI.IndentLevelScope())
+                        if (PropOn(properties, "_AlphaClip"))
                         {
-                            P(materialEditor, properties, "_MatCapBlend",
-                                "Blend Mode", "合成モード",
-                                "Add = adds gloss. Multiply = tints/shades.",
-                                "Add = 光沢を加算 / Multiply = 乗算で陰影付け。");
-                            var matcap = FindProperty("_MatCapTex", properties, false);
-                            if (matcap != null)
-                                materialEditor.TexturePropertySingleLine(
-                                    Label("MatCap Texture (RGB)", "MatCapテクスチャ (RGB)",
-                                          "Sphere-mapped reflection texture.",
-                                          "球状にマッピングされる映り込みテクスチャ。"),
-                                    matcap);
-                            P(materialEditor, properties, "_MatCapColor", "Tint", "色",
-                                "MatCap color tint.", "MatCapの色味。");
-                            P(materialEditor, properties, "_MatCapIntensity", "Intensity", "強度",
-                                "MatCap strength.", "MatCapの強さ。");
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_Cutoff", "Alpha Cutoff", "Alpha Cutoff", "", "クリッピングの閾値");
+                            }
                         }
                     }
                 }
             }
 
-            // ===== Optional Effects =====
-            if (Section("optional", false, "Optional Effects", "追加効果",
-                "Extra effects. Set Intensity to 0 to fully disable (its cost is also skipped).",
-                "オン/オフできる追加の効果です。強度を0にすると無効になり、負荷もかかりません。"))
+            // ===== 1.5. Stencil Options =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                using (new EditorGUI.IndentLevelScope())
+                if (Section("stencil", false, "Stencil", "Stencil", "", ""))
                 {
-                    SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
-                    P(materialEditor, properties, "_SSSColor", "Color", "色",
-                        "Transmission tint. White uses the light color as-is; reddish gives a skin look.",
-                        "透過の色。白なら光源色そのまま、赤系で肌の透け感。");
-                    P(materialEditor, properties, "_SSSIntensity", "Intensity (0 = Off)", "強度 (0でOFF)",
-                        "Subsurface scattering strength.", "表面下散乱の強さ。");
-                    if (PropPositive(properties, "_SSSIntensity"))
+                    using (new EditorGUI.IndentLevelScope())
                     {
-                        using (new EditorGUI.IndentLevelScope())
-                        {
-                            P(materialEditor, properties, "_SSSPower", "Falloff", "減衰",
-                                "Backlight falloff sharpness.", "逆光の減衰の鋭さ。");
-                            P(materialEditor, properties, "_SSSDistortion", "Distortion", "歪み",
-                                "Distorts the transmission direction by the normal.", "法線で透過方向を歪ませます。");
-                        }
-                    }
-
-                    SubHeader("Peach Fuzz (Soft Edge Sheen)", "Peach Fuzz（縁の柔らかい光沢）");
-                    P(materialEditor, properties, "_FuzzColor", "Color", "色",
-                        "Soft edge sheen color (velvet-like).", "縁の柔らかい光沢の色（ベルベット風）。");
-                    P(materialEditor, properties, "_FuzzIntensity", "Intensity (0 = Off)", "強度 (0でOFF)",
-                        "Peach fuzz strength.", "ピーチファズの強さ。");
-                    if (PropPositive(properties, "_FuzzIntensity"))
-                    {
-                        using (new EditorGUI.IndentLevelScope())
-                            P(materialEditor, properties, "_FuzzPower", "Width", "幅",
-                                "Width of the soft edge sheen.", "縁の光沢の幅。");
-                    }
-
-                    SubHeader("Rim Light", "Rim Light（リムライト）");
-                    P(materialEditor, properties, "_RimColor", "Color", "色",
-                        "Rim (edge) light color.", "リム（輪郭）の光の色。");
-                    P(materialEditor, properties, "_RimIntensity", "Intensity (0 = Off)", "強度 (0でOFF)",
-                        "Rim light strength.", "リムライトの強さ。");
-                    if (PropPositive(properties, "_RimIntensity"))
-                    {
-                        using (new EditorGUI.IndentLevelScope())
-                            P(materialEditor, properties, "_RimPower", "Thickness", "太さ",
-                                "Thickness of the rim band.", "リムの太さ。");
+                        P(materialEditor, properties, "_StencilRef", "Stencil Ref", "Stencil Ref", "", "ステンシルの参照値 (0-255)");
+                        P(materialEditor, properties, "_StencilComp", "Compare Function", "Compare Function", "", "ステンシルテストの比較条件 (Always, Equal, NotEqual など)");
+                        P(materialEditor, properties, "_StencilPass", "Pass Operation", "Pass Operation", "", "テスト通過時の処理 (Keep, Replace など)");
+                        P(materialEditor, properties, "_StencilFail", "Fail Operation", "Fail Operation", "", "ステンシルテスト失敗時の処理");
+                        P(materialEditor, properties, "_StencilZFail", "ZFail Operation", "ZFail Operation", "", "ステンシルテスト成功、かつZテスト失敗時の処理");
                     }
                 }
             }
 
-            // ===== Advanced =====
-            if (Section("advanced", false, "Advanced Options", "高度な設定",
-                "Standard rendering options.",
-                "Unity標準のレンダリング設定です。"))
+            // ===== 2. Base Core =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                using (new EditorGUI.IndentLevelScope())
+                if (Section("base", true, "Base Core", "基本設定", "", ""))
                 {
-                    materialEditor.RenderQueueField();
-                    materialEditor.EnableInstancingField();
-                    materialEditor.DoubleSidedGIField();
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        var mainTex = FindProperty("_MainTex", properties, false);
+                        var baseColor = FindProperty("_BaseColor", properties, false);
+                        if (mainTex != null)
+                        {
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Base Map (RGB / Alpha)", "ベースマップ (RGB/Alpha)", "", ""),
+                                mainTex, baseColor);
+                            materialEditor.TextureScaleOffsetProperty(mainTex);
+                        }
+                    }
+                }
+            }
+
+            // ===== 3. Auto Shadow Fix =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("shadowfix", true, "Auto Shadow Fix", "影補正", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        P(materialEditor, properties, "_FrontMaskStrength", "Front Brightness", "正面の明るさ", "", "");
+                        P(materialEditor, properties, "_UpMaskStrength", "Up Brightness", "上向きの明るさ", "", "");
+                        P(materialEditor, properties, "_MaskFalloff", "Erase Breadth", "補正の範囲", "", "");
+                        P(materialEditor, properties, "_BacklightPreserve", "Backlight Preserve", "逆光時の陰を維持", "", "");
+                        P(materialEditor, properties, "_FaceNormalSmoothness", "Normal Smoothing", "法線のならし", "", "");
+                    }
+                }
+            }
+
+            // ===== 4. Light and Shadow =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("light", true, "Light and Shadow", "ライトと影", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        P(materialEditor, properties, "_ShadingStyle", "Shading Style", "シェーディング", "", "");
+                        P(materialEditor, properties, "_ShadowColor", "Shadow Color", "影の色", "", "");
+
+                        var recvMask = FindProperty("_ReceiveShadowMask", properties, false);
+                        if (recvMask != null)
+                            materialEditor.TexturePropertySingleLine(Label("Receive Shadow Mask (R)", "落ち影マスク (R)", "", ""), recvMask);
+                        
+                        P(materialEditor, properties, "_ReceiveShadowStrength", "Receive Strength", "落ち影の強さ", "", "");
+                        P(materialEditor, properties, "_ShadowMapSoftness", "Shadow Softness", "落ち影のソフトさ", "", "");
+                        P(materialEditor, properties, "_ShadowDither", "Shadow Dither", "影のディザ", "", "");
+                        P(materialEditor, properties, "_HalfLambertWrap", "Light Wrap", "ライトラップ", "", "");
+
+                        if (IsToon(properties))
+                        {
+                            EditorGUILayout.Space(2);
+                            P(materialEditor, properties, "_ToonStep", "Toon Threshold", "トゥーン境界位置", "", "");
+                            P(materialEditor, properties, "_ToonFeather", "Toon Softness", "トゥーン境界の柔らかさ", "", "");
+                        }
+
+                        SubHeader("Anti-Blowout", "白飛び防止");
+                        P(materialEditor, properties, "_DiffuseLightLimit", "Diffuse Light Limit", "ベース明るさ上限", "", "");
+                    }
+                }
+            }
+
+            // ===== 5. Surface Micro Detail =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("detail", false, "Surface Micro Detail", "表面の質感", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        var noise = FindProperty("_BlueNoiseTex", properties, false);
+                        if (noise != null)
+                            materialEditor.TexturePropertySingleLine(Label("Micro Grain (Blue Noise)", "グレイン (ブルーノイズ)", "", ""), noise);
+                        
+                        P(materialEditor, properties, "_GrainIntensity", "Grain Intensity", "グレイン強度", "", "");
+                        P(materialEditor, properties, "_GrainScale", "Grain Scale", "グレインのスケール", "", "");
+                    }
+                }
+            }
+
+            // ===== 6. Specular and Reflection =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("specular", false, "Specular and Reflection", "ハイライトと映り込み", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        var specMask = FindProperty("_SpecularMask", properties, false);
+                        if (specMask != null)
+                            materialEditor.TexturePropertySingleLine(Label("Specular Mask (R)", "スペキュラマスク (R)", "", ""), specMask);
+
+                        SubHeader("Primary (Sharp)", "Primary（シャープ）");
+                        P(materialEditor, properties, "_SpecularColor", "Color", "色", "", "");
+                        P(materialEditor, properties, "_Smoothness", "Smoothness", "なめらかさ", "", "");
+                        P(materialEditor, properties, "_SpecularIntensity", "Intensity", "強度", "", "");
+                        P(materialEditor, properties, "_PriSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
+
+                        SubHeader("Secondary (Matte)", "Secondary（マット）");
+                        P(materialEditor, properties, "_SecSpecularColor", "Color", "色", "", "");
+                        P(materialEditor, properties, "_SecSmoothness", "Smoothness", "なめらかさ", "", "");
+                        P(materialEditor, properties, "_SecSpecularIntensity", "Intensity", "強度", "", "");
+                        P(materialEditor, properties, "_SecSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
+
+                        SubHeader("MatCap", "MatCap");
+                        P(materialEditor, properties, "_UseMatCap", "Enable MatCap", "MatCapを使う", "", "");
+                        if (PropOn(properties, "_UseMatCap"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_MatCapBlend", "Blend Mode", "合成モード", "", "");
+                                var matcap = FindProperty("_MatCapTex", properties, false);
+                                if (matcap != null)
+                                    materialEditor.TexturePropertySingleLine(Label("MatCap Texture (RGB)", "MatCapテクスチャ (RGB)", "", ""), matcap);
+                                P(materialEditor, properties, "_MatCapColor", "Tint", "色", "", "");
+                                P(materialEditor, properties, "_MatCapIntensity", "Intensity", "強度", "", "");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== 7. Emission =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("emission", false, "Emission", "発光", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        P(materialEditor, properties, "_UseEmission", "Enable Emission", "発光を有効にする", "", "");
+                        
+                        if (PropOn(properties, "_UseEmission"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                var emTex = FindProperty("_EmissionMap", properties, false);
+                                var emColor = FindProperty("_EmissionColor", properties, false);
+
+                                if (emTex != null && emColor != null)
+                                {
+                                    materialEditor.TexturePropertySingleLine(
+                                        Label("Emission Map & Color", "発光マップと色 (HDR)", "", ""),
+                                        emTex, emColor);
+                                }
+                                
+                                P(materialEditor, properties, "_EmissionIntensity", "Intensity", "発光の強度", "", "");
+                                materialEditor.LightmapEmissionProperty();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== 8. Dissolve =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("dissolve", false, "Dissolve", "Dissolve (消失エフェクト)", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        P(materialEditor, properties, "_UseDissolve", "Enable Dissolve", "Enable Dissolve", "", "ディゾルブ（消失）エフェクトを有効にします");
+                        
+                        if (PropOn(properties, "_UseDissolve"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_DissolveAmount", "Dissolve Amount", "Dissolve Amount", "", "0で完全表示、1で完全消失");
+                                P(materialEditor, properties, "_DissolveInvert", "Invert Dissolve", "Invert Dissolve", "", "チェックを入れると消失方向（条件）が逆転します");
+                                P(materialEditor, properties, "_DissolveType", "Dissolve Axis", "Dissolve Axis", "", "None=テクスチャのみ, WorldY=空間のY座標, LocalY=モデルのY座標");
+                                
+                                var typeProp = FindProperty("_DissolveType", properties, false);
+                                if (typeProp != null && typeProp.floatValue > 0.5f) // None以外
+                                {
+                                    P(materialEditor, properties, "_DissolveStartY", "Start Y (Height)", "Start Y (Height)", "", "フェードが始まるY座標");
+                                    P(materialEditor, properties, "_DissolveEndY", "End Y (Height)", "End Y (Height)", "", "フェードが終わるY座標");
+                                }
+
+                                EditorGUILayout.Space(2);
+                                var disTex = FindProperty("_DissolveTex", properties, false);
+                                if (disTex != null)
+                                {
+                                    materialEditor.TexturePropertySingleLine(Label("Dissolve Noise", "Dissolve Noise", "", "境界を揺らすためのノイズテクスチャ"), disTex);
+                                }
+                                P(materialEditor, properties, "_DissolveNoiseScale", "Noise Scale", "Noise Scale", "", "ノイズの細かさ");
+                                P(materialEditor, properties, "_DissolveNoiseStrength", "Noise Strength", "Noise Strength", "", "ノイズによる境界の揺れ幅");
+
+                                EditorGUILayout.Space(2);
+                                P(materialEditor, properties, "_DissolveEdgeColor", "Edge Burn Color (HDR)", "Edge Burn Color (HDR)", "", "境界が燃えるような発光色");
+                                P(materialEditor, properties, "_DissolveEdgeWidth", "Edge Width", "Edge Width", "", "発光する境界線の太さ");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ===== 9. Optional Effects =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("optional", false, "Optional Effects", "追加効果", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
+                        P(materialEditor, properties, "_SSSColor", "Color", "色", "", "");
+                        P(materialEditor, properties, "_SSSIntensity", "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        if (PropPositive(properties, "_SSSIntensity"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_SSSPower", "Falloff", "減衰", "", "");
+                                P(materialEditor, properties, "_SSSDistortion", "Distortion", "歪み", "", "");
+                            }
+                        }
+
+                        SubHeader("Peach Fuzz (Soft Edge Sheen)", "Peach Fuzz（縁の柔らかい光沢）");
+                        P(materialEditor, properties, "_FuzzColor", "Color", "色", "", "");
+                        P(materialEditor, properties, "_FuzzIntensity", "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        if (PropPositive(properties, "_FuzzIntensity"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                                P(materialEditor, properties, "_FuzzPower", "Width", "幅", "", "");
+                        }
+
+                        SubHeader("Rim Light", "Rim Light（リムライト）");
+                        P(materialEditor, properties, "_RimColor", "Color", "色", "", "");
+                        P(materialEditor, properties, "_RimIntensity", "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        if (PropPositive(properties, "_RimIntensity"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                                P(materialEditor, properties, "_RimPower", "Thickness", "太さ", "", "");
+                        }
+                    }
+                }
+            }
+
+            // ===== 10. Advanced =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("advanced", false, "Advanced Options", "高度な設定", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        // RenderQueue は Surface Options に移動したため、ここは標準オプションのみ
+                        materialEditor.EnableInstancingField();
+                        materialEditor.DoubleSidedGIField();
+                    }
                 }
             }
         }
 
         // ---------------------------------------------------------------------
-        // UI ヘルパー
+        // UI ヘルパー群
         // ---------------------------------------------------------------------
-
-        void LoadPrefs()
+        private void LoadPrefs()
         {
             if (_prefsLoaded) return;
             _jp = EditorPrefs.GetBool(LangKey, Application.systemLanguage == SystemLanguage.Japanese);
@@ -339,8 +350,7 @@ namespace Origuma.EasyPBR.URP.Editor
             _prefsLoaded = true;
         }
 
-        // 上部の言語切替・説明表示トグル
-        void DrawToolbar()
+        private void DrawToolbar()
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
             {
@@ -348,7 +358,7 @@ namespace Origuma.EasyPBR.URP.Editor
                 GUILayout.FlexibleSpace();
 
                 EditorGUI.BeginChangeCheck();
-                int uiMode = EditorGUILayout.Popup(_useCustomUI ? 0 : 1,
+                var uiMode = EditorGUILayout.Popup(_useCustomUI ? 0 : 1,
                     _jp ? new[] { "カスタム", "デフォルト" } : new[] { "Custom", "Default" },
                     GUILayout.Width(90));
                 if (EditorGUI.EndChangeCheck())
@@ -358,7 +368,7 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
 
                 EditorGUI.BeginChangeCheck();
-                int lang = EditorGUILayout.Popup(_jp ? 1 : 0, new[] { "English", "日本語" }, GUILayout.Width(90));
+                var lang = EditorGUILayout.Popup(_jp ? 1 : 0, new[] { "English", "日本語" }, GUILayout.Width(90));
                 if (EditorGUI.EndChangeCheck())
                 {
                     _jp = lang == 1;
@@ -366,7 +376,7 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
 
                 EditorGUI.BeginChangeCheck();
-                bool help = GUILayout.Toggle(_showHelp, _jp ? "説明" : "Help", "Button", GUILayout.Width(60));
+                var help = GUILayout.Toggle(_showHelp, _jp ? "説明" : "Help", "Button", GUILayout.Width(60));
                 if (EditorGUI.EndChangeCheck())
                 {
                     _showHelp = help;
@@ -375,27 +385,24 @@ namespace Origuma.EasyPBR.URP.Editor
             }
         }
 
-        // 折りたたみセクション。色付きのヘッダーバーで視認性を上げる。
-        // バー全体クリックで開閉し、状態は EditorPrefs に保存。開いていて説明ONなら概要を表示。
-        bool Section(string id, bool defaultOpen, string titleEn, string titleJp, string descEn, string descJp)
+        private bool Section(string id, bool defaultOpen, string titleEn, string titleJp, string descEn, string descJp)
         {
-            string key = KeyPrefix + "fold." + id;
-            bool open = EditorPrefs.GetBool(key, defaultOpen);
+            var key = KeyPrefix + "fold." + id;
+            var open = EditorPrefs.GetBool(key, defaultOpen);
 
-            EditorGUILayout.Space(6);
-
-            Rect rect = EditorGUILayout.GetControlRect(false, 24f);
-            bool isPro = EditorGUIUtility.isProSkin;
-            Color barColor = isPro ? new Color(0.26f, 0.26f, 0.28f) : new Color(0.74f, 0.74f, 0.76f);
+            var rect = EditorGUILayout.GetControlRect(false, 24f);
+            var isPro = EditorGUIUtility.isProSkin;
+            
+            var barColor = isPro ? new Color(0.22f, 0.22f, 0.24f) : new Color(0.78f, 0.78f, 0.80f);
             EditorGUI.DrawRect(rect, barColor);
-            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), new Color(0f, 0f, 0f, 0.25f));
+            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), new Color(0f, 0f, 0f, 0.15f));
 
             var arrowRect = new Rect(rect.x + 6f, rect.y + 3f, 14f, 18f);
             EditorGUI.LabelField(arrowRect, open ? "\u25BC" : "\u25B6");
             var titleRect = new Rect(rect.x + 22f, rect.y + 3f, rect.width - 26f, 18f);
             EditorGUI.LabelField(titleRect, _jp ? titleJp : titleEn, EditorStyles.boldLabel);
 
-            Event e = Event.current;
+            var e = Event.current;
             if (e.type == EventType.MouseDown && rect.Contains(e.mousePosition))
             {
                 open = !open;
@@ -403,29 +410,31 @@ namespace Origuma.EasyPBR.URP.Editor
                 e.Use();
             }
 
-            if (open && _showHelp)
+            if (open && _showHelp && !string.IsNullOrEmpty(descJp))
+            {
+                EditorGUILayout.Space(2);
                 EditorGUILayout.HelpBox(_jp ? descJp : descEn, MessageType.None);
+            }
+
+            if (open) EditorGUILayout.Space(4);
 
             return open;
         }
 
-        // 小見出し（区切り線 + 太字ラベル）。セクション内のグループ分けを見やすくする。
-        void SubHeader(string en, string jp)
+        private void SubHeader(string en, string jp)
         {
             EditorGUILayout.Space(4);
-            Rect r = EditorGUILayout.GetControlRect(false, 1f);
-            EditorGUI.DrawRect(r, new Color(0.5f, 0.5f, 0.5f, 0.4f));
+            var r = EditorGUILayout.GetControlRect(false, 1f);
+            EditorGUI.DrawRect(r, new Color(0.5f, 0.5f, 0.5f, 0.2f));
             EditorGUILayout.LabelField(_jp ? jp : en, EditorStyles.miniBoldLabel);
         }
 
-        // ローカライズ済み GUIContent（ラベル＋ツールチップ）を生成
-        GUIContent Label(string lblEn, string lblJp, string tipEn, string tipJp)
+        private GUIContent Label(string lblEn, string lblJp, string tipEn, string tipJp)
         {
             return new GUIContent(_jp ? lblJp : lblEn, _jp ? tipJp : tipEn);
         }
 
-        // プロパティが存在すれば、ローカライズラベルで標準ドロワー描画
-        void P(MaterialEditor editor, MaterialProperty[] props, string name,
+        private void P(MaterialEditor editor, MaterialProperty[] props, string name,
                string lblEn, string lblJp, string tipEn, string tipJp)
         {
             var p = FindProperty(name, props, false);
@@ -433,42 +442,22 @@ namespace Origuma.EasyPBR.URP.Editor
             editor.ShaderProperty(p, Label(lblEn, lblJp, tipEn, tipJp));
         }
 
-        // ブルーノイズ未設定なのに Grain/Dither を使っている場合の警告
-        void DrawBlueNoiseWarning(MaterialProperty[] props, MaterialProperty noise)
-        {
-            bool assigned = noise != null && noise.textureValue != null;
-            if (assigned) return;
-
-            bool usesNoise = PropPositive(props, "_GrainIntensity") || PropPositive(props, "_ShadowDither");
-            if (!usesNoise) return;
-
-            EditorGUILayout.HelpBox(
-                _jp
-                    ? "Blue Noise が未設定です。Grain / Shadow Dither はブルーノイズが無いと効きません。本パッケージ同梱の BlueNoise_RGB_256 を割り当ててください。"
-                    : "No Blue Noise texture assigned. Grain / Shadow Dither will not work without one. Assign the bundled BlueNoise_RGB_256.",
-                MessageType.Warning);
-        }
-
-        // ---------------------------------------------------------------------
-        // 値ヘルパー（キーワード更新の遅延を避けるため float 値で判定）
-        // ---------------------------------------------------------------------
-
-        static bool PropOn(MaterialProperty[] props, string name)
+        private static bool PropOn(MaterialProperty[] props, string name)
         {
             var p = FindProperty(name, props, false);
             return p != null && p.floatValue > 0.5f;
         }
 
-        static bool PropPositive(MaterialProperty[] props, string name)
+        private static bool PropPositive(MaterialProperty[] props, string name)
         {
             var p = FindProperty(name, props, false);
             return p != null && p.floatValue > 0f;
         }
 
-        static bool IsToon(MaterialProperty[] props)
+        private static bool IsToon(MaterialProperty[] props)
         {
             var p = FindProperty("_ShadingStyle", props, false);
-            return p != null && p.floatValue >= 0.5f; // KeywordEnum(Smooth=0, Toon=1)
+            return p != null && p.floatValue >= 0.5f; 
         }
     }
 }
