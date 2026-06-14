@@ -26,7 +26,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 return;
             }
 
-            // ===== 1. Surface Options =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -34,6 +33,9 @@ namespace Origuma.EasyPBR.URP.Editor
                 {
                     using (new EditorGUI.IndentLevelScope())
                     {
+                        DrawRenderModeSetup(materialEditor, properties);
+                        EditorGUILayout.Space(4);
+
                         P(materialEditor, properties, "_Cull", "Cull", "Cull", "", "描画する面 (Off / Front / Back)");
                         P(materialEditor, properties, "_ZWrite", "ZWrite", "ZWrite", "", "深度バッファへの書き込み (On / Off)");
                         P(materialEditor, properties, "_ZTest", "ZTest", "ZTest", "", "深度テストの条件 (LEqual: 通常, Always: 常に前面に描画 など)");
@@ -58,7 +60,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 1.5. Stencil Options =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -75,7 +76,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 2. Base Core =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -96,7 +96,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 3. Auto Shadow Fix =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -113,7 +112,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 4. Light and Shadow =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -146,7 +144,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 5. Surface Micro Detail =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -164,7 +161,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 6. Specular and Reflection =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -206,7 +202,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 7. Emission =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -238,7 +233,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
-            // ===== 8. Dissolve =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -273,15 +267,16 @@ namespace Origuma.EasyPBR.URP.Editor
                                 P(materialEditor, properties, "_DissolveNoiseStrength", "Noise Strength", "Noise Strength", "", "ノイズによる境界の揺れ幅");
 
                                 EditorGUILayout.Space(2);
-                                P(materialEditor, properties, "_DissolveEdgeColor", "Edge Burn Color (HDR)", "Edge Burn Color (HDR)", "", "境界が燃えるような発光色");
+                                P(materialEditor, properties, "_DissolveEdgeColor", "Edge Outer Color (HDR)", "エッジ外側の色 (HDR)", "", "消失の最前線の輝き");
+                                P(materialEditor, properties, "_DissolveEdgeColor2", "Edge Inner Color (HDR)", "エッジ内側の色 (HDR)", "", "少し内側のグラデーション色");
                                 P(materialEditor, properties, "_DissolveEdgeWidth", "Edge Width", "Edge Width", "", "発光する境界線の太さ");
+                                P(materialEditor, properties, "_DissolveEdgeStep", "Step Edge (Toon Style)", "エッジの段階化 (Toon調)", "", "チェックを入れるとグラデーションがパキッとした階調（層）になります");
                             }
                         }
                     }
                 }
             }
 
-            // ===== 9. Optional Effects =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -316,13 +311,12 @@ namespace Origuma.EasyPBR.URP.Editor
                         if (PropPositive(properties, "_RimIntensity"))
                         {
                             using (new EditorGUI.IndentLevelScope())
-                                P(materialEditor, properties, "_RimPower", "Thickness", "太さ", "", "");
+                                P(materialEditor, properties, "_RimThickness", "Thickness", "太さ", "", "");
                         }
                     }
                 }
             }
 
-            // ===== 10. Advanced =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -330,7 +324,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 {
                     using (new EditorGUI.IndentLevelScope())
                     {
-                        // RenderQueue は Surface Options に移動したため、ここは標準オプションのみ
                         materialEditor.EnableInstancingField();
                         materialEditor.DoubleSidedGIField();
                     }
@@ -338,9 +331,73 @@ namespace Origuma.EasyPBR.URP.Editor
             }
         }
 
-        // ---------------------------------------------------------------------
-        // UI ヘルパー群
-        // ---------------------------------------------------------------------
+        private void DrawRenderModeSetup(MaterialEditor materialEditor, MaterialProperty[] properties)
+        {
+            var surfaceProp = FindProperty("_SurfaceTransparent", properties, false);
+            var alphaClipProp = FindProperty("_AlphaClip", properties, false);
+            if (surfaceProp == null || alphaClipProp == null) return;
+
+            int currentMode = 0; // 0: Opaque, 1: Cutout, 2: Transparent
+            if (surfaceProp.floatValue > 0.5f) currentMode = 2;
+            else if (alphaClipProp.floatValue > 0.5f) currentMode = 1;
+
+            EditorGUI.BeginChangeCheck();
+            string[] modesJp = { "Opaque (不透明)", "Cutout (くり抜き)", "Transparent (半透明)" };
+            string[] modesEn = { "Opaque", "Cutout", "Transparent" };
+            
+            var lbl = Label("Render Mode (Preset)", "Render Mode (プリセット)", "Sets Queue, Blend, ZWrite automatically", "一括で半透明用の設定に切り替えます");
+            int newMode = EditorGUILayout.Popup(lbl, currentMode, _jp ? modesJp : modesEn);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                materialEditor.RegisterPropertyChangeUndo("Render Mode Setup");
+                foreach (Material mat in materialEditor.targets)
+                {
+                    SetupRenderMode(mat, newMode);
+                }
+            }
+        }
+
+        private void SetupRenderMode(Material mat, int mode)
+        {
+            switch (mode)
+            {
+                case 0: // Opaque (不透明)
+                    mat.SetFloat("_SurfaceTransparent", 0f);
+                    mat.SetFloat("_AlphaClip", 0f);
+                    mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                    mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+                    mat.SetFloat("_ZWrite", 1f);
+                    mat.renderQueue = 2000; // Geometry
+                    mat.SetOverrideTag("RenderType", "Opaque");
+                    mat.DisableKeyword("_SURFACE_TRANSPARENT");
+                    mat.DisableKeyword("_ALPHATEST_ON");
+                    break;
+                case 1: // Cutout (くり抜き - 髪や葉っぱ)
+                    mat.SetFloat("_SurfaceTransparent", 0f);
+                    mat.SetFloat("_AlphaClip", 1f);
+                    mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                    mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+                    mat.SetFloat("_ZWrite", 1f);
+                    mat.renderQueue = 2450; // AlphaTest
+                    mat.SetOverrideTag("RenderType", "TransparentCutout");
+                    mat.DisableKeyword("_SURFACE_TRANSPARENT");
+                    mat.EnableKeyword("_ALPHATEST_ON");
+                    break;
+                case 2: // Transparent (半透明ブレンド - ほっぺのチークやガラス)
+                    mat.SetFloat("_SurfaceTransparent", 1f);
+                    mat.SetFloat("_AlphaClip", 0f);
+                    mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    mat.SetFloat("_ZWrite", 0f); // 半透明なのでZWriteはOff
+                    mat.renderQueue = 3000; // Transparent
+                    mat.SetOverrideTag("RenderType", "Transparent");
+                    mat.EnableKeyword("_SURFACE_TRANSPARENT");
+                    mat.DisableKeyword("_ALPHATEST_ON");
+                    break;
+            }
+        }
+
         private void LoadPrefs()
         {
             if (_prefsLoaded) return;

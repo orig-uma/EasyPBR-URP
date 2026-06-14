@@ -1,0 +1,118 @@
+﻿// =============================================================================
+//  EasyPBR_Effects.hlsl
+//  ライティングに依存しない汎用エフェクト処理 (Dissolve, MatCap, Emission)
+// =============================================================================
+#ifndef EASYPBR_EFFECTS_INCLUDED
+#define EASYPBR_EFFECTS_INCLUDED
+
+// -----------------------------------------------------------------------------
+// [Dissolve] 消失エフェクトの判定とClip処理
+// ForwardとShadowの両方から呼ばれる共通ロジック
+// -----------------------------------------------------------------------------
+void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 normalWS, inout half3 albedo, out half3 dissolveEmission)
+{
+    dissolveEmission = half3(0, 0, 0);
+
+    #if defined(_DISSOLVE_ON)
+        float dissolveNoise = 0.5;
+        float dissolveGrad = 0.5;
+
+        #if defined(_DISSOLVETYPE_WORLDY)
+            // 面の向き（絶対値）を取得して、どの方向からの投影を強くするか決める
+            float3 blendWeights = abs(normalWS);
+            blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
+
+            // X, Y, Z の3方向からノイズをサンプリング
+            float noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
+            float noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
+            float noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
+
+            // 重みに合わせてブレンド（これでどの角度から見ても歪まない空間ノイズになる）
+            dissolveNoise = noiseX * blendWeights.x + noiseY * blendWeights.y + noiseZ * blendWeights.z;
+            
+            dissolveGrad = saturate((positionWS.y - _DissolveStartY) / (_DissolveEndY - _DissolveStartY + 0.0001));
+
+        #else
+            // LocalY や None のモード：従来通りモデル固有のUVを使う
+            dissolveNoise = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, uv * _DissolveNoiseScale).r;
+
+            #if defined(_DISSOLVETYPE_LOCALY)
+                dissolveGrad = saturate((positionOS.y - _DissolveStartY) / (_DissolveEndY - _DissolveStartY + 0.0001));
+            #endif
+        #endif
+
+        float dissolveVal = dissolveGrad;
+        #if defined(_DISSOLVETYPE_NONE)
+            dissolveVal = dissolveNoise;
+        #else
+            dissolveVal = dissolveGrad + (dissolveNoise - 0.5) * _DissolveNoiseStrength;
+        #endif
+
+        float dMin = -0.5 * _DissolveNoiseStrength;
+        float dMax = 1.0 + 0.5 * _DissolveNoiseStrength;
+        #if defined(_DISSOLVETYPE_NONE)
+            dMin = 0.0;
+            dMax = 1.0;
+        #endif
+        
+        float adjustedAmount = lerp(dMin - _DissolveEdgeWidth - 0.01, dMax + _DissolveEdgeWidth + 0.01, _DissolveAmount);
+        float clipVal = dissolveVal - adjustedAmount;
+        
+        #if defined(_DISSOLVE_INVERT)
+            clipVal = -clipVal;
+        #endif
+        
+        // 閾値未満ならピクセルを破棄
+        clip(clipVal);
+        
+        // 境界のマスク（1.0が消失の最前線、0.0がマテリアル内部）
+        float dissolveEdgeMask = smoothstep(0.0, _DissolveEdgeWidth + 0.0001, clipVal);
+        float edgeFactor = 1.0 - dissolveEdgeMask;
+        
+        // 段階的な階調化（Toon調エッジの設定がONの場合）
+        if (_DissolveEdgeStep > 0.5)
+        {
+            edgeFactor = ceil(edgeFactor * 2.0) / 2.0 * step(0.01, edgeFactor);
+        }
+
+        albedo = lerp(albedo, _DissolveEdgeColor2.rgb, edgeFactor);
+
+        float emissionMask = smoothstep(0.5, 1.0, edgeFactor);
+        if (_DissolveEdgeStep > 0.5)
+        {
+             emissionMask = step(0.9, edgeFactor); 
+        }
+        
+        dissolveEmission = _DissolveEdgeColor.rgb * emissionMask;
+    #endif
+}
+
+// -----------------------------------------------------------------------------
+// [MatCap] UV取得と適用
+// -----------------------------------------------------------------------------
+float2 GetMatCapUV(half3 normalWS)
+{
+    float3 normalVS = mul((float3x3)GetWorldToViewMatrix(), normalWS);
+    return normalVS.xy * 0.5 + 0.5;
+}
+
+half3 ApplyMatCap(half3 finalColor, half3 matcapColor, float matcapIntensity)
+{
+#if defined(_MATCAPBLEND_ADD)
+    return finalColor + matcapColor * matcapIntensity;
+#elif defined(_MATCAPBLEND_MULTIPLY)
+    return finalColor * lerp(half3(1.0, 1.0, 1.0), matcapColor, saturate(matcapIntensity));
+#else
+    return finalColor;
+#endif
+}
+
+// -----------------------------------------------------------------------------
+// [Emission] 自己発光
+// -----------------------------------------------------------------------------
+half3 CalculateEmission(half3 emissionMapColor, half3 emissionColor, float emissionIntensity)
+{
+    return emissionMapColor * emissionColor * emissionIntensity;
+}
+
+#endif // EASYPBR_EFFECTS_INCLUDED
