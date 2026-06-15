@@ -8,7 +8,8 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
 // --- テクスチャ宣言 ---
-TEXTURE2D(_MainTex);            SAMPLER(sampler_MainTex);
+TEXTURE2D(_MainTex);
+SAMPLER(sampler_MainTex);
 TEXTURE2D(_EmissionMap);
 TEXTURE2D(_DissolveTex);
 TEXTURE2D(_MatCapTex);

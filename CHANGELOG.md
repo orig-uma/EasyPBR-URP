@@ -7,6 +7,9 @@
 
 このパッケージの変更点を記録します。フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠し、バージョンは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [0.2.1] - 2026-06-15
+- シェーダー記述ミスによるコンパイルエラー修正
+
 ## [0.2.0] - 2026-06-15
 
 ### Added
