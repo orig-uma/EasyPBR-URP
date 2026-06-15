@@ -92,6 +92,13 @@ CBUFFER_START(UnityPerMaterial)
     half _SecSpecularIntensity;
     half _SecSpecularLightLimit;
 
+    half4 _AnisoColor;
+    half _AnisoThickness;
+    half _AnisoOffset;
+    half _AnisoAngle;
+    half _AnisoStrandScale;
+    half _AnisoStrandStrength;
+
     half4 _SSSColor;
     half _SSSIntensity;
     half _SSSPower;

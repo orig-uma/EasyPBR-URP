@@ -184,6 +184,21 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, properties, "_SecSpecularIntensity", "Intensity", "強度", "", "");
                         P(materialEditor, properties, "_SecSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
 
+                        SubHeader("Anisotropic (Hair / Silk)", "異方性ハイライト (髪 / シルク)");
+                        P(materialEditor, properties, "_AnisoColor", "Color (A=0 is Off)", "色 (アルファ0で無効)", "", "アルファ値を0にすると計算自体がスキップされます");
+                        var anisoColorProp = FindProperty("_AnisoColor", properties, false);
+                        if (anisoColorProp != null && anisoColorProp.colorValue.a > 0f)
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_AnisoThickness", "Thickness", "太さ", "", "");
+                                P(materialEditor, properties, "_AnisoOffset", "Position Offset", "位置のズレ", "", "");
+                                P(materialEditor, properties, "_AnisoAngle", "Angle", "角度 (向き)", "", "");
+                                P(materialEditor, properties, "_AnisoStrandScale", "Strand Scale", "繊維の細かさ", "", "数値を上げるほど毛束が細かくなります");
+                                P(materialEditor, properties, "_AnisoStrandStrength", "Strand Strength", "繊維の凹凸感", "", "ハイライトが毛束に沿ってギザギザに割れます");
+                            }
+                        }
+
                         SubHeader("MatCap", "MatCap");
                         P(materialEditor, properties, "_UseMatCap", "Enable MatCap", "MatCapを使う", "", "");
                         if (PropOn(properties, "_UseMatCap"))
