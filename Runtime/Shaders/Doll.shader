@@ -126,6 +126,12 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _RimColor ("Rim Light Color", Color) = (1, 1, 1, 1)
         _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 1.0
         _RimThickness ("Rim Light Thickness", Range(0.0, 1.0)) = 0.2
+
+        // --- アウトライン ---
+        [Header(Outline)]
+        [Toggle] _UseOutline ("Enable Outline", Float) = 0
+        _OutlineColor ("Outline Color", Color) = (0.2, 0.1, 0.1, 1)
+        _OutlineWidth ("Outline Width", Range(0.0, 10.0)) = 1.0
     }
 
     SubShader
@@ -215,6 +221,27 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
             // 影処理を記述したパスファイルをインクルード
             #include "Doll_ShadowPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  Outline パス 
+        // =====================================================================
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode" = "SRPDefaultUnlit" } 
+            
+            Cull Front // 背面法なので
+            ZWrite On
+            
+            HLSLPROGRAM
+            #pragma vertex vert_outline
+            #pragma fragment frag_outline
+            
+            #pragma shader_feature_local _OUTLINE_ON
+
+            #include "Doll_OutlinePass.hlsl"
             ENDHLSL
         }
     }

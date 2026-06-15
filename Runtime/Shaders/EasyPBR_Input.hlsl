@@ -111,6 +111,9 @@ CBUFFER_START(UnityPerMaterial)
     half4 _RimColor;
     half _RimIntensity;
     half _RimThickness;
+
+    half4 _OutlineColor;
+    half _OutlineWidth;
 CBUFFER_END
 
 #endif // EASYPBR_INPUT_INCLUDED

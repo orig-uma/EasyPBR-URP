@@ -332,6 +332,19 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
+            // ===== 10. Outline =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("outline", false, "Outline", "アウトライン (輪郭線)", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawOutlineSetup(materialEditor, properties);
+                    }
+                }
+            }
+
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -410,6 +423,42 @@ namespace Origuma.EasyPBR.URP.Editor
                     mat.EnableKeyword("_SURFACE_TRANSPARENT");
                     mat.DisableKeyword("_ALPHATEST_ON");
                     break;
+            }
+        }
+
+        private void DrawOutlineSetup(MaterialEditor materialEditor, MaterialProperty[] properties)
+        {
+            var outlineProp = FindProperty("_UseOutline", properties, false);
+            if (outlineProp == null) return;
+
+            EditorGUI.BeginChangeCheck();
+            
+            P(materialEditor, properties, "_UseOutline", "Enable Outline", "アウトラインを有効にする", "", "");
+            bool isOutlineOn = outlineProp.floatValue > 0.5f;
+
+            if (isOutlineOn)
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    P(materialEditor, properties, "_OutlineColor", "Color", "色", "", "");
+                    P(materialEditor, properties, "_OutlineWidth", "Width", "太さ", "", "");
+                }
+            }
+
+            // チェックボックスが切り替わった時にキーワードをトグルする
+            if (EditorGUI.EndChangeCheck() || !_prefsLoaded)
+            {
+                foreach (Material mat in materialEditor.targets)
+                {
+                    if (isOutlineOn)
+                    {
+                        mat.EnableKeyword("_OUTLINE_ON");
+                    }
+                    else
+                    {
+                        mat.DisableKeyword("_OUTLINE_ON");
+                    }
+                }
             }
         }
 
