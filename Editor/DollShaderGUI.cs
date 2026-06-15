@@ -434,7 +434,7 @@ namespace Origuma.EasyPBR.URP.Editor
             EditorGUI.BeginChangeCheck();
             
             P(materialEditor, properties, "_UseOutline", "Enable Outline", "アウトラインを有効にする", "", "");
-            bool isOutlineOn = outlineProp.floatValue > 0.5f;
+            var isOutlineOn = outlineProp.floatValue > 0.5f;
 
             if (isOutlineOn)
             {
@@ -442,6 +442,20 @@ namespace Origuma.EasyPBR.URP.Editor
                 {
                     P(materialEditor, properties, "_OutlineColor", "Color", "色", "", "");
                     P(materialEditor, properties, "_OutlineWidth", "Width", "太さ", "", "");
+                    var alphaClipProp = FindProperty("_AlphaClip", properties, false);
+                    if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
+                    {
+                        EditorGUILayout.Space(2);
+                        P(materialEditor, properties, "_OutlineCutoffShift", "Cutoff Shift (Fix)", "透過エッジの補正", "", "毛先などの半透明グラデーション部分で、アウトラインが黒く太く残ってしまう現象を打ち消します");
+                    }
+
+                    EditorGUILayout.Space(4);
+                    SubHeader("Masking (Stencil)", "マスク処理 (ステンシル)");
+                    P(materialEditor, properties, "_OutlineStencilRef", "Stencil Ref", "参照値", "", "本体側のStencil Refと同じ数値を入れます");
+                    P(materialEditor, properties, "_OutlineStencilComp", "Compare Function", "比較条件", "", "NotEqualにすると、本体が描画された部分には線が描かれなくなります");
+                    P(materialEditor, properties, "_OutlineStencilPass", "Pass Operation", "Pass Operation", "", "テスト通過時の処理 (基本はKeep)");
+                    P(materialEditor, properties, "_OutlineStencilFail", "Fail Operation", "Fail Operation", "", "ステンシルテスト失敗時の処理");
+                    P(materialEditor, properties, "_OutlineStencilZFail", "ZFail Operation", "ZFail Operation", "", "ステンシルテスト成功、かつZテスト失敗時の処理");
                 }
             }
 

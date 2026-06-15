@@ -114,6 +114,7 @@ CBUFFER_START(UnityPerMaterial)
 
     half4 _OutlineColor;
     half _OutlineWidth;
+    half _OutlineCutoffShift;
 CBUFFER_END
 
 #endif // EASYPBR_INPUT_INCLUDED

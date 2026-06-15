@@ -132,6 +132,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Toggle] _UseOutline ("Enable Outline", Float) = 0
         _OutlineColor ("Outline Color", Color) = (0.2, 0.1, 0.1, 1)
         _OutlineWidth ("Outline Width", Range(0.0, 10.0)) = 1.0
+        _OutlineCutoffShift ("Outline Cutoff Shift", Range(-10, 10)) = 0
+        
+        _OutlineStencilRef ("Outline Stencil Ref", Range(0, 255)) = 0
+        [Enum(UnityEngine.Rendering.CompareFunction)] _OutlineStencilComp ("Outline Stencil Compare", Float) = 8 // 8 = Always
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilPass ("Outline Stencil Pass", Float) = 0 // 0 = Keep
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilFail ("Outline Stencil Fail", Float) = 0 // 0 = Keep
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilZFail ("Outline Stencil ZFail", Float) = 0 // 0 = Keep
     }
 
     SubShader
@@ -230,7 +237,16 @@ Shader "Origuma/EasyPBR_URP/Doll"
         Pass
         {
             Name "Outline"
-            Tags { "LightMode" = "SRPDefaultUnlit" } 
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            
+            Stencil
+            {
+                Ref [_OutlineStencilRef]
+                Comp [_OutlineStencilComp]
+                Pass [_OutlineStencilPass]
+                Fail [_OutlineStencilFail]
+                ZFail [_OutlineStencilZFail]
+            }
             
             Cull Front // 背面法なので
             ZWrite On
@@ -241,6 +257,10 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma fragment frag_outline
             
             #pragma shader_feature_local _OUTLINE_ON
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+            #pragma shader_feature_local_fragment _DISSOLVE_INVERT
 
             #include "Doll_OutlinePass.hlsl"
             ENDHLSL
