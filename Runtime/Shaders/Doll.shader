@@ -80,6 +80,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.15
         _SecSpecularLightLimit ("Secondary Specular Limit", Range(0.1, 5.0)) = 1.2
+        [Header(Anisotropic Highlight)]
+        [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 1)
+        _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
+        _AnisoOffset ("Aniso Position Offset", Range(-1.0, 1.0)) = 0.0
+        _AnisoAngle ("Aniso Angle", Range(-180.0, 180.0)) = 0.0
+        _AnisoStrandScale ("Strand Scale", Range(1.0,500.0)) = 50.0
+        _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
         [Space(10)]
         [Toggle(_MATCAP_ON)] _UseMatCap ("Enable MatCap", Float) = 0
         [KeywordEnum(Add, Multiply)] _MatCapBlend ("MatCap Blend Mode", Float) = 0

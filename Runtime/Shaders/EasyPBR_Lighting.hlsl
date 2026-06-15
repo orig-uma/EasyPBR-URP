@@ -57,6 +57,51 @@ half3 CalculateDualLobeSpecular(
     return (spec1 + spec2) * specularMaskVal;
 }
 
+// -----------------------------------------------------------------------------
+// [Specular] CalculateAnisotropicSpecular
+//  特定の方向に伸びる異方性ハイライト（髪の毛の天使の輪やシルクなど）。
+//  テクスチャを使わず、頂点の接線(Tangent)と従法線(Bitangent)から方向を計算する。
+// -----------------------------------------------------------------------------
+half3 CalculateAnisotropicSpecular(
+    half3 detailNormalWS, float3 tangentWS, float3 bitangentWS, 
+    float3 lightDirWS, half3 viewDirectionWS, 
+    half4 anisoColor, float thickness, float offset, float angle, 
+    float strandScale, float strandStrength, float2 uv, float diffuseLightEnergy, float castShadow) // 引数変更(uvを追加)
+{
+    half3 result = half3(0, 0, 0);
+    UNITY_BRANCH
+    if (anisoColor.a > 0.0)
+    {
+        float rad = radians(angle);
+        float s, c;
+        sincos(rad, s, c);
+        float3 t = normalize(tangentWS * c + bitangentWS * s);
+
+        // --- プロシージャル毛束（繊維）ノイズ ---
+        // UVの横方向(x)に対して、周期の違うサイン波を3つ重ねて自然な不規則感を作る
+        float strandNoise = sin(uv.x * strandScale) 
+                          + sin(uv.x * strandScale * 2.34) * 0.5 
+                          + sin(uv.x * strandScale * 3.71) * 0.25;
+        
+        // オフセット（基本位置）に対して、毛束ノイズでハイライトを上下に揺らす
+        float shift = offset + (strandNoise * 0.5) * strandStrength;
+        
+        t = normalize(t + detailNormalWS * shift);
+
+        float3 h = SafeNormalize(lightDirWS + viewDirectionWS);
+        float dotTH = dot(t, h);
+        float sinTH = sqrt(1.0 - saturate(dotTH * dotTH));
+        
+        float power = lerp(128.0, 2.0, thickness);
+        float spec = pow(saturate(sinTH), power);
+        
+        float mask = saturate(dot(detailNormalWS, lightDirWS) * 5.0) * castShadow;
+
+        result = anisoColor.rgb * spec * mask * diffuseLightEnergy;
+    }
+    return result;
+}
+
 // [Optional] 擬似サブサーフェス散乱 (SSS)
 half3 CalculateSSS(half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS, half3 sssColor, float sssIntensity, float sssPower, float sssDistortion, float3 diffuseLightEnergy, float castShadow)
 {

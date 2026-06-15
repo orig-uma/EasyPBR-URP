@@ -14,6 +14,7 @@ struct Attributes
 {
     float4 positionOS   : POSITION;
     float3 normalOS     : NORMAL;
+    float4 tangentOS    : TANGENT;
     float2 uv           : TEXCOORD0;
 };
 
@@ -26,15 +27,20 @@ struct Varyings
     float4 shadowCoord  : TEXCOORD3;
     float3 forwardWS    : TEXCOORD4;
     float3 positionOS   : TEXCOORD5;
+    float3 tangentWS    : TEXCOORD6;
+    float3 bitangentWS  : TEXCOORD7;
 };
 
 Varyings vert(Attributes input)
 {
     Varyings output;
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+    VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
     output.positionWS = vertexInput.positionWS;
     output.positionCS = vertexInput.positionCS;
     output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+    output.tangentWS = normalInput.tangentWS;
+    output.bitangentWS = normalInput.bitangentWS;
     output.uv = input.uv;
     output.shadowCoord = GetShadowCoord(vertexInput);
     output.forwardWS = normalize(TransformObjectToWorldDir(float3(0, 0, 1)));
@@ -43,9 +49,10 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS, half3 viewDirectionWS, float3 objectForwardWS,
+    Light light, half3 detailNormalWS, float3 tangentWS, float3 bitangentWS, 
+    half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
-    float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight)
+    float baseProceduralMask, float rimFresnel, float fuzzFresnel, float2 uv, half3 indirectLight)
 {
     float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
     float3 diffuseLightEnergy = ApplyLightEnergyLimit(rawDiffuseLight, _DiffuseLightLimit);
@@ -83,7 +90,11 @@ half3 CalculateSingleLight(
     half3 finalRim = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
-    return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz;
+    half3 finalAniso = CalculateAnisotropicSpecular(
+        detailNormalWS, tangentWS, bitangentWS, light.direction, viewDirectionWS,
+        _AnisoColor, _AnisoThickness, _AnisoOffset, _AnisoAngle, _AnisoStrandScale, _AnisoStrandStrength, uv, diffuseLightEnergy, castShadow);
+
+    return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso;
 }
 
 half4 frag(Varyings input) : SV_Target
@@ -128,11 +139,10 @@ half4 frag(Varyings input) : SV_Target
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
     Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
-    finalColor += CalculateSingleLight(mainLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, indirectLight);
+    finalColor += CalculateSingleLight(mainLight, detailNormalWS, input.tangentWS, input.bitangentWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, input.uv, indirectLight);
 
     // 追加ライト計算
     #if defined(_ADDITIONAL_LIGHTS) || defined(_CLUSTER_LIGHT_LOOP)
-        // Forward+ のループマクロが要求する inputData をダミーで構築
         InputData inputData = (InputData)0;
         inputData.positionWS = input.positionWS;
         inputData.normalizedScreenSpaceUV = input.positionCS.xy / _ScreenParams.xy;
@@ -140,7 +150,7 @@ half4 frag(Varyings input) : SV_Target
         uint pixelLightCount = GetAdditionalLightsCount();
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
-        finalColor += CalculateSingleLight(addLight, detailNormalWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, half3(0,0,0));
+    finalColor += CalculateSingleLight(addLight, detailNormalWS, input.tangentWS, input.bitangentWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, input.uv, half3(0,0,0));
         LIGHT_LOOP_END
     #endif
 
