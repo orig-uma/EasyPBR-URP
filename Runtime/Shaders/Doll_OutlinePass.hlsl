@@ -23,27 +23,16 @@ Varyings vert_outline(Attributes input)
 {
     Varyings output = (Varyings)0;
     #if defined(_OUTLINE_ON)
-        // オブジェクトのワールド座標と法線を取得
         float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
         float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-        
-        // カメラからの距離を計算
-        float dist = distance(_WorldSpaceCameraPos, positionWS);
-        float clampedDist = clamp(dist, 0.3, 10.0);
-
-        // 距離の伸び方を完全にリニア（直線）にするのではなく、
-        // 遠くに行くほど太くなる「ペース」を少しだけ落とす（緩やかにする）テクニックです。
-        // これにより、遠景のチラつきを抑えつつ、太くなりすぎるのを防ぎます。
-        float distanceScale = pow(clampedDist, 0.8); 
-
-        float expand = _OutlineWidth * 0.002 * distanceScale;
-        
-    positionWS += normalWS * expand;
-        // クリップ空間（画面上の座標）に変換
+        float depth = abs(TransformWorldToView(positionWS).z);
+        float fade = smoothstep(30.0, 15.0, depth);
+        float expand = _OutlineWidth * 0.002 * depth * fade;
+            
+        positionWS += normalWS * expand;
         output.positionCS = TransformWorldToHClip(positionWS);
     #else
-        // OFFの時：頂点を原点に潰す（縮退ポリゴン）
-        // これにより、ピクセル描画（フラグメントシェーダー）が完全にスキップされ、GPU負荷がゼロになります。
+        // 縮退ポリゴンで面積0としてfragをスキップ
         output.positionCS = float4(0, 0, 0, 0);
     #endif
     

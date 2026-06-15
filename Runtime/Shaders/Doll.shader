@@ -234,6 +234,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             
             Cull Front // 背面法なので
             ZWrite On
+            Offset 1, 1
             
             HLSLPROGRAM
             #pragma vertex vert_outline
