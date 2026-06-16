@@ -92,6 +92,33 @@ namespace Origuma.EasyPBR.URP.Editor
                                 mainTex, baseColor);
                             materialEditor.TextureScaleOffsetProperty(mainTex);
                         }
+                        
+                        EditorGUILayout.Space(4);
+                        SubHeader("Color Correction", "色調補正 (HSV)");
+                        P(materialEditor, properties, "_HueShift", "Hue Shift", "色相シフト", "", "色合いを回転させます");
+                        P(materialEditor, properties, "_Saturation", "Saturation", "彩度", "", "鮮やかさを調整します");
+                        P(materialEditor, properties, "_ValueMulti", "Value Multiplier", "明度", "", "明るさを調整します");
+
+                        EditorGUILayout.Space(4);
+                        SubHeader("Detail Map", "ディテールマップ (タトゥーやチーク等)");
+                        var detailTex = FindProperty("_DetailMap", properties, false);
+                        if (detailTex != null)
+                        {
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Detail Map (RGBA)", "ディテールマップ (RGBA)", "", "アルファ値でブレンドされます"),
+                                detailTex, FindProperty("_DetailColor", properties, false));
+                            materialEditor.TextureScaleOffsetProperty(detailTex);
+                        }
+
+                        EditorGUILayout.Space(4);
+                        SubHeader("Normal Map", "ノーマルマップ (凹凸)");
+                        var normalTex = FindProperty("_NormalMap", properties, false);
+                        if (normalTex != null)
+                        {
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Normal Map", "ノーマルマップ", "", ""),
+                                normalTex, FindProperty("_NormalScale", properties, false));
+                        }
                     }
                 }
             }
@@ -332,8 +359,20 @@ namespace Origuma.EasyPBR.URP.Editor
                     }
                 }
             }
+    
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("blackout", false, "Black Out", "暗転", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        SubHeader("Black Out", "Black Out（暗転）");
+                        P(materialEditor, properties, "_BlackOut", "Black Out", "暗転", "", "");
+                    }
+                }
+            }
 
-            // ===== 10. Outline =====
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
