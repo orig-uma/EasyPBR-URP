@@ -92,7 +92,9 @@ half3 CalculateSingleLight(
 
     half3 finalAniso = CalculateAnisotropicSpecular(
         detailNormalWS, tangentWS, bitangentWS, light.direction, viewDirectionWS,
-        _AnisoColor, _AnisoThickness, _AnisoOffset, _AnisoAngle, _AnisoStrandScale, _AnisoStrandStrength, uv, diffuseLightEnergy, castShadow);
+        _AnisoColor, _AnisoThickness, _AnisoOffset, _AnisoAngle, 
+        _AnisoStrandScale, _AnisoStrandStrength, _AnisoStrandDir,
+        uv, diffuseLightEnergy, castShadow);
 
     return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso;
 }
