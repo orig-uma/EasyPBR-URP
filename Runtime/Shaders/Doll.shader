@@ -11,6 +11,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Base Core)]
         _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
+        _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
+        _HueShift("Hue Shift", Range(-0.5, 0.5)) = 0.0
+        _Saturation("Saturation", Range(0.0, 2.0)) = 1.0
+        _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
+        _DetailMap("Detail Map", 2D) = "black" {}
+        _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 1
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull Mode", Float) = 2
@@ -127,13 +134,15 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _RimColor ("Rim Light Color", Color) = (1, 1, 1, 1)
         _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 1.0
         _RimThickness ("Rim Light Thickness", Range(0.0, 1.0)) = 0.2
+        [Space(10)]
+        _BlackOut ("Black Out", Range(0.0, 1.0)) = 0
 
         // --- アウトライン ---
         [Header(Outline)]
         [Toggle] _UseOutline ("Enable Outline", Float) = 0
         _OutlineColor ("Outline Color", Color) = (0.2, 0.1, 0.1, 1)
         _OutlineWidth ("Outline Width", Range(0.0, 10.0)) = 1.0
-        _OutlineCutoffShift ("Outline Cutoff Shift", Range(-10, 10)) = 0
+        _OutlineCutoffShift ("Outline Cutoff Shift", Range(-1, 1)) = 0
         
         _OutlineStencilRef ("Outline Stencil Ref", Range(0, 255)) = 0
         [Enum(UnityEngine.Rendering.CompareFunction)] _OutlineStencilComp ("Outline Stencil Compare", Float) = 8 // 8 = Always

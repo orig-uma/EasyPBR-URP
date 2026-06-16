@@ -102,13 +102,23 @@ half3 CalculateSingleLight(
 half4 frag(Varyings input) : SV_Target
 {
     half3 finalColor = half3(0, 0, 0);
-    
+
     half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
+
+    albedo.rgb = ApplyColorCorrection(albedo.rgb, _HueShift, _Saturation, _ValueMulti);
+
+    float2 detailUV = input.uv * _DetailMap_ST.xy + _DetailMap_ST.zw;
+    half4 detail = SAMPLE_TEXTURE2D(_DetailMap, sampler_MainTex, detailUV) * _DetailColor;
+    albedo.rgb = lerp(albedo.rgb, detail.rgb, detail.a); // アルファブレンドで重ねる
+
     #if defined(_ALPHATEST_ON)
-        clip(albedo.a - _Cutoff);
+    clip(albedo.a - _Cutoff);
     #endif
 
-    half3 cleanNormalWS = normalize(input.normalWS);
+    half4 normalSample = SAMPLE_TEXTURE2D(_NormalMap, sampler_MainTex, input.uv);
+    half3 normalTS = UnpackNormalScale(normalSample, _NormalScale);
+    // TBNベクトルを用いてTangent空間の法線をWorld空間へ変換
+    half3 cleanNormalWS = normalize(normalTS.x * input.tangentWS + normalTS.y * input.bitangentWS + normalTS.z * input.normalWS);
     half3 dissolveEmission;
     ApplyDissolveClip(input.uv, input.positionWS, input.positionOS, cleanNormalWS, albedo.rgb, dissolveEmission);
 
@@ -165,6 +175,8 @@ half4 frag(Varyings input) : SV_Target
     #endif
 
     finalColor += dissolveEmission;
+    float3 black = float3(0.0f, 0.0f, 0.0f);
+    finalColor = lerp(finalColor, black, _BlackOut);
 
     half outputAlpha = 1.0h;
     #if defined(_SURFACE_TRANSPARENT)
