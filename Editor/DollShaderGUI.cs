@@ -332,6 +332,19 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
             }
 
+            // ===== 10. Outline =====
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("outline", false, "Outline", "アウトライン (輪郭線)", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawOutlineSetup(materialEditor, properties);
+                    }
+                }
+            }
+
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -410,6 +423,56 @@ namespace Origuma.EasyPBR.URP.Editor
                     mat.EnableKeyword("_SURFACE_TRANSPARENT");
                     mat.DisableKeyword("_ALPHATEST_ON");
                     break;
+            }
+        }
+
+        private void DrawOutlineSetup(MaterialEditor materialEditor, MaterialProperty[] properties)
+        {
+            var outlineProp = FindProperty("_UseOutline", properties, false);
+            if (outlineProp == null) return;
+
+            EditorGUI.BeginChangeCheck();
+            
+            P(materialEditor, properties, "_UseOutline", "Enable Outline", "アウトラインを有効にする", "", "");
+            var isOutlineOn = outlineProp.floatValue > 0.5f;
+
+            if (isOutlineOn)
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    P(materialEditor, properties, "_OutlineColor", "Color", "色", "", "");
+                    P(materialEditor, properties, "_OutlineWidth", "Width", "太さ", "", "");
+                    var alphaClipProp = FindProperty("_AlphaClip", properties, false);
+                    if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
+                    {
+                        EditorGUILayout.Space(2);
+                        P(materialEditor, properties, "_OutlineCutoffShift", "Cutoff Shift (Fix)", "透過エッジの補正", "", "毛先などの半透明グラデーション部分で、アウトラインが黒く太く残ってしまう現象を打ち消します");
+                    }
+
+                    EditorGUILayout.Space(4);
+                    SubHeader("Masking (Stencil)", "マスク処理 (ステンシル)");
+                    P(materialEditor, properties, "_OutlineStencilRef", "Stencil Ref", "参照値", "", "本体側のStencil Refと同じ数値を入れます");
+                    P(materialEditor, properties, "_OutlineStencilComp", "Compare Function", "比較条件", "", "NotEqualにすると、本体が描画された部分には線が描かれなくなります");
+                    P(materialEditor, properties, "_OutlineStencilPass", "Pass Operation", "Pass Operation", "", "テスト通過時の処理 (基本はKeep)");
+                    P(materialEditor, properties, "_OutlineStencilFail", "Fail Operation", "Fail Operation", "", "ステンシルテスト失敗時の処理");
+                    P(materialEditor, properties, "_OutlineStencilZFail", "ZFail Operation", "ZFail Operation", "", "ステンシルテスト成功、かつZテスト失敗時の処理");
+                }
+            }
+
+            // チェックボックスが切り替わった時にキーワードをトグルする
+            if (EditorGUI.EndChangeCheck() || !_prefsLoaded)
+            {
+                foreach (Material mat in materialEditor.targets)
+                {
+                    if (isOutlineOn)
+                    {
+                        mat.EnableKeyword("_OUTLINE_ON");
+                    }
+                    else
+                    {
+                        mat.DisableKeyword("_OUTLINE_ON");
+                    }
+                }
             }
         }
 

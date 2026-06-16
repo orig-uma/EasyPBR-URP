@@ -103,7 +103,7 @@ half4 frag(Varyings input) : SV_Target
     
     half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
     #if defined(_ALPHATEST_ON)
-    clip(albedo.a - _Cutoff);
+        clip(albedo.a - _Cutoff);
     #endif
 
     half3 cleanNormalWS = normalize(input.normalWS);
@@ -115,10 +115,6 @@ half4 frag(Varyings input) : SV_Target
 
     float3 noiseVec = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale).rgb * 2.0 - 1.0;
     half3 detailNormalWS = GetGrainNormal(cleanNormalWS, noiseVec, _GrainIntensity);
-
-    #if defined(_ALPHATEST_ON)
-        clip(albedo.a - _Cutoff);
-    #endif
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
