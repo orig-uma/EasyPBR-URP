@@ -87,6 +87,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _AnisoAngle ("Aniso Angle", Range(-180.0, 180.0)) = 0.0
         _AnisoStrandScale ("Strand Scale", Range(1.0,500.0)) = 50.0
         _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
+        _AnisoStrandDir ("Strand Direction", Range(-180.0, 180.0)) = 0.0
         [Space(10)]
         [Toggle(_MATCAP_ON)] _UseMatCap ("Enable MatCap", Float) = 0
         [KeywordEnum(Add, Multiply)] _MatCapBlend ("MatCap Blend Mode", Float) = 0

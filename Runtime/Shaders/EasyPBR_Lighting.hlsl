@@ -66,35 +66,37 @@ half3 CalculateAnisotropicSpecular(
     half3 detailNormalWS, float3 tangentWS, float3 bitangentWS, 
     float3 lightDirWS, half3 viewDirectionWS, 
     half4 anisoColor, float thickness, float offset, float angle, 
-    float strandScale, float strandStrength, float2 uv, float diffuseLightEnergy, float castShadow) // 引数変更(uvを追加)
+    float strandScale, float strandStrength, float strandDir, float2 uv, float diffuseLightEnergy, float castShadow)
 {
     half3 result = half3(0, 0, 0);
     UNITY_BRANCH
     if (anisoColor.a > 0.0)
     {
-        float rad = radians(angle);
+        float rad = radians(angle + 90.0); // 90度回した状態が合うことが多かったので90度オフセットしています。
         float s, c;
         sincos(rad, s, c);
         float3 t = normalize(tangentWS * c + bitangentWS * s);
 
+        float dirRad = radians(strandDir);
+        float2 dirVec = float2(cos(dirRad), sin(dirRad));
+        float strandCoord = dot(uv, dirVec); 
+
         // --- プロシージャル毛束（繊維）ノイズ ---
-        // UVの横方向(x)に対して、周期の違うサイン波を3つ重ねて自然な不規則感を作る
-        float strandNoise = sin(uv.x * strandScale) 
-                          + sin(uv.x * strandScale * 2.34) * 0.5 
-                          + sin(uv.x * strandScale * 3.71) * 0.25;
-        
+        // uv.x の代わりに strandCoord を使用する
+        float strandNoise = sin(strandCoord * strandScale) 
+                          + sin(strandCoord * strandScale * 2.34) * 0.5 
+                          + sin(strandCoord * strandScale * 3.71) * 0.25;
+
         // オフセット（基本位置）に対して、毛束ノイズでハイライトを上下に揺らす
         float shift = offset + (strandNoise * 0.5) * strandStrength;
-        
         t = normalize(t + detailNormalWS * shift);
 
         float3 h = SafeNormalize(lightDirWS + viewDirectionWS);
         float dotTH = dot(t, h);
         float sinTH = sqrt(1.0 - saturate(dotTH * dotTH));
-        
-        float power = lerp(128.0, 2.0, thickness);
+
+        float power = exp2(lerp(10.0, 1.0, thickness)); 
         float spec = pow(saturate(sinTH), power);
-        
         float mask = saturate(dot(detailNormalWS, lightDirWS) * 5.0) * castShadow;
 
         result = anisoColor.rgb * spec * mask * diffuseLightEnergy;

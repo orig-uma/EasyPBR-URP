@@ -98,6 +98,7 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoAngle;
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
+    half _AnisoStrandDir;
 
     half4 _SSSColor;
     half _SSSIntensity;

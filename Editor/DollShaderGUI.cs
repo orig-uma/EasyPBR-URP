@@ -196,6 +196,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 P(materialEditor, properties, "_AnisoAngle", "Angle", "角度 (向き)", "", "");
                                 P(materialEditor, properties, "_AnisoStrandScale", "Strand Scale", "繊維の細かさ", "", "数値を上げるほど毛束が細かくなります");
                                 P(materialEditor, properties, "_AnisoStrandStrength", "Strand Strength", "繊維の凹凸感", "", "ハイライトが毛束に沿ってギザギザに割れます");
+                                P(materialEditor, properties, "_AnisoStrandDir", "Strand Direction", "繊維の方向", "", "繊維（ノイズ）が流れるUVの方向を回転させます");
                             }
                         }
 
