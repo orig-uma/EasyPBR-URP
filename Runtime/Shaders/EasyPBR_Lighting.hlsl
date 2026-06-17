@@ -104,6 +104,115 @@ half3 CalculateAnisotropicSpecular(
     return result;
 }
 
+float Hash2DTo1D(float2 p)
+{
+    p = frac(p * float2(443.897, 441.423));
+    p += dot(p, p.yx + 19.19);
+    return frac((p.x + p.y) * p.x);
+}
+
+// Hue → RGB（iridescence用）
+half3 HueToRGB(float hue)
+{
+    half3 rgb = saturate(abs(frac(hue + half3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0) - 1.0);
+    return rgb;
+}
+
+half3 CalculateGlitter(
+    half3 baseNormalWS, float3 lightDirWS, half3 viewDirectionWS,
+    float2 uv, float scale, float intensity, float dotSize,
+    float tiltStrength, half3 color, float glitterMask,
+    float sparsity, float iridescenceAmount, float iridescenceShift,
+    float baseReflection)
+{
+    UNITY_BRANCH
+    if (glitterMask <= 0.0 || intensity <= 0.0) return half3(0, 0, 0);
+
+    float2 gridUV  = uv * scale;
+    float2 id      = floor(gridUV);
+    float2 localUV = frac(gridUV);
+    float  invScale = rcp(scale);
+
+    float  minDistSq = 999.0;
+    float2 bestId    = id;
+    float  bestRand1 = 0.0, bestRand2 = 0.0;
+
+    UNITY_UNROLL
+    for (int y = -1; y <= 1; y++)
+    {
+        UNITY_UNROLL
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 neighborId = id + float2(x, y);
+
+            float r4     = Hash2DTo1D(neighborId + float2(98.76, 54.32));
+            float r1     = Hash2DTo1D(neighborId);
+            float r2     = Hash2DTo1D(neighborId + float2(45.67, 89.12));
+
+            float2 diff  = float2(x, y) + float2(r1, r2) - localUV;
+            float  distSq = dot(diff, diff);
+            distSq = (r4 >= sparsity) ? distSq : 999.0; // sparsityで間引き率を制御
+
+            if (distSq < minDistSq)
+            {
+                minDistSq = distSq;
+                bestId    = neighborId;
+                bestRand1 = r1;
+                bestRand2 = r2;
+            }
+        }
+    }
+
+    float bestRand3 = Hash2DTo1D(bestId + float2(12.34, 56.78));
+    float bestRand4 = Hash2DTo1D(bestId + float2(33.21, 77.65)); // 色相用の追加乱数
+
+    float absoluteDist  = sqrt(minDistSq) * invScale;
+    float actualDotSize = dotSize * lerp(0.7, 1.0, bestRand3); // サイズばらつきを抑える（スパンコール感↑）
+
+    // ── 形状：外縁と内部を分けて「円盤感」を出す ──────────────
+    float outerMask  = 1.0 - smoothstep(actualDotSize * 0.85, actualDotSize, absoluteDist);
+    float innerGlow  = 1.0 - smoothstep(0.0, actualDotSize * 0.5, absoluteDist); // 中心ほど明るい
+    float dotMask    = outerMask;
+
+    if (dotMask <= 0.0) return half3(0, 0, 0);
+
+    // ── 法線とフラッシュ ────────────────────────────────────────
+    float3 randomTilt     = float3(bestRand1 - 0.5, bestRand2 - 0.5, bestRand3 - 0.5) * tiltStrength;
+    half3  glitterNormal  = normalize(baseNormalWS + randomTilt);
+
+    float3 halfVector = SafeNormalize(lightDirWS + viewDirectionWS);
+    float  NdotH      = saturate(dot(glitterNormal, halfVector));
+    float NdotV       = saturate(dot(glitterNormal, viewDirectionWS));
+
+    // フラッシュ：急峻なon/off感を出す（スパンコールは鏡に近い）
+    float flashSharp  = pow(NdotH, 500.0) * step(0.94, NdotH);   // メインフラッシュ（点）
+    float flashSoft   = pow(NdotH, 80.0)  * step(0.70, NdotH);   // 周囲のやわらかい光
+    float flash       = flashSharp + flashSoft * 0.15;
+
+    // ── 色：iridescence（虹色）+ 個体差 ───────────────────────
+    // 各スパンコールにランダムな色相を持たせる
+    float baseHue         = bestRand4;
+
+    // スパンコールごとに異なるオフセット（個体差）
+    // これがないと全スパンコールが同色になる
+    float perSequinOffset = bestRand4 * 0.8;
+
+    float2 halfFlat   = halfVector.xz;
+    float  halfAzimuth = dot(halfFlat, float2(0.8, 0.6));
+    float  iridHue    = frac(baseHue + halfAzimuth * iridescenceShift + perSequinOffset);
+    half3 iridColor  = HueToRGB(iridHue);
+    half3 finalColor = lerp(color, color * iridColor * 2.0, iridescenceAmount);
+
+    // ── 合成：フラッシュ時 + ベース反射（存在感） ───────────────
+    // スパンコールは光っていない時も暗いメタリック感がある
+    half3 baseReflColor   = finalColor * baseReflection * (1.0 - NdotV * 0.5); // グレージング
+
+    half3 flashContrib    = finalColor * flash * intensity;
+    half3 baseContrib     = baseReflColor * outerMask * (1.0 - innerGlow * 0.5);
+
+    return (flashContrib + baseContrib) * dotMask * glitterMask;
+}
+
 // [Optional] 擬似サブサーフェス散乱 (SSS)
 half3 CalculateSSS(half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS, half3 sssColor, float sssIntensity, float sssPower, float sssDistortion, float3 diffuseLightEnergy, float castShadow)
 {

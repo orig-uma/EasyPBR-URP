@@ -14,6 +14,7 @@ TEXTURE2D(_EmissionMap);
 TEXTURE2D(_DissolveTex);
 TEXTURE2D(_MatCapTex);
 TEXTURE2D(_BlueNoiseTex);
+TEXTURE2D(_GlitterMask);
 
 // 特化用テクスチャ（Doll等で使用）
 TEXTURE2D(_ReceiveShadowMask);
@@ -107,6 +108,17 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
     half _AnisoStrandDir;
+
+    // [Sequin Glitter]
+    half4 _GlitterColor;
+    half _GlitterIntensity;
+    half _GlitterScale;
+    half _GlitterSize;
+    half _GlitterTilt;
+    float _GlitterSparsity;
+    float _GlitterIridescence;
+    float _GlitterIridescenceShift;
+    float _GlitterBaseReflection;
 
     half4 _SSSColor;
     half _SSSIntensity;

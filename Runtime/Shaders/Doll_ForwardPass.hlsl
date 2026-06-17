@@ -96,7 +96,11 @@ half3 CalculateSingleLight(
         _AnisoStrandScale, _AnisoStrandStrength, _AnisoStrandDir,
         uv, diffuseLightEnergy, castShadow);
 
-    return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso;
+    half glitterMaskVal = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, uv).r;
+    half3 finalGlitter = CalculateGlitter(detailNormalWS, light.direction, viewDirectionWS, uv, _GlitterScale, _GlitterIntensity, _GlitterSize, _GlitterTilt, _GlitterColor.rgb, glitterMaskVal, _GlitterSparsity, _GlitterIridescence, _GlitterIridescenceShift, _GlitterBaseReflection);
+
+    // 最終出力に合算
+    return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso + finalGlitter;
 }
 
 half4 frag(Varyings input) : SV_Target

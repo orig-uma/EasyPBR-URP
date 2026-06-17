@@ -121,7 +121,16 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 追加効果 ---
         [Header(Optional Effects)]
-        [Space(4)]
+        [NoScaleOffset] _GlitterMask ("Glitter Mask (R)", 2D) = "white" {}
+        [HDR] _GlitterColor ("Glitter Color (HDR)", Color) = (2, 2, 2, 1)
+        _GlitterIntensity ("Glitter Intensity", Range(0.0, 50.0)) = 0.0
+        _GlitterScale ("Glitter Density (Scale)", Range(10.0, 1000.0)) = 100.0
+        _GlitterSize ("Glitter Absolute Size", Range(0.0005, 0.05)) = 0.005
+        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.2
+        _GlitterSparsity ("Sparsity (間引き率)", Range(0.0, 1.0)) = 0.5
+        _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
+        _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
+        _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0
