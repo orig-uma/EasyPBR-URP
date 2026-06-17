@@ -327,6 +327,29 @@ namespace Origuma.EasyPBR.URP.Editor
                 {
                     using (new EditorGUI.IndentLevelScope())
                     {
+                        SubHeader("Glitter", "グリッター");
+
+                        var glitterMask = FindProperty("_GlitterMask", properties, false);
+                        if (glitterMask != null)
+                            materialEditor.TexturePropertySingleLine(Label("Glitter Mask (R)", "発生マスク (R)", "", "白く塗られた部分にだけグリッターが発生します"), glitterMask);
+
+                        P(materialEditor, properties, "_GlitterColor", "Color (HDR)", "色 (HDR)", "", "HDRで白飛びさせることで画面のBloomやGlareエフェクトを誘発します");
+                        P(materialEditor, properties, "_GlitterIntensity", "Intensity (0 = Off)", "強度 (0でOFF)", "", "発光の強さ。ポストエフェクトが反応するまで上げてください");
+
+                        if (PropPositive(properties, "_GlitterIntensity"))
+                        {
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, properties, "_GlitterScale", "Density Scale", "密度", "", "数値を上げるほど粒が細かく密集します");
+                                P(materialEditor, properties, "_GlitterSize", "Dot Size", "粒の大きさ", "", "発光の起点となるコアの大きさ");
+                                P(materialEditor, properties, "_GlitterTilt", "Normal Tilt", "法線の傾き(ばらつき)", "", "0でモデルの表面に沿い、数値を上げるほどランダムな方向を向いてチラつきます");
+                                P(materialEditor, properties, "_GlitterSparsity", "Sparsity", "間引き率", "", "スパンコールの密集度。値が小さいほどまばらになります（推奨:0.5）");
+                                P(materialEditor, properties, "_GlitterIridescence", "Iridescence", "虹色強度", "", "1に近づけるほど、視線角度に応じて虹色（ホログラム）に変化します");
+                                P(materialEditor, properties, "_GlitterIridescenceShift", "IridescenceShift", "虹色移動", "", "1に近づけるほど、視線角度に応じて虹色が変化します");
+                                P(materialEditor, properties, "_GlitterBaseReflection", "Base Reflection", "暗い反射（ベース）", "", "光っていない時のスパンコール自体の存在感（メタリック感）。0～0.1程度推奨");
+                            }
+                        }
+
                         SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
                         P(materialEditor, properties, "_SSSColor", "Color", "色", "", "");
                         P(materialEditor, properties, "_SSSIntensity", "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
