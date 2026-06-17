@@ -11,6 +11,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Base Core)]
         _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
+        _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
+        _HueShift("Hue Shift", Range(-0.5, 0.5)) = 0.0
+        _Saturation("Saturation", Range(0.0, 2.0)) = 1.0
+        _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
+        _DetailMap("Detail Map", 2D) = "black" {}
+        _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 1
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull Mode", Float) = 2
@@ -80,6 +87,14 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.15
         _SecSpecularLightLimit ("Secondary Specular Limit", Range(0.1, 5.0)) = 1.2
+        [Header(Anisotropic Highlight)]
+        [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 1)
+        _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
+        _AnisoOffset ("Aniso Position Offset", Range(-1.0, 1.0)) = 0.0
+        _AnisoAngle ("Aniso Angle", Range(-180.0, 180.0)) = 0.0
+        _AnisoStrandScale ("Strand Scale", Range(1.0,500.0)) = 50.0
+        _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
+        _AnisoStrandDir ("Strand Direction", Range(-180.0, 180.0)) = 0.0
         [Space(10)]
         [Toggle(_MATCAP_ON)] _UseMatCap ("Enable MatCap", Float) = 0
         [KeywordEnum(Add, Multiply)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
@@ -106,7 +121,16 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 追加効果 ---
         [Header(Optional Effects)]
-        [Space(4)]
+        [NoScaleOffset] _GlitterMask ("Glitter Mask (R)", 2D) = "white" {}
+        [HDR] _GlitterColor ("Glitter Color (HDR)", Color) = (2, 2, 2, 1)
+        _GlitterIntensity ("Glitter Intensity", Range(0.0, 50.0)) = 0.0
+        _GlitterScale ("Glitter Density (Scale)", Range(10.0, 1000.0)) = 100.0
+        _GlitterSize ("Glitter Absolute Size", Range(0.0005, 0.05)) = 0.005
+        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.2
+        _GlitterSparsity ("Sparsity (間引き率)", Range(0.0, 1.0)) = 0.5
+        _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
+        _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
+        _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0
@@ -119,6 +143,21 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _RimColor ("Rim Light Color", Color) = (1, 1, 1, 1)
         _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 1.0
         _RimThickness ("Rim Light Thickness", Range(0.0, 1.0)) = 0.2
+        [Space(10)]
+        _BlackOut ("Black Out", Range(0.0, 1.0)) = 0
+
+        // --- アウトライン ---
+        [Header(Outline)]
+        [Toggle] _UseOutline ("Enable Outline", Float) = 0
+        _OutlineColor ("Outline Color", Color) = (0.2, 0.1, 0.1, 1)
+        _OutlineWidth ("Outline Width", Range(0.0, 10.0)) = 1.0
+        _OutlineCutoffShift ("Outline Cutoff Shift", Range(-1, 1)) = 0
+        
+        _OutlineStencilRef ("Outline Stencil Ref", Range(0, 255)) = 0
+        [Enum(UnityEngine.Rendering.CompareFunction)] _OutlineStencilComp ("Outline Stencil Compare", Float) = 8 // 8 = Always
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilPass ("Outline Stencil Pass", Float) = 0 // 0 = Keep
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilFail ("Outline Stencil Fail", Float) = 0 // 0 = Keep
+        [Enum(UnityEngine.Rendering.StencilOp)] _OutlineStencilZFail ("Outline Stencil ZFail", Float) = 0 // 0 = Keep
     }
 
     SubShader
@@ -208,6 +247,41 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
             // 影処理を記述したパスファイルをインクルード
             #include "Doll_ShadowPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  Outline パス 
+        // =====================================================================
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode" = "SRPDefaultUnlit" }
+            
+            Stencil
+            {
+                Ref [_OutlineStencilRef]
+                Comp [_OutlineStencilComp]
+                Pass [_OutlineStencilPass]
+                Fail [_OutlineStencilFail]
+                ZFail [_OutlineStencilZFail]
+            }
+            
+            Cull Front // 背面法なので
+            ZWrite On
+            Offset 1, 1
+            
+            HLSLPROGRAM
+            #pragma vertex vert_outline
+            #pragma fragment frag_outline
+            
+            #pragma shader_feature_local _OUTLINE_ON
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+            #pragma shader_feature_local_fragment _DISSOLVE_INVERT
+
+            #include "Doll_OutlinePass.hlsl"
             ENDHLSL
         }
     }

@@ -1,93 +1,123 @@
 # EasyPBR for URP
 
-`Origuma/EasyPBR_URP/Doll`
+シェーダー名: `Origuma/EasyPBR_URP/Doll`
 
-Universal Render Pipeline (URP) 向けの、PBRとトゥーン表現を両立させたキャラクター用シェーダーです。
-フィギュアや人形のような「質感のあるリッチなハイライト」と「平面的で破綻しないアニメ調の陰影」を同時に狙えるように設計されています。
+URP 向けキャラクターシェーダー。PBR 系の質感表現とトゥーン陰影を同一マテリアルで切り替え可能。
+フィギュア・人形向けのハイライト表現と、アニメ調陰影の両立を想定している。
 
 ## インストール
 
-### Package Manager から Git URL で追加
+### Package Manager（Git URL）
 
-Unity の `Window > Package Manager > +（左上）> Add package from git URL...` に以下を入力します。
+`Window > Package Manager > + > Add package from git URL...` に以下を入力する。
 
 ```
 https://github.com/orig-uma/EasyPBR-URP.git
 ```
 
-## コンセプト：なぜ "Easy" なのか？ 
+特定バージョンを指定する場合:
 
-EasyPBRはその名の通り、**「誰でも簡単に、迷わず直感的にクオリティの高い絵作りができること」**を最優先（UXファースト）に設計されています。
+```
+https://github.com/orig-uma/EasyPBR-URP.git#v0.3.0
+```
 
-* **「数式」ではなく「人間の直感」で触れるUI**
-  従来のシェーダーでよくある「べき乗（Power）」といった数学的なスライダーを排除。Rim Light や Peach Fuzz などの調整は「太さ（Thickness）」という直感的な概念に変換されており、スライダーを右に動かすほど素直に効果が太くなります。
-* **「テクスチャを描く手間」をスキップ**
-  キャラクターの顔に綺麗な影を出すために、従来必要だった「顔影用のマスクテクスチャ」を描く必要はありません。数学的な計算（プロシージャル）によって自動で顔の汚い自己陰を消し去るため、テクスチャ1枚を割り当てるだけで即座に美しいキャラクター表現が完成します。
-* **「めんどくさい設定」はワンクリックで自動化**
-  Unityの半透明設定は、Render Queue、Blend Mode、ZWriteなど、初心者にとって挫折しやすい設定の宝庫です。EasyPBRでは「Render Mode プリセット」を切り替えるだけで、裏側で最適な設定をすべて一括セットアップします。
+### Embedded
 
----
+`Packages/com.origuma.easypbr-urp` に配置すると embedded package として認識される。
 
-## 特徴 (Features)
+## 設計方針
 
-* **Toon / Smooth の2モード切替**
-  マテリアルごとにパキッとしたアニメ調か、滑らかなPBR調かを切り替え可能です。
-* **Auto Face Shadow Fix (顔影の自動補正)**
-  マスクテクスチャを用意することなく、鼻や頬の凹凸が作る汚い自己陰を、法線平滑化＋プロシージャルマスクによって自動で抑制します。
-* **マッハバンドの回避**
-  落ち影(Shadow map)と陰影(NdotL)を分離合成し、トゥーン境界に出やすいマッハバンド（縞模様）を回避。さらにブルーノイズディザで滑らかに馴染ませます。
-* **多彩な質感表現 (既定OFF・軽量設計)**
-  Dual-Lobe スペキュラ（鋭い/柔らかい2ローブ）による高度なハイライトに加え、SSS / Rim Light / Peach Fuzz / MatCap を搭載。
-  *※追加効果は Intensity 0 の時は uniform 分岐により GPU 計算を自動でスキップするため、無駄な負荷や variant の増加を防ぎます。*
-* **リッチな Dissolve (消失エフェクト)**
-  消失の最前線（高輝度エッジ）と内側（焦げ色）の2色グラデーションに対応。さらにアニメやグリッチ表現に最適な「パキッとした段階化 (Step Edge)」機能により、マグマのように溶ける表現やサイバーチックな消滅を簡単に実装できます。
+* **パラメータ**
+  Rim Light / Peach Fuzz / Anisotropic は `Thickness`（0.0〜1.0）等の直感的な値で指定する。
+* **顔影**
+  顔用マスクテクスチャは不要。法線平滑化とプロシージャルマスクにより自己陰を抑制する。
+* **半透明**
+  Render Mode プリセット（Opaque / Cutout / Transparent）で Render Queue、Blend Mode、ZWrite を一括設定する。
+* **任意効果**
+  SSS / Rim / Peach Fuzz / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
 
-## ファイル構成 (開発者向け)
+## 機能
 
-今後の拡張性とメンテナンス性を高めるため、機能ごとにHLSLファイルをモジュール分割しています。
+| 項目 | 内容 |
+| :--- | :--- |
+| Shading Style | Toon / Smooth |
+| Base Core | Base Map、HSV 色調補正、Detail Map、Normal Map |
+| Auto Face Shadow Fix | マスクなしの顔自己陰抑制 |
+| Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。ブルーノイズディザ |
+| Specular | Dual-Lobe（Primary / Secondary） |
+| Anisotropic Highlight | 髪・シルク向け異方性ハイライト（Strand パラメータ） |
+| MatCap | Add / Multiply |
+| Dissolve | Outer / Inner 2 色、Step Edge、Axis（None / WorldY / LocalY） |
+| Glitter | マスク付きスパンコール。Iridescence、Sparsity、Base Reflection |
+| Outline | 背面法線拡張。Alpha Clip / Dissolve 同期。Outline 専用 Stencil |
+| Black Out | 最終色の暗転 |
+| Optional | SSS / Rim Light / Peach Fuzz |
+| Emission | Emission Map、HDR Color、Intensity |
+| Stencil | ForwardLit / Outline それぞれ独立設定 |
 
-* `Doll.shader` : ShaderLabの定義、Propertiesの宣言
-* `EasyPBR_Input.hlsl` : SRP Batcher対応の共通変数・テクスチャ宣言
-* `EasyPBR_Effects.hlsl` : Dissolve, MatCap, Emission などの汎用エフェクト
-* `EasyPBR_Lighting.hlsl` : 汎用的なPBRライティング・質感計算ロジック
-* `Doll_FaceLogic.hlsl` : キャラクター特有の顔影消し・Toon処理ロジック
-* `Doll_ForwardPass.hlsl` / `Doll_ShadowPass.hlsl` : パスごとのメイン処理
+## Pass
 
-簡易的なシェーダー（Unlitや背景用など）を自作する際も、`EasyPBR_Input.hlsl` 等をインクルードすることで簡単に機能を流用・共有できます。
+| Pass | LightMode | 用途 |
+| :--- | :--- | :--- |
+| ForwardLit | UniversalForward | メイン描画 |
+| ShadowCaster | ShadowCaster | 影 |
+| Outline | SRPDefaultUnlit | 輪郭線 |
+
+## ファイル構成
+
+| パス | 役割 |
+| :--- | :--- |
+| `Runtime/Shaders/Doll.shader` | Properties、Pass 定義 |
+| `Runtime/Shaders/EasyPBR_Input.hlsl` | 共通変数・テクスチャ |
+| `Runtime/Shaders/EasyPBR_Effects.hlsl` | Dissolve、MatCap、Emission |
+| `Runtime/Shaders/EasyPBR_Lighting.hlsl` | ライティング、Anisotropic、Glitter |
+| `Runtime/Shaders/Doll_FaceLogic.hlsl` | 顔影・Toon |
+| `Runtime/Shaders/Doll_ForwardPass.hlsl` | ForwardLit |
+| `Runtime/Shaders/Doll_ShadowPass.hlsl` | ShadowCaster |
+| `Runtime/Shaders/Doll_OutlinePass.hlsl` | Outline |
+| `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
+| `Runtime/Textures/dissolve_noise.png` | Dissolve ノイズ |
+| `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 
 ## 動作環境
 
-* Unity 2022.2 以降 (Forward+ / Cluster Light Loop 対応)
+* Unity 2022.2 以降（Forward+ / Cluster Light Loop）
 * Unity 6000.3 以降
 * Universal RP 14.0 以降
 
-### ローカル / Embedded
-
-このリポジトリをプロジェクトの `Packages/com.origuma.easypbr-urp` に配置すると、埋め込みパッケージとして認識されます。
-
 ## 使い方
 
-1. マテリアルを作成し、シェーダーに `Origuma/EasyPBR_URP/Doll` を選択。
-2. Surface Options 内の Render Mode (プリセット) から、不透明・くり抜き・半透明 の用途に合わせてモードを選択します（自動で各種設定が行われます）。
-3. `Base Map` にアルベドテクスチャを設定。
-4. `Shading Style` で `Toon` / `Smooth` を選択。
+1. マテリアルを作成し、シェーダーに `Origuma/EasyPBR_URP/Doll` を指定する
+2. Surface Options > Render Mode で Opaque / Cutout / Transparent を選択する
+3. Base Map にアルベドテクスチャを割り当てる
+4. Shading Style で Toon / Smooth を選択する
 
-### 主なパラメータ
+### インスペクター
 
-マテリアルのインスペクターは、機能ごとにグループ化されています。
+`DollShaderGUI` により Custom / Default UI を切り替え可能。
 
-| グループ (セクション) | 主な設定内容 |
+| モード | 表示 |
 | :--- | :--- |
-| **Surface Options** | Render Mode（不透明・くり抜き・半透明の一括セットアップ）、両面描画(Cull)、ZWrite設定など |
-| **Stencil** | ステンシルテストの参照値や比較条件の設定 |
-| **Base Core** | 基本となるテクスチャ（Base Map）と色（Base Color） |
-| **Auto Face Shadow Fix** | 顔の自己陰を消すための補正設定（正面/上向きの明るさ、逆光の陰の維持、法線平滑化） |
-| **Light and Shadow** | Toon/Smoothの切替、影の色、落ち影の強さ/ソフトさ/ディザリング、白飛び防止(Light Limit) |
-| **Surface Micro Detail** | 肌や布の質感を表現するブルーノイズ（グレイン）の強度とスケール |
-| **Specular and Reflection** | 2層のハイライト（Primary: シャープ / Secondary: マット）と、MatCap（擬似反射） |
-| **Emission** | 自己発光（HDRカラー、マスクテクスチャ、発光強度） |
-| **Dissolve** | 消失エフェクト。2色（Outer/Inner）のエッジカラー、段階化（Step Edge）、消失方向の設定 |
-| **Optional Effects** | SSS (表面下散乱)、Peach Fuzz (産毛のような縁の光沢)、Rim Light (リムライト) ※FuzzとRimの「太さ」は `0.0～1.0` で直感的に指定可能 |
+| Custom | セクション分け UI |
+| Default | Unity 標準のプロパティ一覧 |
+
+### パラメータ（Custom UI）
+
+| セクション | 主な項目 |
+| :--- | :--- |
+| Surface Options | Render Mode、Cull、ZWrite、ZTest、Blend |
+| Stencil | Ref、Compare、Pass / Fail / ZFail |
+| Base Core | Base Map、HSV、Detail Map、Normal Map |
+| Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff、Backlight Preserve、Normal Smoothing |
+| Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Dither、Light Limit |
+| Surface Micro Detail | Blue Noise、Grain |
+| Specular and Reflection | Dual-Lobe、Anisotropic、MatCap |
+| Emission | Emission Map、Color、Intensity |
+| Dissolve | Amount、Axis、Edge Color、Step Edge |
+| Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light |
+| Black Out | Black Out |
+| Outline | Enable、Color、Width、Cutoff Shift、Stencil |
+| Advanced | GPU Instancing、Double-Sided GI |
 
 ## ライセンス
 

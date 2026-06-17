@@ -14,15 +14,24 @@ TEXTURE2D(_EmissionMap);
 TEXTURE2D(_DissolveTex);
 TEXTURE2D(_MatCapTex);
 TEXTURE2D(_BlueNoiseTex);
+TEXTURE2D(_GlitterMask);
 
 // 特化用テクスチャ（Doll等で使用）
 TEXTURE2D(_ReceiveShadowMask);
 TEXTURE2D(_SpecularMask);
+TEXTURE2D(_NormalMap);
+TEXTURE2D(_DetailMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
     // [EasyPBR Core] 基本設定
     half4 _BaseColor;
+    half _NormalScale;
+    half _HueShift;
+    half _Saturation;
+    half _ValueMulti;
+    float4 _DetailMap_ST; // ScaleとOffset用
+    half4 _DetailColor;
     half _AlphaClip;
     half _Cutoff;
     half _Cull;
@@ -92,6 +101,25 @@ CBUFFER_START(UnityPerMaterial)
     half _SecSpecularIntensity;
     half _SecSpecularLightLimit;
 
+    half4 _AnisoColor;
+    half _AnisoThickness;
+    half _AnisoOffset;
+    half _AnisoAngle;
+    half _AnisoStrandScale;
+    half _AnisoStrandStrength;
+    half _AnisoStrandDir;
+
+    // [Sequin Glitter]
+    half4 _GlitterColor;
+    half _GlitterIntensity;
+    half _GlitterScale;
+    half _GlitterSize;
+    half _GlitterTilt;
+    float _GlitterSparsity;
+    float _GlitterIridescence;
+    float _GlitterIridescenceShift;
+    float _GlitterBaseReflection;
+
     half4 _SSSColor;
     half _SSSIntensity;
     half _SSSPower;
@@ -104,6 +132,12 @@ CBUFFER_START(UnityPerMaterial)
     half4 _RimColor;
     half _RimIntensity;
     half _RimThickness;
+
+    half _BlackOut;
+
+    half4 _OutlineColor;
+    half _OutlineWidth;
+    half _OutlineCutoffShift;
 CBUFFER_END
 
 #endif // EASYPBR_INPUT_INCLUDED
