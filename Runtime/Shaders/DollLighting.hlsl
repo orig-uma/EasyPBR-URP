@@ -1,16 +1,15 @@
 // =============================================================================
 //  DollLighting.hlsl
 // -----------------------------------------------------------------------------
-//  Origuma/EasyPBR_URP/Doll の陰影計算ロジックを「関数単位」に分割したファイル。
-//  各関数は単一の役割のみを持つ。ペアプロ・レビュー・修正は基本この単位で行う。
-//
-//  依存:
-//    - Core.hlsl / Lighting.hlsl が呼び出し側で include されていること
-//    - UNITY_BRANCH, SafeNormalize, GetWorldToViewMatrix などURPの定義に依存
+//  Origuma/EasyPBR_URP/Doll の陰影計算ロジックをまとめた統合ライティングファイル。
 // =============================================================================
 #ifndef DOLL_LIGHTING_INCLUDED
 #define DOLL_LIGHTING_INCLUDED
 
+
+// =============================================================================
+//  フェイスロジック（旧 Doll_FaceLogic.hlsl）
+// =============================================================================
 
 // -----------------------------------------------------------------------------
 // [Mask] GetProceduralMaskBase
@@ -42,12 +41,10 @@ float GetProceduralMask(float baseMask, float3 forwardWS, float3 lightDirWS, flo
 
 // -----------------------------------------------------------------------------
 // [Normal] GetFaceSmoothedNormal
-//  マスクが強い面ほど法線をモデル正面(forwardWS)へ寄せる。
-//  鼻や頬の凹凸が作る自己陰を NdotL の段階で消すための法線平滑化。
 // -----------------------------------------------------------------------------
-half3 GetFaceSmoothedNormal(half3 detailNormalWS, float3 forwardWS, float proceduralMask, float faceNormalSmoothness)
+half3 GetFaceSmoothedNormal(half3 detailNormalWS, half3 cleanNormalWS, float faceNormalSmoothness)
 {
-    return normalize(lerp(detailNormalWS, forwardWS, proceduralMask * faceNormalSmoothness));
+    return normalize(lerp(detailNormalWS, cleanNormalWS, faceNormalSmoothness));
 }
 
 
@@ -96,6 +93,10 @@ float GetLitMask(float halfLambert, float proceduralMask, float toonStep, float 
     return lerp(litMask, 1.0, proceduralMask);
 }
 
+
+// =============================================================================
+//  汎用ライティング（旧 EasyPBR_Lighting.hlsl から Doll 用に統合）
+// =============================================================================
 
 // -----------------------------------------------------------------------------
 // [Anti-Blowout] ApplyLightEnergyLimit
@@ -201,16 +202,18 @@ half3 CalculatePeachFuzz(half3 fuzzColor, float fuzzFresnel, float fuzzIntensity
 // -----------------------------------------------------------------------------
 // [Fresnel] GetFresnelTerms
 //  Rim / Peach Fuzz 用のフレネル項 (1-NdotV)^power をまとめて算出（ライト非依存）。
-//  各 Intensity = 0 のときは pow をスキップ（uniform分岐なので安価・variant増加なし）。
+//  rimThickness(0..1): 0 = 極細(指数12)、1 = 極太(指数0.5)
 // -----------------------------------------------------------------------------
-void GetFresnelTerms(float ndotv, float rimIntensity, float rimPower, float fuzzIntensity, float fuzzPower,
+void GetFresnelTerms(float ndotv, float rimIntensity, float rimThickness, float fuzzIntensity, float fuzzPower,
                       out float rimFresnel, out float fuzzFresnel)
 {
     rimFresnel = 0.0;
     UNITY_BRANCH
     if (rimIntensity > 0.0)
     {
-        rimFresnel = pow(1.0 - ndotv, rimPower);
+        // Thickness が 0 のとき指数12(極細)、1 のとき指数0.5(極太)
+        float actualPower = lerp(12.0, 0.5, rimThickness);
+        rimFresnel = pow(1.0 - ndotv, actualPower);
     }
 
     fuzzFresnel = 0.0;
@@ -226,49 +229,232 @@ void GetFresnelTerms(float ndotv, float rimIntensity, float rimPower, float fuzz
 // [Detail] GetGrainNormal
 //  ブルーノイズで法線を僅かに揺らし、つるんとし過ぎない肌質感(grain)を作る。
 //  noiseVec はテクスチャサンプル結果を *2-1 した値( -1..1 )を渡す。
+//  grainIntensity = 0 のときは normalize をスキップして cleanNormalWS をそのまま返す。
 // -----------------------------------------------------------------------------
 half3 GetGrainNormal(half3 cleanNormalWS, half3 noiseVec, float grainIntensity)
 {
+    UNITY_BRANCH
+    if (grainIntensity <= 0.0) return cleanNormalWS;
     return normalize(cleanNormalWS + noiseVec * grainIntensity * 0.15);
 }
 
 
+// =============================================================================
+//  異方性ハイライト 
+// =============================================================================
+
 // -----------------------------------------------------------------------------
-// [MatCap] GetMatCapUV
-//  ビュー空間法線のXYを 0..1 のUVに変換する（球状の映り込み風の擬似ライティング）。
+// [Aniso] AnisoPrecomp
+//  ライトループ外で事前計算したデータを保持する構造体。
+//  angle / strandDir / strand ノイズはすべてuniform値依存のため
+//  ピクセルごとに 1 回計算すれば全ライトで共有できる。
 // -----------------------------------------------------------------------------
-float2 GetMatCapUV(half3 normalWS)
+struct AnisoPrecomp
 {
-    float3 normalVS = mul((float3x3)GetWorldToViewMatrix(), normalWS);
-    return normalVS.xy * 0.5 + 0.5;
+    float3 tangentDir;  // ストランドノイズ + 角度回転を適用済みの最終接線方向
+};
+
+// [Aniso] PrecomputeAnisoTangent
+//  frag 内でライトループの前に 1 回だけ呼ぶ。
+//  sincos / radians / sin × 3 はここで消費し、ライトループには持ち込まない。
+AnisoPrecomp PrecomputeAnisoTangent(
+    float3 tangentWS, float3 bitangentWS, half3 normalWS, float2 uv,
+    float angle, float strandDir, float strandScale, float strandStrength, float offset)
+{
+    // 90 度オフセット後に角度回転してメインの接線方向を決定
+    // （90 度回した状態が合うことが多かったので 90 度オフセット）
+    float rad = radians(angle + 90.0);
+    float s, c;
+    sincos(rad, s, c);
+    float3 t = normalize(tangentWS * c + bitangentWS * s);
+
+    // ストランドノイズの座標軸を決定
+    float dirRad = radians(strandDir);
+    float2 dirVec = float2(cos(dirRad), sin(dirRad));
+    float strandCoord = dot(uv, dirVec);
+
+    // プロシージャル毛束ノイズ（3 octave sin 合成）
+    float strandNoise = sin(strandCoord * strandScale)
+                      + sin(strandCoord * strandScale * 2.34) * 0.5
+                      + sin(strandCoord * strandScale * 3.71) * 0.25;
+
+    // オフセット（基本位置）に対して毛束ノイズでハイライトを上下に揺らす
+    float shift = offset + (strandNoise * 0.5) * strandStrength;
+    t = normalize(t + normalWS * shift);
+
+    AnisoPrecomp result;
+    result.tangentDir = t;
+    return result;
+}
+
+// [Aniso] CalculateAnisotropicSpecular
+//  AnisoPrecomp を受け取り、ライトごとのハーフベクトル計算のみを担当する。
+half3 CalculateAnisotropicSpecular(
+    AnisoPrecomp anisoPrecomp,
+    half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS,
+    half4 anisoColor, float thickness,
+    float3 diffuseLightEnergy, float castShadow)
+{
+    half3 result = half3(0, 0, 0);
+    UNITY_BRANCH
+    if (anisoColor.a > 0.0)
+    {
+        float3 h = SafeNormalize(lightDirWS + viewDirectionWS);
+        float dotTH = dot(anisoPrecomp.tangentDir, h);
+        float sinTH = sqrt(1.0 - saturate(dotTH * dotTH));
+
+        float power = exp2(lerp(10.0, 1.0, thickness));
+        float spec = pow(saturate(sinTH), power);
+        float mask = saturate(dot(detailNormalWS, lightDirWS) * 5.0) * castShadow;
+
+        result = anisoColor.rgb * spec * mask * diffuseLightEnergy;
+    }
+    return result;
 }
 
 
-// -----------------------------------------------------------------------------
-// [MatCap] ApplyMatCap
-//  サンプルした matcapColor を Add/Multiply で finalColor に合成する。
-// -----------------------------------------------------------------------------
-half3 ApplyMatCap(half3 finalColor, half3 matcapColor, float matcapIntensity)
+// =============================================================================
+//  グリッタ（スパンコール)
+// =============================================================================
+
+// [Glitter] Hash2DTo1D  — 2D → 1D のハッシュ関数
+float Hash2DTo1D(float2 p)
 {
-#if defined(_MATCAPBLEND_ADD)
-    return finalColor + matcapColor * matcapIntensity; // 加算: 光沢を足す
-#elif defined(_MATCAPBLEND_MULTIPLY)
-    return finalColor * lerp(half3(1.0, 1.0, 1.0), matcapColor, saturate(matcapIntensity)); // 乗算: 陰影付け
-#else
-    return finalColor;
-#endif
+    p = frac(p * float2(443.897, 441.423));
+    p += dot(p, p.yx + 19.19);
+    return frac((p.x + p.y) * p.x);
 }
 
+// [Glitter] HueToRGB  — iridescence（虹色）用 Hue → RGB 変換
+half3 HueToRGB(float hue)
+{
+    half3 rgb = saturate(abs(frac(hue + half3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0) - 1.0);
+    return rgb;
+}
 
 // -----------------------------------------------------------------------------
-// [Optional] CalculateEmission
-//  ライティングに依存しない自己発光色。
-//  emissionMapColor はテクスチャから取得した色(0..1)、emissionColor は[HDR]の色、
-//  emissionIntensity は全体の強さ。3つを掛け合わせて最終加算色を返す。
+// [Glitter] GlitterGeom
+//  PrepareGlitter が計算したライト非依存データをまとめる構造体。
+//  全ライトで共有される。
 // -----------------------------------------------------------------------------
-half3 CalculateEmission(half3 emissionMapColor, half3 emissionColor, float emissionIntensity)
+struct GlitterGeom
 {
-    return emissionMapColor * emissionColor * emissionIntensity;
+    float  dotMask;          // スパンコール円盤のマスク（距離ベース）
+    float  outerMask;        // 円盤外縁マスク
+    float  innerGlow;        // 中心ほど明るい内部グロー
+    half3  glitterNormal;    // ランダムチルト後の法線
+    float  NdotV;            // glitterNormal · viewDir（ベース反射グレージング用）
+    float  baseHue;          // iridescence 基準色相（セル固有・ライト非依存）
+    float  perSequinOffset;  // スパンコールごとの色相個体差
+};
+
+// [Glitter] PrepareGlitter
+//  ライトに依存しない幾何・ランダム計算。frag でライトループの前に 1 回だけ呼ぶ。
+//  false を返した場合は ApplyGlitterLight の呼び出しをスキップできる。
+bool PrepareGlitter(
+    half3 baseNormalWS, half3 viewDirectionWS,
+    float2 uv, float scale, float dotSize,
+    float tiltStrength, float glitterMask,
+    float intensity, float sparsity,
+    out GlitterGeom geom)
+{
+    geom = (GlitterGeom)0;
+    if (glitterMask <= 0.0 || intensity <= 0.0) return false;
+
+    float2 gridUV   = uv * scale;
+    float2 id       = floor(gridUV);
+    float2 localUV  = frac(gridUV);
+    float  invScale = rcp(scale);
+
+    float  minDistSq = 999.0;
+    float2 bestId    = id;
+    float  bestRand1 = 0.0, bestRand2 = 0.0;
+
+    // 近傍 3×3 セルで最近傍スパンコールを探索
+    UNITY_UNROLL
+    for (int y = -1; y <= 1; y++)
+    {
+        UNITY_UNROLL
+        for (int x = -1; x <= 1; x++)
+        {
+            float2 neighborId = id + float2(x, y);
+
+            float r4      = Hash2DTo1D(neighborId + float2(98.76, 54.32));
+            float r1      = Hash2DTo1D(neighborId);
+            float r2      = Hash2DTo1D(neighborId + float2(45.67, 89.12));
+
+            float2 diff   = float2(x, y) + float2(r1, r2) - localUV;
+            float  distSq = dot(diff, diff);
+            // sparsity で間引き率を制御
+            distSq = (r4 >= sparsity) ? distSq : 999.0;
+
+            if (distSq < minDistSq)
+            {
+                minDistSq = distSq;
+                bestId    = neighborId;
+                bestRand1 = r1;
+                bestRand2 = r2;
+            }
+        }
+    }
+
+    float bestRand3 = Hash2DTo1D(bestId + float2(12.34, 56.78));
+    float bestRand4 = Hash2DTo1D(bestId + float2(33.21, 77.65));
+
+    float absoluteDist  = sqrt(minDistSq) * invScale;
+    float actualDotSize = dotSize * lerp(0.7, 1.0, bestRand3);
+
+    // 形状：外縁と内部を分けて「円盤感」を出す
+    geom.outerMask = 1.0 - smoothstep(actualDotSize * 0.85, actualDotSize, absoluteDist);
+    geom.innerGlow = 1.0 - smoothstep(0.0, actualDotSize * 0.5, absoluteDist);
+    geom.dotMask   = geom.outerMask;
+
+    // 円盤外なら以降の計算をスキップ
+    if (geom.dotMask <= 0.0) return false;
+
+    // ランダムチルト後の法線と NdotV（ビュー依存・ライト非依存）
+    float3 randomTilt   = float3(bestRand1 - 0.5, bestRand2 - 0.5, bestRand3 - 0.5) * tiltStrength;
+    geom.glitterNormal  = normalize(baseNormalWS + randomTilt);
+    geom.NdotV          = saturate(dot(geom.glitterNormal, viewDirectionWS));
+
+    // iridescence 用乱数（セル固有・ライト非依存）
+    geom.baseHue         = bestRand4;
+    geom.perSequinOffset = bestRand4 * 0.8;
+
+    return true;
+}
+
+// [Glitter] ApplyGlitterLight
+//  PrepareGlitter で計算した幾何データにライトエネルギーを乗算して最終輝度を返す。
+//  ハーフベクトルと iridescence 色相はライト依存のためここで計算する。
+half3 ApplyGlitterLight(
+    GlitterGeom geom,
+    float3 lightDirWS, half3 viewDirectionWS,
+    half3 color, float intensity,
+    float iridescenceAmount, float iridescenceShift,
+    float baseReflection, float3 diffuseLightEnergy)
+{
+    float3 halfVector = SafeNormalize(lightDirWS + viewDirectionWS);
+    float  NdotH      = saturate(dot(geom.glitterNormal, halfVector));
+
+    // フラッシュ：急峻な on/off 感を出す（スパンコールは鏡に近い）
+    float flashSharp  = pow(NdotH, 500.0) * step(0.94, NdotH);   // メインフラッシュ（点）
+    float flashSoft   = pow(NdotH, 80.0)  * step(0.70, NdotH);   // 周囲のやわらかい光
+    float flash       = flashSharp + flashSoft * 0.15;
+
+    // iridescence（虹色）：ハーフベクトルの方位角に基づく色相変化（ライト依存）
+    float2 halfFlat    = halfVector.xz;
+    float  halfAzimuth = dot(halfFlat, float2(0.8, 0.6));
+    float  iridHue    = frac(geom.baseHue + halfAzimuth * iridescenceShift + geom.perSequinOffset);
+    half3  iridColor  = HueToRGB(iridHue);
+    half3  finalColor = lerp(color, color * iridColor * 2.0, iridescenceAmount);
+
+    // 合成：フラッシュ時 + ベース反射（スパンコールは光っていない時も暗いメタリック感がある）
+    half3 baseReflColor = finalColor * baseReflection * (1.0 - geom.NdotV * 0.5);
+    half3 flashContrib  = finalColor * flash * intensity;
+    half3 baseContrib   = baseReflColor * geom.outerMask * (1.0 - geom.innerGlow * 0.5);
+
+    return (flashContrib + baseContrib) * geom.dotMask * diffuseLightEnergy;
 }
 
 
