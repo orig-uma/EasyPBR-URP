@@ -48,7 +48,7 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS,
+    Light light, half3 detailNormalWS, half3 cleanNormalWS,
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
@@ -64,7 +64,7 @@ half3 CalculateSingleLight(
     float3 secSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _SecSpecularLightLimit);
 
     float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction, _BacklightPreserve);
-    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, objectForwardWS, _FaceNormalSmoothness);
+    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, cleanNormalWS, _FaceNormalSmoothness);
 
     float diffuseNdotL = dot(diffuseNormalWS, light.direction);
     float halfLambert = GetHalfLambert(diffuseNdotL, _HalfLambertWrap);
@@ -92,14 +92,12 @@ half3 CalculateSingleLight(
     half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
-    // Aniso: 接線方向は事前計算済み。ここではライトごとのハーフベクトル計算のみ
     half3 finalAniso = CalculateAnisotropicSpecular(
         anisoPrecomp,
         detailNormalWS, light.direction, viewDirectionWS,
         _AnisoColor, _AnisoThickness,
         diffuseLightEnergy, castShadow);
 
-    // Glitter: 幾何データは事前計算済み。ここではライトエネルギーの乗算のみ
     half3 finalGlitter = half3(0, 0, 0);
     if (glitterActive)
     {
@@ -121,10 +119,11 @@ half4 frag(Varyings input) : SV_Target
 
     half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
 
-    // _COLOR_CORRECTION_ON が有効な場合のみ HSV 変換を実行
-    #if defined(_COLOR_CORRECTION_ON)
+    UNITY_BRANCH
+    if (_UseColorCorrection > 0.5)
+    {
         albedo.rgb = ApplyColorCorrection(albedo.rgb, _HueShift, _Saturation, _ValueMulti);
-    #endif
+    }
 
     float2 detailUV = input.uv * _DetailMap_ST.xy + _DetailMap_ST.zw;
     half4 detail = SAMPLE_TEXTURE2D(_DetailMap, sampler_MainTex, detailUV) * _DetailColor;
@@ -143,7 +142,7 @@ half4 frag(Varyings input) : SV_Target
 
     half3 viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
     float3 objectForwardWS = input.forwardWS;
-
+    
     half4 blueNoiseSample = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale);
     half3 noiseVec   = blueNoiseSample.rgb * 2.0 - 1.0;
     half  ditherValue = blueNoiseSample.r;
@@ -152,6 +151,7 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
+    
 
     float4 shadowCoord = input.shadowCoord;
     #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
@@ -163,17 +163,13 @@ half4 frag(Varyings input) : SV_Target
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
     float rimFresnel, fuzzFresnel;
     GetFresnelTerms(NdotV, _RimIntensity, _RimThickness, _FuzzIntensity, _FuzzPower, rimFresnel, fuzzFresnel);
-
-    // Aniso 接線方向をライトループ外で 1 回だけ事前計算
+    
     AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
         input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
         _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength, _AnisoOffset);
-
-    // _GlitterMask をライトループ外で 1 回だけサンプリング
+    
     half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
 
-    // Glitter 幾何計算をライトループ外で 1 回だけ実施
-    //  9 回の Hash + sqrt + ドット形状をここで計算し、全ライトで共有する
     GlitterGeom glitterGeom;
     bool glitterActive = PrepareGlitter(
         detailNormalWS, viewDirectionWS,
@@ -186,7 +182,7 @@ half4 frag(Varyings input) : SV_Target
     half3 indirectLight = SampleSH(cleanNormalWS);
     Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
     finalColor += CalculateSingleLight(
-        mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+        mainLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, anisoPrecomp, glitterGeom, glitterActive);
@@ -201,7 +197,7 @@ half4 frag(Varyings input) : SV_Target
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
             finalColor += CalculateSingleLight(
-                addLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+                addLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
                 albedo.rgb, receiveShadowMask, specMask, ditherValue,
                 baseProceduralMask, rimFresnel, fuzzFresnel,
                 half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
@@ -209,16 +205,22 @@ half4 frag(Varyings input) : SV_Target
     #endif
 
     // 追加エフェクト適用
-    #if defined(_MATCAP_ON)
+    // keyword (_MATCAP_ON / _EMISSION_ON) を廃止し uniform 動的分岐に変更。
+    // 無効時(=0)は UNITY_BRANCH によりテクスチャサンプルごとスキップされる。
+    UNITY_BRANCH
+    if (_UseMatCap > 0.5)
+    {
         float2 matcapUV = GetMatCapUV(detailNormalWS);
         half3 matcapColor = SAMPLE_TEXTURE2D(_MatCapTex, sampler_MainTex, matcapUV).rgb * _MatCapColor.rgb;
-        finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity);
-    #endif
+        finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity, _MatCapBlend);
+    }
 
-    #if defined(_EMISSION_ON)
+    UNITY_BRANCH
+    if (_UseEmission > 0.5)
+    {
         half3 emissionMapColor = SAMPLE_TEXTURE2D(_EmissionMap, sampler_MainTex, input.uv).rgb;
         finalColor += CalculateEmission(emissionMapColor, _EmissionColor.rgb, _EmissionIntensity);
-    #endif
+    }
 
     finalColor += dissolveEmission;
     float3 black = float3(0.0f, 0.0f, 0.0f);

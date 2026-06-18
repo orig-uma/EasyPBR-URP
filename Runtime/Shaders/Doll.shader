@@ -13,7 +13,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
         _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
-        [Toggle(_COLOR_CORRECTION_ON)] _UseColorCorrection ("Enable Color Correction", Float) = 0
+        [Toggle] _UseColorCorrection ("Enable Color Correction", Float) = 0
         _HueShift("Hue Shift", Range(-0.5, 0.5)) = 0.0
         _Saturation("Saturation", Range(0.0, 2.0)) = 1.0
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
@@ -41,7 +41,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 自己発光 -------------------------------------------------------------
         [Header(Emission)]
-        [Toggle(_EMISSION_ON)] _UseEmission ("Enable Emission", Float) = 0
+        [Toggle] _UseEmission ("Enable Emission", Float) = 0
         [NoScaleOffset] _EmissionMap ("Emission Map (RGB)", 2D) = "white" {}
         [HDR] _EmissionColor ("Emission Color", Color) = (0, 0, 0, 1)
         _EmissionIntensity ("Emission Intensity", Range(0.0, 10.0)) = 1.0
@@ -51,7 +51,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _FrontMaskStrength ("Front Brightness", Range(0.0, 1.0)) = 0.8
         _UpMaskStrength ("Up Brightness", Range(0.0, 1.0)) = 0.3
         _MaskFalloff ("Shadow Erase Breadth", Range(0.1, 10.0)) = 2.0
-        _BacklightPreserve ("Backlight Shadow Preserve", Range(0.0, 1.0)) = 1.0
+        _BacklightPreserve ("Backlight Shadow Preserve", Range(0.0, 1.0)) = 1.0 
         [Space(10)]
         _FaceNormalSmoothness ("Face Normal Smoothing", Range(0.0, 1.0)) = 0.0
 
@@ -97,8 +97,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
         _AnisoStrandDir ("Strand Direction", Range(-180.0, 180.0)) = 0.0
         [Space(10)]
-        [Toggle(_MATCAP_ON)] _UseMatCap ("Enable MatCap", Float) = 0
-        [KeywordEnum(Add, Multiply)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
+        [Toggle] _UseMatCap ("Enable MatCap", Float) = 0
+        [Enum(Add, 0, Multiply, 1)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
         [NoScaleOffset] _MatCapTex ("MatCap Texture (RGB)", 2D) = "black" {}
         _MatCapColor ("MatCap Tint", Color) = (1, 1, 1, 1)
         _MatCapIntensity ("MatCap Intensity", Range(0.0, 5.0)) = 1.0
@@ -107,7 +107,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Dissolve)]
         [Toggle(_DISSOLVE_ON)] _UseDissolve ("Enable Dissolve", Float) = 0
         _DissolveAmount ("Dissolve Amount", Range(0.0, 1.0)) = 0.0
-        [Toggle(_DISSOLVE_INVERT)] _DissolveInvert ("Invert Dissolve", Float) = 0
+        [Toggle] _DissolveInvert ("Invert Dissolve", Float) = 0
         [KeywordEnum(None, WorldY, LocalY)] _DissolveType ("Dissolve Axis", Float) = 1
         _DissolveStartY ("Start Y", Float) = 0.0
         _DissolveEndY ("End Y", Float) = 2.0
@@ -203,14 +203,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _SURFACE_TRANSPARENT
-            #pragma shader_feature_local_fragment _EMISSION_ON
             #pragma shader_feature_local_fragment _SHADINGSTYLE_TOON
-            #pragma shader_feature_local_fragment _MATCAP_ON
-            #pragma shader_feature_local_fragment _MATCAPBLEND_ADD _MATCAPBLEND_MULTIPLY
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
-            #pragma shader_feature_local_fragment _DISSOLVE_INVERT
-            #pragma shader_feature_local_fragment _COLOR_CORRECTION_ON
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
@@ -243,7 +238,6 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
-            #pragma shader_feature_local_fragment _DISSOLVE_INVERT
 
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
@@ -281,7 +275,6 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
-            #pragma shader_feature_local_fragment _DISSOLVE_INVERT
 
             #include "Doll_OutlinePass.hlsl"
             ENDHLSL

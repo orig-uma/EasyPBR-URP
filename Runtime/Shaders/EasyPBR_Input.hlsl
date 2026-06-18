@@ -27,6 +27,7 @@ CBUFFER_START(UnityPerMaterial)
     // [EasyPBR Core] 基本設定
     half4 _BaseColor;
     half _NormalScale;
+    half _UseColorCorrection;
     half _HueShift;
     half _Saturation;
     half _ValueMulti;
