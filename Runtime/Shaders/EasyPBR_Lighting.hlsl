@@ -4,6 +4,7 @@
 // =============================================================================
 #ifndef EASYPBR_LIGHTING_INCLUDED
 #define EASYPBR_LIGHTING_INCLUDED
+#include <HLSLSupport.cginc>
 
 // [Anti-Blowout] 輝度制限
 float3 ApplyLightEnergyLimit(float3 rawLight, float limit)
@@ -34,6 +35,8 @@ void GetFresnelTerms(float ndotv, float rimIntensity, float rimThickness, float 
 // [Detail] ブルーノイズによる法線の微細な揺らぎ（肌や布の質感用）
 half3 GetGrainNormal(half3 cleanNormalWS, half3 noiseVec, float grainIntensity)
 {
+    UNITY_BRANCH
+    if (grainIntensity <= 0.0) return cleanNormalWS;
     return normalize(cleanNormalWS + noiseVec * grainIntensity * 0.15);
 }
 

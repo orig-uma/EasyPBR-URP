@@ -27,6 +27,7 @@ CBUFFER_START(UnityPerMaterial)
     // [EasyPBR Core] 基本設定
     half4 _BaseColor;
     half _NormalScale;
+    half _UseColorCorrection;
     half _HueShift;
     half _Saturation;
     half _ValueMulti;
@@ -115,10 +116,10 @@ CBUFFER_START(UnityPerMaterial)
     half _GlitterScale;
     half _GlitterSize;
     half _GlitterTilt;
-    float _GlitterSparsity;
-    float _GlitterIridescence;
-    float _GlitterIridescenceShift;
-    float _GlitterBaseReflection;
+    half _GlitterSparsity;
+    half _GlitterIridescence;
+    half _GlitterIridescenceShift;
+    half _GlitterBaseReflection;
 
     half4 _SSSColor;
     half _SSSIntensity;

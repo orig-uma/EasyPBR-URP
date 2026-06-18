@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 //  EasyPBR_Effects.hlsl
 //  ライティングに依存しない汎用エフェクト処理 (Dissolve, MatCap, Emission)
 // =============================================================================
@@ -50,11 +50,15 @@ void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 n
             // 面の向き（絶対値）を取得して、どの方向からの投影を強くするか決める
             float3 blendWeights = abs(normalWS);
             blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
+            float minW = min(blendWeights.x, min(blendWeights.y, blendWeights.z));
+            blendWeights = max(blendWeights - minW, 0.0);
+            blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
 
-            // X, Y, Z の3方向からノイズをサンプリング
-            float noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
-            float noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
-            float noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
+            // ウェイトが実質 0 の軸はサンプリングをスキップ（1 軸は常に省略）
+            float noiseX = 0.0, noiseY = 0.0, noiseZ = 0.0;
+            if (blendWeights.x > 0.0) noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
+            if (blendWeights.y > 0.0) noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
+            if (blendWeights.z > 0.0) noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
 
             // 重みに合わせてブレンド（これでどの角度から見ても歪まない空間ノイズになる）
             dissolveNoise = noiseX * blendWeights.x + noiseY * blendWeights.y + noiseZ * blendWeights.z;
@@ -87,9 +91,8 @@ void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 n
         float adjustedAmount = lerp(dMin - _DissolveEdgeWidth - 0.01, dMax + _DissolveEdgeWidth + 0.01, _DissolveAmount);
         float clipVal = dissolveVal - adjustedAmount;
         
-        #if defined(_DISSOLVE_INVERT)
-            clipVal = -clipVal;
-        #endif
+        // _DissolveInvert=0 で +1、1 で -1 を掛けて符号を反転（分岐レス）。
+        clipVal *= lerp(1.0, -1.0, saturate(_DissolveInvert));
         
         // 閾値未満ならピクセルを破棄
         clip(clipVal);
@@ -125,15 +128,12 @@ float2 GetMatCapUV(half3 normalWS)
     return normalVS.xy * 0.5 + 0.5;
 }
 
-half3 ApplyMatCap(half3 finalColor, half3 matcapColor, float matcapIntensity)
+// blendMode: 0 = Add, 1 = Multiply（_MatCapBlend の値をそのまま渡す）
+half3 ApplyMatCap(half3 finalColor, half3 matcapColor, float matcapIntensity, float blendMode)
 {
-#if defined(_MATCAPBLEND_ADD)
-    return finalColor + matcapColor * matcapIntensity;
-#elif defined(_MATCAPBLEND_MULTIPLY)
-    return finalColor * lerp(half3(1.0, 1.0, 1.0), matcapColor, saturate(matcapIntensity));
-#else
-    return finalColor;
-#endif
+    half3 addResult = finalColor + matcapColor * matcapIntensity;
+    half3 mulResult = finalColor * lerp(half3(1.0, 1.0, 1.0), matcapColor, saturate(matcapIntensity));
+    return (blendMode > 0.5) ? mulResult : addResult;
 }
 
 // -----------------------------------------------------------------------------

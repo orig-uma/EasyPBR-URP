@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 //  Doll_ForwardPass.hlsl
 //  メインの描画パス（UniversalForward）
 // =============================================================================
@@ -7,8 +7,7 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "EasyPBR_Effects.hlsl"
-#include "EasyPBR_Lighting.hlsl"
-#include "Doll_FaceLogic.hlsl"
+#include "DollLighting.hlsl"
 
 struct Attributes
 {
@@ -38,8 +37,8 @@ Varyings vert(Attributes input)
     VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
     output.positionWS = vertexInput.positionWS;
     output.positionCS = vertexInput.positionCS;
-    output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-    output.tangentWS = normalInput.tangentWS;
+    output.normalWS   = normalInput.normalWS;
+    output.tangentWS  = normalInput.tangentWS;
     output.bitangentWS = normalInput.bitangentWS;
     output.uv = input.uv;
     output.shadowCoord = GetShadowCoord(vertexInput);
@@ -49,10 +48,13 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS, float3 tangentWS, float3 bitangentWS, 
+    Light light, half3 detailNormalWS, half3 cleanNormalWS,
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
-    float baseProceduralMask, float rimFresnel, float fuzzFresnel, float2 uv, half3 indirectLight)
+    float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
+    AnisoPrecomp anisoPrecomp,
+    GlitterGeom glitterGeom,
+    bool glitterActive)
 {
     float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
     float3 diffuseLightEnergy = ApplyLightEnergyLimit(rawDiffuseLight, _DiffuseLightLimit);
@@ -62,7 +64,7 @@ half3 CalculateSingleLight(
     float3 secSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _SecSpecularLightLimit);
 
     float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction, _BacklightPreserve);
-    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, objectForwardWS, proceduralMask, _FaceNormalSmoothness);
+    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, cleanNormalWS, _FaceNormalSmoothness);
 
     float diffuseNdotL = dot(diffuseNormalWS, light.direction);
     float halfLambert = GetHalfLambert(diffuseNdotL, _HalfLambertWrap);
@@ -86,18 +88,26 @@ half3 CalculateSingleLight(
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
 
-    half3 finalSSS = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
-    half3 finalRim = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
+    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
     half3 finalAniso = CalculateAnisotropicSpecular(
-        detailNormalWS, tangentWS, bitangentWS, light.direction, viewDirectionWS,
-        _AnisoColor, _AnisoThickness, _AnisoOffset, _AnisoAngle, 
-        _AnisoStrandScale, _AnisoStrandStrength, _AnisoStrandDir,
-        uv, diffuseLightEnergy, castShadow);
+        anisoPrecomp,
+        detailNormalWS, light.direction, viewDirectionWS,
+        _AnisoColor, _AnisoThickness,
+        diffuseLightEnergy, castShadow);
 
-    half glitterMaskVal = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, uv).r;
-    half3 finalGlitter = CalculateGlitter(detailNormalWS, light.direction, viewDirectionWS, uv, _GlitterScale, _GlitterIntensity, _GlitterSize, _GlitterTilt, _GlitterColor.rgb, glitterMaskVal, _GlitterSparsity, _GlitterIridescence, _GlitterIridescenceShift, _GlitterBaseReflection);
+    half3 finalGlitter = half3(0, 0, 0);
+    if (glitterActive)
+    {
+        finalGlitter = ApplyGlitterLight(
+            glitterGeom,
+            light.direction, viewDirectionWS,
+            _GlitterColor.rgb, _GlitterIntensity,
+            _GlitterIridescence, _GlitterIridescenceShift,
+            _GlitterBaseReflection, diffuseLightEnergy);
+    }
 
     // 最終出力に合算
     return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso + finalGlitter;
@@ -109,7 +119,11 @@ half4 frag(Varyings input) : SV_Target
 
     half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
 
-    albedo.rgb = ApplyColorCorrection(albedo.rgb, _HueShift, _Saturation, _ValueMulti);
+    UNITY_BRANCH
+    if (_UseColorCorrection > 0.5)
+    {
+        albedo.rgb = ApplyColorCorrection(albedo.rgb, _HueShift, _Saturation, _ValueMulti);
+    }
 
     float2 detailUV = input.uv * _DetailMap_ST.xy + _DetailMap_ST.zw;
     half4 detail = SAMPLE_TEXTURE2D(_DetailMap, sampler_MainTex, detailUV) * _DetailColor;
@@ -128,14 +142,16 @@ half4 frag(Varyings input) : SV_Target
 
     half3 viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
     float3 objectForwardWS = input.forwardWS;
+    
+    half4 blueNoiseSample = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale);
+    half3 noiseVec   = blueNoiseSample.rgb * 2.0 - 1.0;
+    half  ditherValue = blueNoiseSample.r;
 
-    float3 noiseVec = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale).rgb * 2.0 - 1.0;
     half3 detailNormalWS = GetGrainNormal(cleanNormalWS, noiseVec, _GrainIntensity);
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
-    float2 ditherUV = input.positionCS.xy / 256.0;
-    half ditherValue = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, ditherUV).r;
+    
 
     float4 shadowCoord = input.shadowCoord;
     #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
@@ -147,11 +163,29 @@ half4 frag(Varyings input) : SV_Target
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
     float rimFresnel, fuzzFresnel;
     GetFresnelTerms(NdotV, _RimIntensity, _RimThickness, _FuzzIntensity, _FuzzPower, rimFresnel, fuzzFresnel);
+    
+    AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
+        input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
+        _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength, _AnisoOffset);
+    
+    half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
+
+    GlitterGeom glitterGeom;
+    bool glitterActive = PrepareGlitter(
+        detailNormalWS, viewDirectionWS,
+        input.uv, _GlitterScale, _GlitterSize,
+        _GlitterTilt, glitterMask,
+        _GlitterIntensity, _GlitterSparsity,
+        glitterGeom);
 
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
     Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
-    finalColor += CalculateSingleLight(mainLight, detailNormalWS, input.tangentWS, input.bitangentWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, input.uv, indirectLight);
+    finalColor += CalculateSingleLight(
+        mainLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
+        albedo.rgb, receiveShadowMask, specMask, ditherValue,
+        baseProceduralMask, rimFresnel, fuzzFresnel,
+        indirectLight, anisoPrecomp, glitterGeom, glitterActive);
 
     // 追加ライト計算
     #if defined(_ADDITIONAL_LIGHTS) || defined(_CLUSTER_LIGHT_LOOP)
@@ -162,21 +196,31 @@ half4 frag(Varyings input) : SV_Target
         uint pixelLightCount = GetAdditionalLightsCount();
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
-    finalColor += CalculateSingleLight(addLight, detailNormalWS, input.tangentWS, input.bitangentWS, viewDirectionWS, objectForwardWS, albedo.rgb, receiveShadowMask, specMask, ditherValue, baseProceduralMask, rimFresnel, fuzzFresnel, input.uv, half3(0,0,0));
+            finalColor += CalculateSingleLight(
+                addLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
+                albedo.rgb, receiveShadowMask, specMask, ditherValue,
+                baseProceduralMask, rimFresnel, fuzzFresnel,
+                half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
         LIGHT_LOOP_END
     #endif
 
     // 追加エフェクト適用
-    #if defined(_MATCAP_ON)
+    // keyword (_MATCAP_ON / _EMISSION_ON) を廃止し uniform 動的分岐に変更。
+    // 無効時(=0)は UNITY_BRANCH によりテクスチャサンプルごとスキップされる。
+    UNITY_BRANCH
+    if (_UseMatCap > 0.5)
+    {
         float2 matcapUV = GetMatCapUV(detailNormalWS);
         half3 matcapColor = SAMPLE_TEXTURE2D(_MatCapTex, sampler_MainTex, matcapUV).rgb * _MatCapColor.rgb;
-        finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity);
-    #endif
+        finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity, _MatCapBlend);
+    }
 
-    #if defined(_EMISSION_ON)
+    UNITY_BRANCH
+    if (_UseEmission > 0.5)
+    {
         half3 emissionMapColor = SAMPLE_TEXTURE2D(_EmissionMap, sampler_MainTex, input.uv).rgb;
         finalColor += CalculateEmission(emissionMapColor, _EmissionColor.rgb, _EmissionIntensity);
-    #endif
+    }
 
     finalColor += dissolveEmission;
     float3 black = float3(0.0f, 0.0f, 0.0f);
