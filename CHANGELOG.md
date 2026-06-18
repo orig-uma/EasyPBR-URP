@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-18
+### Changed
+- 処理負荷・ShaderVariantの削減
+- GUIの更新
+
 ## [0.3.0] - 2026-06-18
 
 ### Added
