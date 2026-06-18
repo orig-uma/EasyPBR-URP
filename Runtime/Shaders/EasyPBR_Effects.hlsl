@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 //  EasyPBR_Effects.hlsl
 //  ライティングに依存しない汎用エフェクト処理 (Dissolve, MatCap, Emission)
 // =============================================================================
@@ -50,11 +50,15 @@ void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 n
             // 面の向き（絶対値）を取得して、どの方向からの投影を強くするか決める
             float3 blendWeights = abs(normalWS);
             blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
+            float minW = min(blendWeights.x, min(blendWeights.y, blendWeights.z));
+            blendWeights = max(blendWeights - minW, 0.0);
+            blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
 
-            // X, Y, Z の3方向からノイズをサンプリング
-            float noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
-            float noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
-            float noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
+            // ウェイトが実質 0 の軸はサンプリングをスキップ（1 軸は常に省略）
+            float noiseX = 0.0, noiseY = 0.0, noiseZ = 0.0;
+            if (blendWeights.x > 0.0) noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
+            if (blendWeights.y > 0.0) noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
+            if (blendWeights.z > 0.0) noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
 
             // 重みに合わせてブレンド（これでどの角度から見ても歪まない空間ノイズになる）
             dissolveNoise = noiseX * blendWeights.x + noiseY * blendWeights.y + noiseZ * blendWeights.z;

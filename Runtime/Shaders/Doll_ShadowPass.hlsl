@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 //  Doll_ShadowPass.hlsl
 //  影を落とすためのパス（ShadowCaster）
 // =============================================================================
@@ -7,7 +7,7 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-#include "EasyPBR_Effects.hlsl" // Dissolve用
+#include "EasyPBR_Effects.hlsl"
 
 // URPの組み込み変数を明示
 float4 _LightPosition;
@@ -61,13 +61,16 @@ Varyings vert_shadow(Attributes input)
 
 half4 frag_shadow(Varyings input) : SV_Target 
 { 
-    half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
+    // ShadowCaster は ColorMask 0 のため RGB は不要。
+    //  アルファクリップ用に .a チャンネルのみ取得する（rgb 計算を省略）。
     #if defined(_ALPHATEST_ON)
-    clip(albedo.a - _Cutoff);
+        half alpha = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).a * _BaseColor.a;
+        clip(alpha - _Cutoff);
     #endif
 
+    half3 dummyAlbedo = half3(0, 0, 0);
     half3 dummyEmission;
-    ApplyDissolveClip(input.uv, input.positionWS, input.positionOS, input.normalWS, albedo.rgb, dummyEmission);
+    ApplyDissolveClip(input.uv, input.positionWS, input.positionOS, input.normalWS, dummyAlbedo, dummyEmission);
 
     return 0;
 }

@@ -13,6 +13,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
         _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
+        [Toggle(_COLOR_CORRECTION_ON)] _UseColorCorrection ("Enable Color Correction", Float) = 0
         _HueShift("Hue Shift", Range(-0.5, 0.5)) = 0.0
         _Saturation("Saturation", Range(0.0, 2.0)) = 1.0
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
@@ -50,9 +51,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _FrontMaskStrength ("Front Brightness", Range(0.0, 1.0)) = 0.8
         _UpMaskStrength ("Up Brightness", Range(0.0, 1.0)) = 0.3
         _MaskFalloff ("Shadow Erase Breadth", Range(0.1, 10.0)) = 2.0
-        _BacklightPreserve ("Backlight Shadow Preserve", Range(0.0, 1.0)) = 1.0 
+        _BacklightPreserve ("Backlight Shadow Preserve", Range(0.0, 1.0)) = 1.0
         [Space(10)]
-        _FaceNormalSmoothness ("Face Normal Smoothing", Range(0.0, 1.0)) = 0.8 
+        _FaceNormalSmoothness ("Face Normal Smoothing", Range(0.0, 1.0)) = 0.0
 
         // --- ライティングと影 ------------------------------------------------
         [Header(Light and Shadow)]
@@ -209,6 +210,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
             #pragma shader_feature_local_fragment _DISSOLVE_INVERT
+            #pragma shader_feature_local_fragment _COLOR_CORRECTION_ON
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
