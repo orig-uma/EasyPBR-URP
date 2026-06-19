@@ -151,7 +151,6 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
-    
 
     float4 shadowCoord = input.shadowCoord;
     #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
@@ -196,11 +195,15 @@ half4 frag(Varyings input) : SV_Target
         uint pixelLightCount = GetAdditionalLightsCount();
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
-            finalColor += CalculateSingleLight(
+            half3 addContrib = CalculateSingleLight(
                 addLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
                 albedo.rgb, receiveShadowMask, specMask, ditherValue,
                 baseProceduralMask, rimFresnel, fuzzFresnel,
                 half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
+            // 0 = Add（物理的・白飛びしやすい）, 1 = Max（アニメ向け・彩度を保つ）
+            finalColor = (_AdditionalLightBlendMode > 0.5)
+                ? max(finalColor, addContrib)
+                : finalColor + addContrib;
         LIGHT_LOOP_END
     #endif
 

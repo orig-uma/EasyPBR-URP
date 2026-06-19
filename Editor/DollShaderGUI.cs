@@ -220,7 +220,9 @@ namespace Origuma.EasyPBR.URP.Editor
 
                         EditorGUILayout.Space(4);
                         SubHeader("Anti-Blowout", "白飛び防止");
-                        P(materialEditor, "_DiffuseLightLimit", "Diffuse Light Limit", "ベース明るさ上限", "", "");
+                        P(materialEditor, "_DiffuseLightLimit", "Diffuse Light Limit", "ベース明るさ上限", "", "1灯あたりの拡散光の上限");
+                        P(materialEditor, "_AdditionalLightBlendMode", "Additional Light Blend", "追加ライトの合成方法", "",
+                            "Add: 物理的（白飛びしやすい）/ Max: アニメ向け（彩度を保つ）");
                     }
             }
 

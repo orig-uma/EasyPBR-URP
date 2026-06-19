@@ -65,6 +65,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
         _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.5
         _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
+        [Enum(Add, 0, Max, 1)] _AdditionalLightBlendMode ("Additional Light Blend", Float) = 1
         [Space(10)]
         _ToonStep ("Toon Shadow Threshold", Range(0.0, 1.0)) = 0.5
         _ToonFeather ("Toon Shadow Softness", Range(0.0, 1.0)) = 0.2
