@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-28
+### Added
+- _AdditionalLightBlendModeの追加。白飛び対策。
+
 ## [0.3.1] - 2026-06-18
 ### Changed
 - 処理負荷・ShaderVariantの削減
