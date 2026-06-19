@@ -85,6 +85,7 @@ CBUFFER_START(UnityPerMaterial)
     half _ShadowDither;
     half _HalfLambertWrap;
     half _DiffuseLightLimit;
+    half _AdditionalLightBlendMode;
     half _ToonStep;
     half _ToonFeather;
     
