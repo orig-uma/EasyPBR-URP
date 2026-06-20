@@ -99,11 +99,6 @@ float GetLitMask(float halfLambert, float proceduralMask, float toonStep, float 
     return lerp(litMask, 1.0, proceduralMask);
 }
 
-
-// =============================================================================
-//  汎用ライティング（旧 EasyPBR_Lighting.hlsl から Doll 用に統合）
-// =============================================================================
-
 // -----------------------------------------------------------------------------
 // [Anti-Blowout] ApplyLightEnergyLimit
 //  rawLight の輝度(luminance)が limit を超えないようスケールする。
@@ -128,6 +123,42 @@ half3 GetShadedAlbedo(half3 baseColor, half3 shadowColorTint, float finalShade)
     return lerp(shadedBaseColor, baseColor, finalShade);
 }
 
+// -----------------------------------------------------------------------------
+// [Specular] 微小面 GGX BRDF ヘルパー（_SPECULARMODEL_GGX 時のみ使用）
+// -----------------------------------------------------------------------------
+float Doll_D_GGX(float NdotH, float alpha)
+{
+    float a2 = alpha * alpha;
+    float d  = (NdotH * a2 - NdotH) * NdotH + 1.0; // NdotH^2 (a2-1) + 1
+    return a2 / (PI * d * d + 1e-7);
+}
+
+// 高さ相関 Smith 可視性（1/(4 NdotL NdotV) を内包）
+float Doll_V_SmithGGX(float NdotL, float NdotV, float alpha)
+{
+    float a2 = alpha * alpha;
+    float ggxV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
+    float ggxL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
+    return 0.5 / max(ggxV + ggxL, 1e-5);
+}
+
+float3 Doll_F_Schlick(float VdotH, float3 f0)
+{
+    float f = pow(1.0 - VdotH, 5.0);
+    return f0 + (1.0 - f0) * f;
+}
+
+// 1ローブ分の Cook-Torrance（D*V*F。NdotL は呼び出し側で乗算）
+half3 Doll_GGXLobe(float NdotH, float NdotL, float NdotV, float VdotH,
+              float smoothness, half3 tint, float3 f0)
+{
+    float roughness = 1.0 - saturate(smoothness);
+    float alpha     = max(roughness * roughness, 2e-3); // 完全鏡面のギラつき/NaN回避
+    float D = Doll_D_GGX(NdotH, alpha);
+    float V = Doll_V_SmithGGX(NdotL, NdotV, alpha);
+    half3 F = Doll_F_Schlick(VdotH, f0);
+    return D * V * F * tint;
+}
 
 // -----------------------------------------------------------------------------
 // [Specular] CalculateDualLobeSpecular
@@ -138,22 +169,37 @@ half3 CalculateDualLobeSpecular(
     half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS, float ndotlSpecular,
     float3 priSpecEnergy, half4 specColor1, float smoothness1, float intensity1,
     float3 secSpecEnergy, half4 specColor2, float smoothness2, float intensity2,
-    float specMask, float castShadow,
+    float specMask, float castShadow, float specF0,
     out float specularMaskVal)
 {
     float3 halfVector = SafeNormalize(lightDirWS + viewDirectionWS);
-    float NdotH = saturate(dot(detailNormalWS, halfVector));
+    float  NdotH = saturate(dot(detailNormalWS, halfVector));
 
-    // smoothness(0..1) を exp2 で鏡面指数へ変換（大きいほど鋭いハイライト）
+    specularMaskVal = saturate(ndotlSpecular * 10.0) * specMask * castShadow;
+
+    #if defined(_SPECULARMODEL_GGX)
+    // --- 物理ベース: Fresnel・可視性込みで自然な裾と縁の輝き ---
+    float NdotL = saturate(ndotlSpecular);
+    float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
+    float VdotH = saturate(dot(viewDirectionWS, halfVector));
+    float3 f0   = specF0.xxx;
+
+    half3 spec1 = Doll_GGXLobe(NdotH, NdotL, NdotV, VdotH, smoothness1, specColor1.rgb, f0)
+                  * intensity1 * priSpecEnergy;
+    half3 spec2 = Doll_GGXLobe(NdotH, NdotL, NdotV, VdotH, smoothness2, specColor2.rgb, f0)
+                  * intensity2 * secSpecEnergy;
+
+    return (spec1 + spec2) * NdotL * (specMask * castShadow);
+    #else
+    // --- 従来 Blinn-Phong（既定・最軽量・見た目互換） ---
     float specPower1 = exp2(10.0 * smoothness1 + 1.0);
     half3 spec1 = specColor1.rgb * pow(NdotH, specPower1) * intensity1 * priSpecEnergy;
 
     float specPower2 = exp2(10.0 * smoothness2 + 1.0);
     half3 spec2 = specColor2.rgb * pow(NdotH, specPower2) * intensity2 * secSpecEnergy;
 
-    // ライトの裏側ではハイライトを出さない + マスク + 落ち影で減衰
-    specularMaskVal = saturate(ndotlSpecular * 10.0) * specMask * castShadow;
     return (spec1 + spec2) * specularMaskVal;
+    #endif
 }
 
 
@@ -249,56 +295,44 @@ half3 GetGrainNormal(half3 cleanNormalWS, half3 noiseVec, float grainIntensity)
 //  異方性ハイライト 
 // =============================================================================
 
-// -----------------------------------------------------------------------------
-// [Aniso] AnisoPrecomp
-//  ライトループ外で事前計算したデータを保持する構造体。
-//  angle / strandDir / strand ノイズはすべてuniform値依存のため
-//  ピクセルごとに 1 回計算すれば全ライトで共有できる。
-// -----------------------------------------------------------------------------
 struct AnisoPrecomp
 {
-    float3 tangentDir;  // ストランドノイズ + 角度回転を適用済みの最終接線方向
+    float3 tangentDir;   // 主ハイライト用（鋭い・天使の輪）
+    float3 tangentDir2;  // 副ハイライト用（広い・毛色付き）
+    float  strandNoise;  // 毛束ノイズ（副バンドのきらめきマスクに再利用）
 };
 
-// [Aniso] PrecomputeAnisoTangent
-//  frag 内でライトループの前に 1 回だけ呼ぶ。
-//  sincos / radians / sin × 3 はここで消費し、ライトループには持ち込まない。
 AnisoPrecomp PrecomputeAnisoTangent(
     float3 tangentWS, float3 bitangentWS, half3 normalWS, float2 uv,
-    float angle, float strandDir, float strandScale, float strandStrength, float offset)
+    float angle, float strandDir, float strandScale, float strandStrength,
+    float offset, float offset2)
 {
-    // 90 度オフセット後に角度回転してメインの接線方向を決定
-    // （90 度回した状態が合うことが多かったので 90 度オフセット）
     float rad = radians(angle + 90.0);
-    float s, c;
-    sincos(rad, s, c);
-    float3 t = normalize(tangentWS * c + bitangentWS * s);
+    float s, c; sincos(rad, s, c);
+    float3 tBase = normalize(tangentWS * c + bitangentWS * s);
 
-    // ストランドノイズの座標軸を決定
     float dirRad = radians(strandDir);
     float2 dirVec = float2(cos(dirRad), sin(dirRad));
     float strandCoord = dot(uv, dirVec);
 
-    // プロシージャル毛束ノイズ（3 octave sin 合成）
     float strandNoise = sin(strandCoord * strandScale)
                       + sin(strandCoord * strandScale * 2.34) * 0.5
                       + sin(strandCoord * strandScale * 3.71) * 0.25;
 
-    // オフセット（基本位置）に対して毛束ノイズでハイライトを上下に揺らす
-    float shift = offset + (strandNoise * 0.5) * strandStrength;
-    t = normalize(t + normalWS * shift);
+    float noiseShift = (strandNoise * 0.5) * strandStrength;
 
     AnisoPrecomp result;
-    result.tangentDir = t;
+    result.tangentDir  = normalize(tBase + normalWS * (offset  + noiseShift));
+    result.tangentDir2 = normalize(tBase + normalWS * (offset2 + noiseShift));
+    result.strandNoise = strandNoise;
     return result;
 }
 
-// [Aniso] CalculateAnisotropicSpecular
-//  AnisoPrecomp を受け取り、ライトごとのハーフベクトル計算のみを担当する。
 half3 CalculateAnisotropicSpecular(
     AnisoPrecomp anisoPrecomp,
     half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS,
     half4 anisoColor, float thickness,
+    half4 anisoColor2, float thickness2,
     float3 diffuseLightEnergy, float castShadow)
 {
     half3 result = half3(0, 0, 0);
@@ -306,14 +340,28 @@ half3 CalculateAnisotropicSpecular(
     if (anisoColor.a > 0.0)
     {
         float3 h = SafeNormalize(lightDirWS + viewDirectionWS);
-        float dotTH = dot(anisoPrecomp.tangentDir, h);
-        float sinTH = sqrt(1.0 - saturate(dotTH * dotTH));
+        float  mask = saturate(dot(detailNormalWS, lightDirWS) * 5.0) * castShadow;
 
-        float power = exp2(lerp(10.0, 1.0, thickness));
-        float spec = pow(saturate(sinTH), power);
-        float mask = saturate(dot(detailNormalWS, lightDirWS) * 5.0) * castShadow;
+        // --- 主バンド（従来と同一） ---
+        float dotTH1 = dot(anisoPrecomp.tangentDir, h);
+        float sinTH1 = sqrt(1.0 - saturate(dotTH1 * dotTH1));
+        float power1 = exp2(lerp(10.0, 1.0, thickness));
+        result = anisoColor.rgb * pow(saturate(sinTH1), power1);
 
-        result = anisoColor.rgb * spec * mask * diffuseLightEnergy;
+        // --- 副バンド（広い・毛色付き・ノイズきらめき・縁で強まる） ---
+        UNITY_BRANCH
+        if (anisoColor2.a > 0.0)
+        {
+            float VdotH   = saturate(dot(viewDirectionWS, h));
+            float fresnel = lerp(0.5, 1.0, pow(1.0 - VdotH, 4.0));
+            float dotTH2  = dot(anisoPrecomp.tangentDir2, h);
+            float sinTH2  = sqrt(1.0 - saturate(dotTH2 * dotTH2));
+            float power2  = exp2(lerp(10.0, 1.0, thickness2));
+            float sparkle = saturate(anisoPrecomp.strandNoise * 0.5 + 0.5);
+            result += anisoColor2.rgb * pow(saturate(sinTH2), power2) * sparkle * fresnel;
+        }
+
+        result = result * mask * diffuseLightEnergy;
     }
     return result;
 }

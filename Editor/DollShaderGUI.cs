@@ -245,22 +245,7 @@ namespace Origuma.EasyPBR.URP.Editor
             }
 
             // -----------------------------------------------------------
-            // 4. Outline
-            // -----------------------------------------------------------
-            EditorGUILayout.Space(4);
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-            {
-                if (Section("outline", true, "Outline", "アウトライン (輪郭線)", "", ""))
-                {
-                    using (new EditorGUI.IndentLevelScope())
-                    {
-                        DrawOutlineSetup(materialEditor, properties);
-                    }
-                }
-            }
-
-            // -----------------------------------------------------------
-            // 5. Specular and Reflection
+            // 4. Specular and Reflection
             // -----------------------------------------------------------
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
@@ -268,11 +253,20 @@ namespace Origuma.EasyPBR.URP.Editor
                 if (Section("specular", false, "Specular and Reflection", "ハイライトと映り込み", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
+                        // --- Model ---
+                        var specModelProp = Prop("_SpecularModel");
+                        P(materialEditor, specModelProp, "Specular Model", "スペキュラモデル", "",
+                            "BlinnPhong: 軽量・従来互換 / Ggx: 物理ベース（Fresnel・自然な裾）");
+                        if (specModelProp != null && specModelProp.floatValue >= 0.5f)
+                            using (new EditorGUI.IndentLevelScope())
+                                P(materialEditor, "_SpecularF0", "Fresnel (F0)", "フレネル反射率", "", "誘電体は 0.04 前後");
+
                         var specMask = Prop("_SpecularMask");
                         if (specMask != null)
                             materialEditor.TexturePropertySingleLine(Label("Specular Mask (R)", "スペキュラマスク (R)", "", ""),
                                 specMask);
 
+                        // --- Dual-Lobe ---
                         SubHeader("Primary (Sharp)", "Primary（シャープ）");
                         P(materialEditor, "_SpecularColor", "Color", "色", "", "");
                         P(materialEditor, "_Smoothness", "Smoothness", "なめらかさ", "", "");
@@ -285,6 +279,7 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_SecSpecularIntensity", "Intensity", "強度", "", "");
                         P(materialEditor, "_SecSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
 
+                        // --- Anisotropic ---
                         SubHeader("Anisotropic (Hair / Silk)", "異方性ハイライト (髪 / シルク)");
                         var anisoColorProp = Prop("_AnisoColor");
                         P(materialEditor, anisoColorProp, "Color (A=0 is Off)", "色 (アルファ0で無効)", "",
@@ -301,8 +296,23 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "ハイライトが毛束に沿ってギザギザに割れます");
                                 P(materialEditor, "_AnisoStrandDir", "Strand Direction", "繊維の方向", "",
                                     "繊維（ノイズ）が流れるUVの方向を回転させます");
+
+                                // 2nd Lobe（主ハイライトが有効なときのみ意味を持つ）
+                                EditorGUILayout.Space(2);
+                                SubHeader("Sub Highlight (2nd Lobe)", "サブハイライト (2nd Lobe)");
+                                var anisoSecProp = Prop("_AnisoSecColor");
+                                P(materialEditor, anisoSecProp, "Color (A=0 is Off)", "副の色 (アルファ0で無効)", "",
+                                    "主の逆側にもう一本の広いツヤを足します");
+                                if (anisoSecProp != null && anisoSecProp.colorValue.a > 0f)
+                                    using (new EditorGUI.IndentLevelScope())
+                                    {
+                                        P(materialEditor, "_AnisoSecThickness", "Thickness", "太さ", "", "");
+                                        P(materialEditor, "_AnisoSecOffset", "Position Offset", "位置のズレ", "",
+                                            "主と逆符号にすると上下に分かれて髪らしくなります");
+                                    }
                             }
 
+                        // --- MatCap ---
                         SubHeader("MatCap", "MatCap");
                         var useMatCapProp = Prop("_UseMatCap");
                         P(materialEditor, useMatCapProp, "Enable MatCap", "MatCapを使う", "", "");
@@ -318,6 +328,21 @@ namespace Origuma.EasyPBR.URP.Editor
                                 P(materialEditor, "_MatCapIntensity", "Intensity", "強度", "", "");
                             }
                     }
+            }
+
+            // -----------------------------------------------------------
+            // 5. Outline
+            // -----------------------------------------------------------
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("outline", true, "Outline", "アウトライン (輪郭線)", "", ""))
+                {
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawOutlineSetup(materialEditor, properties);
+                    }
+                }
             }
 
             // -----------------------------------------------------------

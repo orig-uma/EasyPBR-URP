@@ -111,6 +111,10 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
     half _AnisoStrandDir;
+    half _SpecularF0;
+    half4 _AnisoSecColor;
+    half _AnisoSecThickness;
+    half _AnisoSecOffset;
 
     // [Sequin Glitter]
     half4 _GlitterColor;

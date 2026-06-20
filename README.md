@@ -38,6 +38,8 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
   顔用マスクテクスチャは不要。法線平滑化とプロシージャルマスクにより自己陰を抑制する。
 * **セルフシャドウ**
   落ち影と陰影を分離して合成する。落ち影はメインライト専用に PCF / PCSS で高品質化でき、追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。
+* **スペキュラ**
+  Dual-Lobe を基本に、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Fresnel）を切り替えられる。
 * **半透明**
   Render Mode プリセット（Opaque / Cutout / Transparent）で Render Queue、Blend Mode、ZWrite を一括設定する。
 * **任意効果**
@@ -51,8 +53,8 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | Base Core | Base Map、HSV 色調補正、Detail Map（RGBA ブレンド）、Normal Map |
 | Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク＋法線平滑化） |
 | Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、受け側ノーマルオフセット、ブルーノイズディザ |
-| Specular | Dual-Lobe（Primary / Secondary、Blinn-Phong） |
-| Anisotropic Highlight | 髪・シルク向け異方性ハイライト（Strand パラメータ） |
+| Specular | Dual-Lobe（Primary / Secondary）。Blinn-Phong / GGX（Schlick Fresnel・Smith 可視性）を切り替え |
+| Anisotropic Highlight | 髪・シルク向け異方性ハイライト。2 バンド（主 / 副）、Strand パラメータ |
 | MatCap | Add / Multiply |
 | Dissolve | Outer / Inner 2 色、Step Edge、Axis（None / WorldY / LocalY）、焦げアルベド |
 | Glitter | マスク付きスパンコール。Iridescence、Sparsity、Base Reflection |
@@ -128,7 +130,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff、Backlight Preserve、Normal Smoothing |
 | Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Self Shadow Quality、Receiver Normal Bias、Shadow Softness、Dither、Light Wrap、Toon Step / Feather、Light Limit、Additional Light Blend |
 | Surface Micro Detail | Blue Noise、Grain |
-| Specular and Reflection | Dual-Lobe（Primary / Secondary）、Anisotropic、MatCap |
+| Specular and Reflection | Specular Model（BlinnPhong / GGX）、Fresnel F0、Dual-Lobe（Primary / Secondary）、Anisotropic（主 / 副 2 バンド）、MatCap |
 | Emission | Emission Map、Color、Intensity |
 | Dissolve | Amount、Axis、Edge Color、Step Edge |
 | Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light |

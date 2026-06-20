@@ -80,6 +80,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
+        [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 0
+        _SpecularF0 ("Specular Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
         _SpecularColor ("Primary Specular Color", Color) = (1, 1, 1, 1)
@@ -99,6 +101,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _AnisoStrandScale ("Strand Scale", Range(1.0,500.0)) = 50.0
         _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
         _AnisoStrandDir ("Strand Direction", Range(-180.0, 180.0)) = 0.0
+        [HDR] _AnisoSecColor ("Aniso 2nd Color (A=Enable)", Color) = (0,0,0,0)
+        _AnisoSecThickness ("Aniso 2nd Thickness", Range(0.0, 1.0)) = 0.7
+        _AnisoSecOffset ("Aniso 2nd Offset", Range(-1.0, 1.0)) = -0.15
         [Space(10)]
         [Toggle] _UseMatCap ("Enable MatCap", Float) = 0
         [Enum(Add, 0, Multiply, 1)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
@@ -209,6 +214,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _SHADINGSTYLE_TOON
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+            #pragma shader_feature_local_fragment _SPECULARMODEL_BLINNPHONG _SPECULARMODEL_GGX
             #pragma shader_feature_local_fragment _SHADOWQUALITY_OFF _SHADOWQUALITY_PCF _SHADOWQUALITY_PCSS
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
