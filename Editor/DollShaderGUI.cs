@@ -9,11 +9,9 @@ namespace Origuma.EasyPBR.URP.Editor
     {
         private const string KeyPrefix = "Origuma.EasyPBR.URP.Doll.";
         private const string LangKey = KeyPrefix + "lang.jp";
-        private const string HelpKey = KeyPrefix + "show.help";
         private const string CustomUIKey = KeyPrefix + "use.custom.ui";
 
         private bool _jp;
-        private bool _showHelp;
         private bool _useCustomUI = true;
         private bool _prefsLoaded;
 
@@ -63,13 +61,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 base.OnGUI(materialEditor, properties);
                 return;
             }
-
-            if (_showHelp)
-                EditorGUILayout.HelpBox(
-                    _jp
-                        ? "各項目を初期値から変更すると、その行の右端に \u21BA が表示されます。押すとその項目だけをシェーダーの初期値に戻せます。"
-                        : "When a value differs from its default, a \u21BA appears at the right of that row. Click it to reset just that property to the shader default.",
-                    MessageType.None);
 
             // -----------------------------------------------------------
             // 1. Surface Options
@@ -691,7 +682,6 @@ namespace Origuma.EasyPBR.URP.Editor
         {
             if (_prefsLoaded) return;
             _jp = EditorPrefs.GetBool(LangKey, Application.systemLanguage == SystemLanguage.Japanese);
-            _showHelp = EditorPrefs.GetBool(HelpKey, true);
             _useCustomUI = EditorPrefs.GetBool(CustomUIKey, true);
             _prefsLoaded = true;
         }
@@ -732,16 +722,9 @@ namespace Origuma.EasyPBR.URP.Editor
                     _jp = lang == 1;
                     EditorPrefs.SetBool(LangKey, _jp);
                     _labelCache.Clear(); // 言語変更時にラベルキャッシュを破棄
-                    _resetIcon = null;   // ↺ ボタンのツールチップも作り直す
                 }
 
                 EditorGUI.BeginChangeCheck();
-                var help = GUILayout.Toggle(_showHelp, _jp ? "説明" : "Help", "Button", GUILayout.Width(60));
-                if (EditorGUI.EndChangeCheck())
-                {
-                    _showHelp = help;
-                    EditorPrefs.SetBool(HelpKey, help);
-                }
             }
         }
 
@@ -774,12 +757,6 @@ namespace Origuma.EasyPBR.URP.Editor
                 _foldCache[id] = open;
                 EditorPrefs.SetBool(KeyPrefix + "fold." + id, open);
                 e.Use();
-            }
-
-            if (open && _showHelp && !string.IsNullOrEmpty(descJp))
-            {
-                EditorGUILayout.Space(2);
-                EditorGUILayout.HelpBox(_jp ? descJp : descEn, MessageType.None);
             }
 
             if (open) EditorGUILayout.Space(4);
@@ -819,140 +796,16 @@ namespace Origuma.EasyPBR.URP.Editor
             if (prop == null) return;
 
             var label = Label(en, jp, tipEn, tipJp);
-            var changed = DiffersFromDefault(prop);
-
             var h = editor.GetPropertyHeight(prop);
             var row = EditorGUILayout.GetControlRect(true, h);
 
-            // 初期値と異なるときだけ、右端にリセットボタン用の隙間を空ける
-            var fieldRect = row;
-            if (changed) fieldRect.width -= 20f;
-
-            editor.ShaderProperty(fieldRect, prop, label);
-
-            if (changed)
-            {
-                var btn = new Rect(row.xMax - 18f, row.y + 1f, 16f, EditorGUIUtility.singleLineHeight);
-                if (GUI.Button(btn, ResetContent(), ResetStyle()))
-                    ResetProperty(editor, prop);
-            }
+            editor.ShaderProperty(row, prop, label);
         }
 
         // 名前で引いて描画（propCache 経由）
         private void P(MaterialEditor editor, string name, string en, string jp, string tipEn, string tipJp)
         {
             P(editor, Prop(name), en, jp, tipEn, tipJp);
-        }
-
-        // ================================================================
-        //  初期値リセット
-        // ================================================================
-
-        // prop が属する Shader 内のプロパティ index を返す（キャッシュ付き）。
-        // 同時に _cachedShader を prop の Shader に合わせる。見つからなければ -1。
-        private int ShaderIndex(MaterialProperty prop)
-        {
-            if (prop.targets == null || prop.targets.Length == 0) return -1;
-            var shader = (prop.targets[0] as Material)?.shader;
-            if (shader == null) return -1;
-
-            if (!ReferenceEquals(shader, _cachedShader))
-            {
-                _cachedShader = shader;
-                _shaderIndexCache.Clear();
-            }
-
-            if (!_shaderIndexCache.TryGetValue(prop.name, out var idx))
-            {
-                idx = shader.FindPropertyIndex(prop.name);
-                _shaderIndexCache[prop.name] = idx;
-            }
-
-            return idx;
-        }
-
-        // 現在値がシェーダー定義の初期値と異なるか
-        private bool DiffersFromDefault(MaterialProperty prop)
-        {
-            if (prop.hasMixedValue) return true;
-
-            var idx = ShaderIndex(prop);
-            if (idx < 0 || _cachedShader == null) return false;
-
-            switch (prop.propertyType)
-            {
-                case ShaderPropertyType.Color:
-                {
-                    Vector4 def = _cachedShader.GetPropertyDefaultVectorValue(idx);
-                    Vector4 cur = prop.colorValue;
-                    return (def - cur).sqrMagnitude > 1e-8f;
-                }
-                case ShaderPropertyType.Vector:
-                {
-                    Vector4 def = _cachedShader.GetPropertyDefaultVectorValue(idx);
-                    return (def - prop.vectorValue).sqrMagnitude > 1e-8f;
-                }
-                case ShaderPropertyType.Texture:
-                    return prop.textureValue != null
-                           || prop.textureScaleAndOffset != new Vector4(1f, 1f, 0f, 0f);
-#if UNITY_2021_1_OR_NEWER
-                case ShaderPropertyType.Int:
-                    return prop.intValue != Mathf.RoundToInt(_cachedShader.GetPropertyDefaultFloatValue(idx));
-#endif
-                default: // Float / Range
-                    return !Mathf.Approximately(prop.floatValue, _cachedShader.GetPropertyDefaultFloatValue(idx));
-            }
-        }
-
-        // prop をシェーダー定義の初期値に戻す（Undo 対応）
-        private void ResetProperty(MaterialEditor editor, MaterialProperty prop)
-        {
-            var idx = ShaderIndex(prop);
-            if (idx < 0 || _cachedShader == null) return;
-
-            editor.RegisterPropertyChangeUndo(prop.displayName);
-
-            switch (prop.propertyType)
-            {
-                case ShaderPropertyType.Color:
-                    prop.colorValue = _cachedShader.GetPropertyDefaultVectorValue(idx);
-                    break;
-                case ShaderPropertyType.Vector:
-                    prop.vectorValue = _cachedShader.GetPropertyDefaultVectorValue(idx);
-                    break;
-                case ShaderPropertyType.Texture:
-                    prop.textureValue = null; // フォールバック（white/bump 等）に戻す
-                    prop.textureScaleAndOffset = new Vector4(1f, 1f, 0f, 0f);
-                    break;
-#if UNITY_2021_1_OR_NEWER
-                case ShaderPropertyType.Int:
-                    prop.intValue = Mathf.RoundToInt(_cachedShader.GetPropertyDefaultFloatValue(idx));
-                    break;
-#endif
-                default: // Float / Range
-                    prop.floatValue = _cachedShader.GetPropertyDefaultFloatValue(idx);
-                    break;
-            }
-
-            GUI.changed = true;
-        }
-
-        private GUIContent ResetContent()
-        {
-            return _resetIcon ??= new GUIContent("\u21BA", _jp ? "初期値に戻す" : "Reset to default");
-        }
-
-        private GUIStyle ResetStyle()
-        {
-            if (_resetStyle == null)
-                _resetStyle = new GUIStyle(EditorStyles.label)
-                {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 12,
-                    padding = new RectOffset(0, 0, 0, 0),
-                    margin = new RectOffset(0, 0, 0, 0)
-                };
-            return _resetStyle;
         }
     }
 }

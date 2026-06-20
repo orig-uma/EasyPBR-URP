@@ -81,12 +81,12 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Space(10)]
         _SpecularColor ("Primary Specular Color", Color) = (1, 1, 1, 1)
         _Smoothness ("Primary Smoothness", Range(0.01, 1.0)) = 0.8
-        _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 0.5
+        _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 0.0
         _PriSpecularLightLimit ("Primary Specular Limit", Range(0.1, 10.0)) = 2
         [Space(10)]
         _SecSpecularColor ("Secondary Specular Color", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
-        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.05
+        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.0
         _SecSpecularLightLimit ("Secondary Specular Limit", Range(0.1, 5.0)) = 1.2
         [Header(Anisotropic Highlight)]
         [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
@@ -148,7 +148,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _FuzzPower ("Peach Fuzz Width", Range(0.1, 10.0)) = 4.0
         [Space(10)]
         _RimColor ("Rim Light Color", Color) = (1, 1, 1, 1)
-        _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 1.0
+        _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 0.0
         _RimThickness ("Rim Light Thickness", Range(0.0, 1.0)) = 0.2
         [Space(10)]
         _BlackOut ("Black Out", Range(0.0, 1.0)) = 0
