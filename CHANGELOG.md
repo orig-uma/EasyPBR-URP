@@ -4,7 +4,22 @@
 
 ## [Unreleased]
 
-## [0.3.2] - 2026-06-28
+## [0.3.3] - 2026-06-20
+
+### Added
+- 高品質セルフシャドウ（`_ShadowQuality`）。メインライト専用。
+    - **PCF**: スクリーン空間回転 Vogel ディスクによる連続ペナンブラ（既定）
+    - **PCSS**: ブロッカー探索によるコンタクトハードニング（接地は鋭く・遠方は柔らかく）
+- 受け側ノーマルオフセット（`_ReceiverNormalBias`）。シャドウアクネ（縞ノイズ）を抑制。
+- `Runtime/Shaders/DollShadows.hlsl`（メインライト高品質シャドウサンプラ）
+
+### Changed
+- 落ち影をピクセル単位のシャドウ座標で算出（頂点補間誤差を排除）。
+- `GetCastShadow`: PCF/PCSS 時は UV 連動ディザと再量子化をバイパス（ザラつき除去）。
+- `DollShaderGUI`: Light and Shadow に Self Shadow Quality / Receiver Normal Bias を追加。品質に応じて項目を出し分け。
+- 追加ライトの影は従来どおり URP 標準（多灯時の負荷を考慮）。
+
+## [0.3.2] - 2026-06-20
 ### Added
 - _AdditionalLightBlendModeの追加。白飛び対策。
 

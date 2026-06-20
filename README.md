@@ -2,7 +2,7 @@
 
 シェーダー名: `Origuma/EasyPBR_URP/Doll`
 
-URP 向けキャラクターシェーダー。PBR 系の質感表現とトゥーン陰影を同一マテリアルで切り替え可能。
+URP 向けのキャラクターシェーダー。PBR 系の質感表現とトゥーン陰影を同一マテリアルで切り替えられる。
 フィギュア・人形向けのハイライト表現と、アニメ調陰影の両立を想定している。
 
 ## インストール
@@ -18,12 +18,17 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
+https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 ```
 
 ### Embedded
 
 `Packages/com.origuma.easypbr-urp` に配置すると embedded package として認識される。
+
+## 動作環境
+
+* Unity 2022.2 以降（Forward+ / Cluster Light Loop）、または Unity 6 (6000.x)
+* Universal RP 14.0 以降
 
 ## 設計方針
 
@@ -31,6 +36,8 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
   Rim Light / Peach Fuzz / Anisotropic は `Thickness`（0.0〜1.0）等の直感的な値で指定する。
 * **顔影**
   顔用マスクテクスチャは不要。法線平滑化とプロシージャルマスクにより自己陰を抑制する。
+* **セルフシャドウ**
+  落ち影と陰影を分離して合成する。落ち影はメインライト専用に PCF / PCSS で高品質化でき、追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。
 * **半透明**
   Render Mode プリセット（Opaque / Cutout / Transparent）で Render Queue、Blend Mode、ZWrite を一括設定する。
 * **任意効果**
@@ -40,19 +47,20 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
 
 | 項目 | 内容 |
 | :--- | :--- |
-| Shading Style | Toon / Smooth |
-| Base Core | Base Map、HSV 色調補正、Detail Map、Normal Map |
-| Auto Face Shadow Fix | マスクなしの顔自己陰抑制 |
-| Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。ブルーノイズディザ |
-| Specular | Dual-Lobe（Primary / Secondary） |
+| Shading Style | Toon / Smooth の切り替え |
+| Base Core | Base Map、HSV 色調補正、Detail Map（RGBA ブレンド）、Normal Map |
+| Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク＋法線平滑化） |
+| Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、受け側ノーマルオフセット、ブルーノイズディザ |
+| Specular | Dual-Lobe（Primary / Secondary、Blinn-Phong） |
 | Anisotropic Highlight | 髪・シルク向け異方性ハイライト（Strand パラメータ） |
 | MatCap | Add / Multiply |
-| Dissolve | Outer / Inner 2 色、Step Edge、Axis（None / WorldY / LocalY） |
+| Dissolve | Outer / Inner 2 色、Step Edge、Axis（None / WorldY / LocalY）、焦げアルベド |
 | Glitter | マスク付きスパンコール。Iridescence、Sparsity、Base Reflection |
 | Outline | 背面法線拡張。Alpha Clip / Dissolve 同期。Outline 専用 Stencil |
 | Black Out | 最終色の暗転 |
-| Optional | SSS / Rim Light / Peach Fuzz |
+| Optional | SSS / Rim Light / Peach Fuzz（既定 OFF、Intensity 0 で計算スキップ） |
 | Emission | Emission Map、HDR Color、Intensity |
+| Anti-Blowout | Diffuse / Specular の輝度上限、追加ライト合成（Add / Max） |
 | Stencil | ForwardLit / Outline それぞれ独立設定 |
 
 ## Pass
@@ -60,7 +68,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
 | Pass | LightMode | 用途 |
 | :--- | :--- | :--- |
 | ForwardLit | UniversalForward | メイン描画 |
-| ShadowCaster | ShadowCaster | 影 |
+| ShadowCaster | ShadowCaster | 落ち影の生成 |
 | Outline | SRPDefaultUnlit | 輪郭線 |
 
 ## ファイル構成
@@ -68,22 +76,16 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
 | パス | 役割 |
 | :--- | :--- |
 | `Runtime/Shaders/Doll.shader` | Properties、Pass 定義 |
-| `Runtime/Shaders/EasyPBR_Input.hlsl` | 共通変数・テクスチャ |
+| `Runtime/Shaders/EasyPBR_Input.hlsl` | 共通変数・テクスチャ（CBUFFER） |
 | `Runtime/Shaders/EasyPBR_Effects.hlsl` | Dissolve、MatCap、Emission |
-| `Runtime/Shaders/EasyPBR_Lighting.hlsl` | ライティング、Anisotropic、Glitter |
-| `Runtime/Shaders/Doll_FaceLogic.hlsl` | 顔影・Toon |
-| `Runtime/Shaders/Doll_ForwardPass.hlsl` | ForwardLit |
-| `Runtime/Shaders/Doll_ShadowPass.hlsl` | ShadowCaster |
-| `Runtime/Shaders/Doll_OutlinePass.hlsl` | Outline |
+| `Runtime/Shaders/DollLighting.hlsl` | ライティング統合（顔影 / Toon、Dual-Lobe、SSS / Rim / Fuzz、Anisotropic、Glitter） |
+| `Runtime/Shaders/DollShadows.hlsl` | メインライト高品質セルフシャドウ（PCF / PCSS） |
+| `Runtime/Shaders/Doll_ForwardPass.hlsl` | ForwardLit パス |
+| `Runtime/Shaders/Doll_ShadowPass.hlsl` | ShadowCaster パス |
+| `Runtime/Shaders/Doll_OutlinePass.hlsl` | Outline パス |
 | `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
 | `Runtime/Textures/dissolve_noise.png` | Dissolve ノイズ |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
-
-## 動作環境
-
-* Unity 2022.2 以降（Forward+ / Cluster Light Loop）
-* Unity 6000.3 以降
-* Universal RP 14.0 以降
 
 ## 使い方
 
@@ -92,9 +94,24 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
 3. Base Map にアルベドテクスチャを割り当てる
 4. Shading Style で Toon / Smooth を選択する
 
+### セルフシャドウ品質（Self Shadow Quality）
+
+落ち影の精度を 3 段階から選べる。いずれもメインライト（ディレクショナル）にのみ適用され、追加ライトの影は URP 標準のまま描画される。
+
+| モード | 内容 | 想定用途 |
+| :--- | :--- | :--- |
+| Off | URP 標準サンプリング | モバイル / 最軽量 |
+| PCF | スクリーン空間回転 Vogel ディスクによる連続ペナンブラ | PC / スタンドアロン VR の常用（推奨） |
+| PCSS | ブロッカー探索によるコンタクトハードニング（接地は鋭く・遠方は柔らかく） | 据置機 / PC、寄りのカット |
+
+* **Shadow Softness** はペナンブラ幅（PCF / PCSS のカーネル半径）を兼ねる。
+* **Receiver Normal Bias** は受け側のノーマルオフセット量。縞状のシャドウアクネが出る場合に上げる。上げ過ぎると影が痩せる。
+* Receiver Normal Bias を使う場合は、URP Asset 側の Light の **Normal Bias を 0〜0.3 程度に下げる**と二重バイアスによる影の浮き（ピーターパン）を防げる。
+* PCSS のブロッカー探索は `_MainLightShadowmapTexture` を point sampler で読むため、環境によっては `sampler_PointClamp` の宣言が必要になる（`DollShadows.hlsl` 内のコメント参照）。
+
 ### インスペクター
 
-`DollShaderGUI` により Custom / Default UI を切り替え可能。
+`DollShaderGUI` により Custom / Default UI を切り替えられる。
 
 | モード | 表示 |
 | :--- | :--- |
@@ -107,11 +124,11 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.2
 | :--- | :--- |
 | Surface Options | Render Mode、Cull、ZWrite、ZTest、Blend |
 | Stencil | Ref、Compare、Pass / Fail / ZFail |
-| Base Core | Base Map、HSV、Detail Map、Normal Map |
+| Base Core | Base Map、HSV、Detail Map、Normal Map、Alpha Clip |
 | Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff、Backlight Preserve、Normal Smoothing |
-| Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Dither、Light Limit |
+| Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Self Shadow Quality、Receiver Normal Bias、Shadow Softness、Dither、Light Wrap、Toon Step / Feather、Light Limit、Additional Light Blend |
 | Surface Micro Detail | Blue Noise、Grain |
-| Specular and Reflection | Dual-Lobe、Anisotropic、MatCap |
+| Specular and Reflection | Dual-Lobe（Primary / Secondary）、Anisotropic、MatCap |
 | Emission | Emission Map、Color、Intensity |
 | Dissolve | Amount、Axis、Edge Color、Step Edge |
 | Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light |
