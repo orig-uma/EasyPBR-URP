@@ -68,9 +68,15 @@ float GetCastShadow(float shadowAttenuation, float receiveShadowMask, float rece
                      float ditherValue, float shadowDither, float shadowMapSoftness, float proceduralMask)
 {
     float rawShadow = lerp(1.0, shadowAttenuation, receiveShadowMask * receiveShadowStrength);
-    // 効きをマイルドにするため 0.1 を乗算
-    float ditheredShadow = rawShadow + (ditherValue - 0.5) * shadowDither * 0.1;
-    float castShadow = smoothstep(0.5 - shadowMapSoftness * 0.5, 0.5 + shadowMapSoftness * 0.5, ditheredShadow);
+
+    #if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+        // PCFが連続的なペナンブラを生成済み → ディザ＆再量子化しない
+        float castShadow = rawShadow;
+    #else
+        float ditheredShadow = rawShadow + (ditherValue - 0.5) * shadowDither * 0.1;
+        float castShadow = smoothstep(0.5 - shadowMapSoftness * 0.5, 0.5 + shadowMapSoftness * 0.5, ditheredShadow);
+    #endif
+
     return lerp(castShadow, 1.0, proceduralMask);
 }
 

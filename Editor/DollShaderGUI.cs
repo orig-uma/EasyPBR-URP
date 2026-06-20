@@ -199,8 +199,26 @@ namespace Origuma.EasyPBR.URP.Editor
                                 Label("Receive Shadow Mask (R)", "落ち影マスク (R)", "", ""), recvMask);
 
                         P(materialEditor, "_ReceiveShadowStrength", "Receive Strength", "落ち影の強さ", "", "");
-                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness", "落ち影のソフトさ", "", "");
-                        P(materialEditor, "_ShadowDither", "Shadow Dither", "影のディザ", "", "");
+                        var shadowQualityProp = Prop("_ShadowQuality");
+                        P(materialEditor, shadowQualityProp, "Self Shadow Quality", "落ち影の品質", "",
+                            "Off: URP標準 / Pcf: 高品質ソフト影（推奨）/ Pcss: 接地で硬く遠方で柔らかく（高負荷）");
+
+                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness", "落ち影のソフトさ", "",
+                            "PCF/PCSS時はペナンブラ幅、Off時はエッジの柔らかさ");
+
+                        bool hqShadow = shadowQualityProp != null && shadowQualityProp.floatValue >= 0.5f;
+
+                        if (hqShadow)
+                        {
+                            // PCF/PCSS のときだけ意味を持つ：受け側ノーマルオフセット
+                            P(materialEditor, "_ReceiverNormalBias", "Receiver Normal Bias", "影アクネ補正", "",
+                                "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
+                        }
+                        else
+                        {
+                            // Off のときだけ意味を持つ：UV連動ディザ
+                            P(materialEditor, "_ShadowDither", "Shadow Dither", "影のディザ", "", "");
+                        }
                         P(materialEditor, "_HalfLambertWrap", "Light Wrap", "ライトラップ", "", "");
 
                         if (shadingStyleProp != null && shadingStyleProp.floatValue >= 0.5f)

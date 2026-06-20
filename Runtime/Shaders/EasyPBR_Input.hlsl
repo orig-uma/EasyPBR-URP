@@ -80,6 +80,7 @@ CBUFFER_START(UnityPerMaterial)
     half _FaceNormalSmoothness;
     half _ShadingStyle;
     half4 _ShadowColor;
+    float _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;
     half _ShadowDither;
