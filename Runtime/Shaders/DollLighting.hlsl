@@ -29,22 +29,12 @@ float GetProceduralMaskBase(half3 normalWS, float3 forwardWS, float frontStrengt
 // [Mask] GetProceduralMask
 //  baseMask に「逆光時は陰を残す」ための backlightFade を掛けた、ライト毎の最終マスク。
 // -----------------------------------------------------------------------------
-float GetProceduralMask(float baseMask, float3 forwardWS, float3 lightDirWS, float backlightPreserve)
+float GetProceduralMask(float baseMask, float3 forwardWS, float3 lightDirWS)
 {
     float lightToForwardDot = dot(forwardWS, lightDirWS);
-    // ライトが正面側にあるほど 1、背後にあるほど 0 へフェード
+    // ライトが正面側にあるほど 1、背後にあるほど 0 へフェード（逆光時は陰を維持）
     float backlightFade = smoothstep(-0.3, 0.2, lightToForwardDot);
-    backlightFade = lerp(1.0, backlightFade, backlightPreserve);
     return baseMask * backlightFade;
-}
-
-
-// -----------------------------------------------------------------------------
-// [Normal] GetFaceSmoothedNormal
-// -----------------------------------------------------------------------------
-half3 GetFaceSmoothedNormal(half3 detailNormalWS, half3 cleanNormalWS, float faceNormalSmoothness)
-{
-    return normalize(lerp(detailNormalWS, cleanNormalWS, faceNormalSmoothness));
 }
 
 

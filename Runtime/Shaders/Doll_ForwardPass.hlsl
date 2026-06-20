@@ -49,7 +49,7 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS, half3 cleanNormalWS,
+    Light light, half3 detailNormalWS,
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
@@ -64,8 +64,8 @@ half3 CalculateSingleLight(
     float3 priSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _PriSpecularLightLimit);
     float3 secSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _SecSpecularLightLimit);
 
-    float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction, _BacklightPreserve);
-    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, cleanNormalWS, _FaceNormalSmoothness);
+    float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction);
+    half3 diffuseNormalWS = detailNormalWS;
 
     float diffuseNdotL = dot(diffuseNormalWS, light.direction);
     float halfLambert = GetHalfLambert(diffuseNdotL, _HalfLambertWrap);
@@ -193,7 +193,7 @@ half4 frag(Varyings input) : SV_Target
     #endif
 
     finalColor += CalculateSingleLight(
-        mainLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
+        mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, anisoPrecomp, glitterGeom, glitterActive);
@@ -208,7 +208,7 @@ half4 frag(Varyings input) : SV_Target
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
             half3 addContrib = CalculateSingleLight(
-                addLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
+                addLight, detailNormalWS, viewDirectionWS, objectForwardWS,
                 albedo.rgb, receiveShadowMask, specMask, ditherValue,
                 baseProceduralMask, rimFresnel, fuzzFresnel,
                 half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
