@@ -27,6 +27,14 @@ namespace Origuma.EasyPBR.URP.Editor
         private MaterialProperty[] _cachedPropsRef;
         private readonly Dictionary<string, MaterialProperty> _propCache = new();
 
+        // シェーダー初期値の取得用（Shader が変わったら破棄）
+        private Shader _cachedShader;
+        private readonly Dictionary<string, int> _shaderIndexCache = new();
+
+        // リセットボタン（↺）の GUIContent / GUIStyle（言語変更時に _resetIcon を破棄）
+        private GUIContent _resetIcon;
+        private GUIStyle _resetStyle;
+
         // ----------------------------------------------------------------
         //  静的定数（毎フレームの new を排除）
         // ----------------------------------------------------------------
@@ -56,13 +64,20 @@ namespace Origuma.EasyPBR.URP.Editor
                 return;
             }
 
+            if (_showHelp)
+                EditorGUILayout.HelpBox(
+                    _jp
+                        ? "各項目を初期値から変更すると、その行の右端に \u21BA が表示されます。押すとその項目だけをシェーダーの初期値に戻せます。"
+                        : "When a value differs from its default, a \u21BA appears at the right of that row. Click it to reset just that property to the shader default.",
+                    MessageType.None);
+
             // -----------------------------------------------------------
             // 1. Surface Options
             // -----------------------------------------------------------
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (Section("surface", true, "Surface Options", "サーフェス設定", "", ""))
+                if (Section("surface", false, "Surface Options", "サーフェス設定", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
                         DrawRenderModeSetup(materialEditor, properties);
@@ -133,7 +148,7 @@ namespace Origuma.EasyPBR.URP.Editor
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (Section("base", true, "Base Core", "基本設定", "", ""))
+                if (Section("base", false, "Base Core", "基本設定", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
                         var mainTex = Prop("_MainTex");
@@ -186,7 +201,7 @@ namespace Origuma.EasyPBR.URP.Editor
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (Section("light", true, "Light and Shadow", "ライトと影", "", ""))
+                if (Section("light", false, "Light and Shadow", "ライトと影", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
                         var shadingStyleProp = Prop("_ShadingStyle");
@@ -229,12 +244,30 @@ namespace Origuma.EasyPBR.URP.Editor
                         }
 
                         EditorGUILayout.Space(4);
-                        SubHeader("Auto Shadow Fix", "影補正 (自動)");
-                        P(materialEditor, "_FrontMaskStrength", "Front Brightness", "正面の明るさ", "", "");
-                        P(materialEditor, "_UpMaskStrength", "Up Brightness", "上向きの明るさ", "", "");
-                        P(materialEditor, "_MaskFalloff", "Erase Breadth", "補正の範囲", "", "");
-                        P(materialEditor, "_BacklightPreserve", "Backlight Preserve", "逆光時の陰を維持", "", "");
-                        P(materialEditor, "_FaceNormalSmoothness", "Normal Smoothing", "法線のならし", "", "");
+                        {
+                            bool shadowFixOpen;
+                            if (!_foldCache.TryGetValue("auto_shadow_fix", out shadowFixOpen))
+                            {
+                                shadowFixOpen = EditorPrefs.GetBool(KeyPrefix + "fold.auto_shadow_fix", false);
+                                _foldCache["auto_shadow_fix"] = shadowFixOpen;
+                            }
+
+                            var newShadowFixOpen = EditorGUILayout.Foldout(shadowFixOpen,
+                                _jp ? "影補正 (自動)" : "Auto Shadow Fix", true, EditorStyles.foldoutHeader);
+                            if (newShadowFixOpen != shadowFixOpen)
+                            {
+                                _foldCache["auto_shadow_fix"] = newShadowFixOpen;
+                                EditorPrefs.SetBool(KeyPrefix + "fold.auto_shadow_fix", newShadowFixOpen);
+                            }
+
+                            if (newShadowFixOpen)
+                                using (new EditorGUI.IndentLevelScope())
+                                {
+                                    P(materialEditor, "_FrontMaskStrength", "Front Brightness", "正面の明るさ", "", "");
+                                    P(materialEditor, "_UpMaskStrength", "Up Brightness", "上向きの明るさ", "", "");
+                                    P(materialEditor, "_MaskFalloff", "Erase Breadth", "補正の範囲", "", "");
+                                }
+                        }
 
                         EditorGUILayout.Space(4);
                         SubHeader("Anti-Blowout", "白飛び防止");
@@ -336,7 +369,7 @@ namespace Origuma.EasyPBR.URP.Editor
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (Section("outline", true, "Outline", "アウトライン (輪郭線)", "", ""))
+                if (Section("outline", false, "Outline", "アウトライン (輪郭線)", "", ""))
                 {
                     using (new EditorGUI.IndentLevelScope())
                     {
@@ -441,6 +474,17 @@ namespace Origuma.EasyPBR.URP.Editor
                             {
                                 P(materialEditor, "_RimThickness", "Thickness", "太さ", "", "");
                             }
+
+                        SubHeader("Grain", "グレイン（表面の微細ザラつき）");
+                        var grainIntProp = Prop("_GrainIntensity");
+                        P(materialEditor, grainIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "",
+                            "ブルーノイズで法線を僅かに揺らし、つるつる感を抑えます");
+                        if (grainIntProp != null && grainIntProp.floatValue > 0f)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, "_GrainScale", "Scale", "スケール", "",
+                                    "ブルーノイズの UV スケール");
+                            }
                     }
             }
 
@@ -501,21 +545,20 @@ namespace Origuma.EasyPBR.URP.Editor
             }
 
             // -----------------------------------------------------------
-            // 9. Surface Micro Detail
+            // 9. Blue Noise
             // -----------------------------------------------------------
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (Section("detail", false, "Surface Micro Detail", "マイクロディテール", "", ""))
+                if (Section("blue_noise", false, "Blue Noise", "ブルーノイズ",
+                        "Shared texture for shadow edge dither (Self Shadow Quality: Off) and surface grain.",
+                        "Self Shadow Quality が Off のときの影エッジ・ディザと、グレイン（法線の微細揺らぎ）で共通サンプルされます。"))
                     using (new EditorGUI.IndentLevelScope())
                     {
                         var noise = Prop("_BlueNoiseTex");
                         if (noise != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("Micro Grain (Blue Noise)", "グレイン (ブルーノイズ)", "", ""), noise);
-
-                        P(materialEditor, "_GrainIntensity", "Grain Intensity", "グレイン強度", "", "");
-                        P(materialEditor, "_GrainScale", "Grain Scale", "グレインのスケール", "", "");
+                                Label("Blue Noise Texture", "ブルーノイズテクスチャ", "", ""), noise);
                     }
             }
 
@@ -689,6 +732,7 @@ namespace Origuma.EasyPBR.URP.Editor
                     _jp = lang == 1;
                     EditorPrefs.SetBool(LangKey, _jp);
                     _labelCache.Clear(); // 言語変更時にラベルキャッシュを破棄
+                    _resetIcon = null;   // ↺ ボタンのツールチップも作り直す
                 }
 
                 EditorGUI.BeginChangeCheck();
@@ -773,13 +817,142 @@ namespace Origuma.EasyPBR.URP.Editor
         private void P(MaterialEditor editor, MaterialProperty prop, string en, string jp, string tipEn, string tipJp)
         {
             if (prop == null) return;
-            editor.ShaderProperty(prop, Label(en, jp, tipEn, tipJp));
+
+            var label = Label(en, jp, tipEn, tipJp);
+            var changed = DiffersFromDefault(prop);
+
+            var h = editor.GetPropertyHeight(prop);
+            var row = EditorGUILayout.GetControlRect(true, h);
+
+            // 初期値と異なるときだけ、右端にリセットボタン用の隙間を空ける
+            var fieldRect = row;
+            if (changed) fieldRect.width -= 20f;
+
+            editor.ShaderProperty(fieldRect, prop, label);
+
+            if (changed)
+            {
+                var btn = new Rect(row.xMax - 18f, row.y + 1f, 16f, EditorGUIUtility.singleLineHeight);
+                if (GUI.Button(btn, ResetContent(), ResetStyle()))
+                    ResetProperty(editor, prop);
+            }
         }
 
         // 名前で引いて描画（propCache 経由）
         private void P(MaterialEditor editor, string name, string en, string jp, string tipEn, string tipJp)
         {
             P(editor, Prop(name), en, jp, tipEn, tipJp);
+        }
+
+        // ================================================================
+        //  初期値リセット
+        // ================================================================
+
+        // prop が属する Shader 内のプロパティ index を返す（キャッシュ付き）。
+        // 同時に _cachedShader を prop の Shader に合わせる。見つからなければ -1。
+        private int ShaderIndex(MaterialProperty prop)
+        {
+            if (prop.targets == null || prop.targets.Length == 0) return -1;
+            var shader = (prop.targets[0] as Material)?.shader;
+            if (shader == null) return -1;
+
+            if (!ReferenceEquals(shader, _cachedShader))
+            {
+                _cachedShader = shader;
+                _shaderIndexCache.Clear();
+            }
+
+            if (!_shaderIndexCache.TryGetValue(prop.name, out var idx))
+            {
+                idx = shader.FindPropertyIndex(prop.name);
+                _shaderIndexCache[prop.name] = idx;
+            }
+
+            return idx;
+        }
+
+        // 現在値がシェーダー定義の初期値と異なるか
+        private bool DiffersFromDefault(MaterialProperty prop)
+        {
+            if (prop.hasMixedValue) return true;
+
+            var idx = ShaderIndex(prop);
+            if (idx < 0 || _cachedShader == null) return false;
+
+            switch (prop.propertyType)
+            {
+                case ShaderPropertyType.Color:
+                {
+                    Vector4 def = _cachedShader.GetPropertyDefaultVectorValue(idx);
+                    Vector4 cur = prop.colorValue;
+                    return (def - cur).sqrMagnitude > 1e-8f;
+                }
+                case ShaderPropertyType.Vector:
+                {
+                    Vector4 def = _cachedShader.GetPropertyDefaultVectorValue(idx);
+                    return (def - prop.vectorValue).sqrMagnitude > 1e-8f;
+                }
+                case ShaderPropertyType.Texture:
+                    return prop.textureValue != null
+                           || prop.textureScaleAndOffset != new Vector4(1f, 1f, 0f, 0f);
+#if UNITY_2021_1_OR_NEWER
+                case ShaderPropertyType.Int:
+                    return prop.intValue != Mathf.RoundToInt(_cachedShader.GetPropertyDefaultFloatValue(idx));
+#endif
+                default: // Float / Range
+                    return !Mathf.Approximately(prop.floatValue, _cachedShader.GetPropertyDefaultFloatValue(idx));
+            }
+        }
+
+        // prop をシェーダー定義の初期値に戻す（Undo 対応）
+        private void ResetProperty(MaterialEditor editor, MaterialProperty prop)
+        {
+            var idx = ShaderIndex(prop);
+            if (idx < 0 || _cachedShader == null) return;
+
+            editor.RegisterPropertyChangeUndo(prop.displayName);
+
+            switch (prop.propertyType)
+            {
+                case ShaderPropertyType.Color:
+                    prop.colorValue = _cachedShader.GetPropertyDefaultVectorValue(idx);
+                    break;
+                case ShaderPropertyType.Vector:
+                    prop.vectorValue = _cachedShader.GetPropertyDefaultVectorValue(idx);
+                    break;
+                case ShaderPropertyType.Texture:
+                    prop.textureValue = null; // フォールバック（white/bump 等）に戻す
+                    prop.textureScaleAndOffset = new Vector4(1f, 1f, 0f, 0f);
+                    break;
+#if UNITY_2021_1_OR_NEWER
+                case ShaderPropertyType.Int:
+                    prop.intValue = Mathf.RoundToInt(_cachedShader.GetPropertyDefaultFloatValue(idx));
+                    break;
+#endif
+                default: // Float / Range
+                    prop.floatValue = _cachedShader.GetPropertyDefaultFloatValue(idx);
+                    break;
+            }
+
+            GUI.changed = true;
+        }
+
+        private GUIContent ResetContent()
+        {
+            return _resetIcon ??= new GUIContent("\u21BA", _jp ? "初期値に戻す" : "Reset to default");
+        }
+
+        private GUIStyle ResetStyle()
+        {
+            if (_resetStyle == null)
+                _resetStyle = new GUIStyle(EditorStyles.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 12,
+                    padding = new RectOffset(0, 0, 0, 0),
+                    margin = new RectOffset(0, 0, 0, 0)
+                };
+            return _resetStyle;
         }
     }
 }

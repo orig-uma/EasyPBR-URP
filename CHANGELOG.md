@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-## [0.3.3] - 2026-06-28
+## [0.3.3] - 2026-06-29
 
 ### Added
 - 高品質セルフシャドウ（`_ShadowQuality`）。メインライト専用。
@@ -14,6 +14,8 @@
 - スペキュラモデル切り替え（`_SpecularModel`: BlinnPhong / GGX）。GGX は Schlick Fresnel・Smith 可視性込みの Cook-Torrance。`_SpecularF0` を追加。
 - 異方性ハイライトの第 2 バンド（`_AnisoSecColor` / `_AnisoSecThickness` / `_AnisoSecOffset`）。主＋副の 2 段ハイライト。
 - `Runtime/Shaders/DollShadows.hlsl`（メインライト高品質シャドウサンプラ）。
+- `DollShaderGUI`: 初期値と異なるプロパティ行に ↺ リセットボタン（項目単位でシェーダー既定値に復帰）。
+- `DollShaderGUI`: ブルーノイズ専用セクション（影ディザ・グレイン共通サンプルである旨を Help で表示）。
 
 ### Changed
 - 落ち影をピクセル単位のシャドウ座標で算出（頂点補間誤差を排除）。
@@ -21,6 +23,15 @@
 - `CalculateDualLobeSpecular` / `CalculateAnisotropicSpecular`: モデル分岐・第 2 バンドに対応（既定値では従来と同一の見た目）。
 - `DollShaderGUI`: Light and Shadow / Specular and Reflection を再構成（品質・モデルに応じて項目を出し分け）。
 - 追加ライトの影は従来どおり URP 標準（多灯時の負荷を考慮）。
+- Auto Face Shadow Fix の既定値を無効化（`_FrontMaskStrength` / `_UpMaskStrength` = 0）。
+- `GetProceduralMask`: 逆光時の陰維持を常時有効化（`_BacklightPreserve` 相当を固定）。
+- 拡散光の法線は常に `detailNormalWS` を使用（法線平滑化なし）。
+- ブルーノイズ（`_BlueNoiseTex`）とグレイン（`_GrainIntensity` / `_GrainScale`）を Properties / GUI 上で分離。グレインは Optional Effects へ移動。
+- GUI調整
+- スペキュラ / 異方性の既定値を調整。
+
+### Removed
+- `_BacklightPreserve` / `_FaceNormalSmoothness` プロパティと `GetFaceSmoothedNormal`（UI・CBUFFER から削除。逆光維持は内部固定）。
 
 ## [0.3.2] - 2026-06-28
 ### Added

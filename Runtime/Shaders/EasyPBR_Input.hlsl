@@ -76,8 +76,6 @@ CBUFFER_START(UnityPerMaterial)
     half _FrontMaskStrength;
     half _UpMaskStrength;
     half _MaskFalloff;
-    half _BacklightPreserve;
-    half _FaceNormalSmoothness;
     half _ShadingStyle;
     half4 _ShadowColor;
     float _ReceiverNormalBias;

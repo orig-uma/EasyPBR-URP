@@ -35,7 +35,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 * **パラメータ**
   Rim Light / Peach Fuzz / Anisotropic は `Thickness`（0.0〜1.0）等の直感的な値で指定する。
 * **顔影**
-  顔用マスクテクスチャは不要。法線平滑化とプロシージャルマスクにより自己陰を抑制する。
+  顔用マスクテクスチャは不要。プロシージャルマスクにより自己陰を抑制する（逆光時は陰を維持）。
 * **セルフシャドウ**
   落ち影と陰影を分離して合成する。落ち影はメインライト専用に PCF / PCSS で高品質化でき、追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。
 * **スペキュラ**
@@ -43,7 +43,9 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 * **半透明**
   Render Mode プリセット（Opaque / Cutout / Transparent）で Render Queue、Blend Mode、ZWrite を一括設定する。
 * **任意効果**
-  SSS / Rim / Peach Fuzz / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
+  SSS / Rim / Peach Fuzz / Grain / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
+* **ブルーノイズ**
+  1 枚のテクスチャを影エッジのディザ（Self Shadow Quality: Off）とグレイン（法線の微細揺らぎ）で共通サンプルする。
 
 ## 機能
 
@@ -51,7 +53,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | :--- | :--- |
 | Shading Style | Toon / Smooth の切り替え |
 | Base Core | Base Map、HSV 色調補正、Detail Map（RGBA ブレンド）、Normal Map |
-| Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク＋法線平滑化） |
+| Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク） |
 | Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、受け側ノーマルオフセット、ブルーノイズディザ |
 | Specular | Dual-Lobe（Primary / Secondary）。Blinn-Phong / GGX（Schlick Fresnel・Smith 可視性）を切り替え |
 | Anisotropic Highlight | 髪・シルク向け異方性ハイライト。2 バンド（主 / 副）、Strand パラメータ |
@@ -127,13 +129,13 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | Surface Options | Render Mode、Cull、ZWrite、ZTest、Blend |
 | Stencil | Ref、Compare、Pass / Fail / ZFail |
 | Base Core | Base Map、HSV、Detail Map、Normal Map、Alpha Clip |
-| Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff、Backlight Preserve、Normal Smoothing |
+| Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff |
 | Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Self Shadow Quality、Receiver Normal Bias、Shadow Softness、Dither、Light Wrap、Toon Step / Feather、Light Limit、Additional Light Blend |
-| Surface Micro Detail | Blue Noise、Grain |
+| Blue Noise | 影ディザ・グレイン共通のブルーノイズテクスチャ |
 | Specular and Reflection | Specular Model（BlinnPhong / GGX）、Fresnel F0、Dual-Lobe（Primary / Secondary）、Anisotropic（主 / 副 2 バンド）、MatCap |
 | Emission | Emission Map、Color、Intensity |
 | Dissolve | Amount、Axis、Edge Color、Step Edge |
-| Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light |
+| Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light、Grain（Intensity / Scale） |
 | Black Out | Black Out |
 | Outline | Enable、Color、Width、Cutoff Shift、Stencil |
 | Advanced | GPU Instancing、Double-Sided GI |

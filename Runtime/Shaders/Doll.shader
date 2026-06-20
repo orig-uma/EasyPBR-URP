@@ -48,12 +48,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 顔の自己陰を自動で消す仕組み -------------
         [Header(Auto Face Shadow Fix (No Mask Needed))]
-        _FrontMaskStrength ("Front Brightness", Range(0.0, 1.0)) = 0.8
-        _UpMaskStrength ("Up Brightness", Range(0.0, 1.0)) = 0.3
+        _FrontMaskStrength ("Front Brightness", Range(0.0, 1.0)) = 0.0
+        _UpMaskStrength ("Up Brightness", Range(0.0, 1.0)) = 0.0
         _MaskFalloff ("Shadow Erase Breadth", Range(0.1, 10.0)) = 2.0
-        _BacklightPreserve ("Backlight Shadow Preserve", Range(0.0, 1.0)) = 1.0 
-        [Space(10)]
-        _FaceNormalSmoothness ("Face Normal Smoothing", Range(0.0, 1.0)) = 0.0
 
         // --- ライティングと影 ------------------------------------------------
         [Header(Light and Shadow)]
@@ -72,11 +69,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ToonStep ("Toon Shadow Threshold", Range(0.0, 1.0)) = 0.5
         _ToonFeather ("Toon Shadow Softness", Range(0.0, 1.0)) = 0.2
 
-        // --- 微細なザラつき ------------------------------------
-        [Header(Surface Micro Detail)]
-        [NoScaleOffset] _BlueNoiseTex ("Micro Grain Pattern (Blue Noise)", 2D) = "grey" {}
-        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
-        _GrainScale ("Grain UV Scale", Float) = 10.0
+        // --- ブルーノイズ（影ディザ・グレイン共通）-------------------------
+        [Header(Blue Noise)]
+        [NoScaleOffset] _BlueNoiseTex ("Blue Noise Texture", 2D) = "grey" {}
 
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
@@ -86,15 +81,15 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Space(10)]
         _SpecularColor ("Primary Specular Color", Color) = (1, 1, 1, 1)
         _Smoothness ("Primary Smoothness", Range(0.01, 1.0)) = 0.8
-        _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 1.5
+        _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 0.5
         _PriSpecularLightLimit ("Primary Specular Limit", Range(0.1, 10.0)) = 2
         [Space(10)]
         _SecSpecularColor ("Secondary Specular Color", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
-        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.15
+        _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.05
         _SecSpecularLightLimit ("Secondary Specular Limit", Range(0.1, 5.0)) = 1.2
         [Header(Anisotropic Highlight)]
-        [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 1)
+        [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
         _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
         _AnisoOffset ("Aniso Position Offset", Range(-1.0, 1.0)) = 0.0
         _AnisoAngle ("Aniso Angle", Range(-180.0, 180.0)) = 0.0
@@ -140,6 +135,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
         _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
+        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
+        _GrainScale ("Grain UV Scale", Float) = 10.0
+        [Space(10)]
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0
