@@ -84,7 +84,7 @@ half3 CalculateSingleLight(
         detailNormalWS, light.direction, viewDirectionWS, NdotL_Specular,
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
-        specMask, castShadow, specularMaskVal);
+        specMask, castShadow, _SpecularF0, specularMaskVal);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
@@ -97,6 +97,7 @@ half3 CalculateSingleLight(
         anisoPrecomp,
         detailNormalWS, light.direction, viewDirectionWS,
         _AnisoColor, _AnisoThickness,
+        _AnisoSecColor, _AnisoSecThickness,
         diffuseLightEnergy, castShadow);
 
     half3 finalGlitter = half3(0, 0, 0);
@@ -161,7 +162,8 @@ half4 frag(Varyings input) : SV_Target
     
     AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
         input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
-        _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength, _AnisoOffset);
+        _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength,
+        _AnisoOffset, _AnisoSecOffset);
     
     half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
 
