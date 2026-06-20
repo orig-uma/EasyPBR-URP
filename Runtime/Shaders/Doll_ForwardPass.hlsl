@@ -8,6 +8,7 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "EasyPBR_Effects.hlsl"
 #include "DollLighting.hlsl"
+#include "DollShadows.hlsl"
 
 struct Attributes
 {
@@ -152,11 +153,6 @@ half4 frag(Varyings input) : SV_Target
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
 
-    float4 shadowCoord = input.shadowCoord;
-    #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
-        shadowCoord = ComputeScreenPos(input.positionCS);
-    #endif
-
     // ライトループ外の事前計算
     float baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
@@ -179,7 +175,21 @@ half4 frag(Varyings input) : SV_Target
 
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
-    Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
+
+    #if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+        Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
+        float mainNdotL = dot(cleanNormalWS, mainLight.direction);
+        mainLight.shadowAttenuation = SampleMainShadowHQ(
+            input.positionWS, cleanNormalWS, mainNdotL,
+            input.positionCS.xy, _ShadowMapSoftness);
+    #else
+        float4 shadowCoord = input.shadowCoord;
+        #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+            shadowCoord = ComputeScreenPos(input.positionCS);
+        #endif
+        Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
+    #endif
+
     finalColor += CalculateSingleLight(
         mainLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, ditherValue,

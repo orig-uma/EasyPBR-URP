@@ -60,6 +60,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [KeywordEnum(Smooth, Toon)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color Tint", Color) = (0.7, 0.7, 0.75, 1)
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
+        [KeywordEnum(Off, Pcf, Pcss)] _ShadowQuality ("Self Shadow Quality", Float) = 1
+        _ReceiverNormalBias ("Receiver Normal Bias", Range(0.0, 3.0)) = 0.6
         _ReceiveShadowStrength ("Receive Shadow Strength", Range(0.0, 1.0)) = 1.0
         _ShadowMapSoftness ("Receive Shadow Softness", Range(0.0, 1.0)) = 0.4
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
@@ -207,6 +209,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _SHADINGSTYLE_TOON
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+            #pragma shader_feature_local_fragment _SHADOWQUALITY_OFF _SHADOWQUALITY_PCF _SHADOWQUALITY_PCSS
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
