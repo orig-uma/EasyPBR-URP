@@ -21,6 +21,7 @@ TEXTURE2D(_ReceiveShadowMask);
 TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
+TEXTURE2D(_SSSMask);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -76,10 +77,9 @@ CBUFFER_START(UnityPerMaterial)
     half _FrontMaskStrength;
     half _UpMaskStrength;
     half _MaskFalloff;
-    half _BacklightPreserve;
-    half _FaceNormalSmoothness;
     half _ShadingStyle;
     half4 _ShadowColor;
+    half _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;
     half _ShadowDither;
@@ -110,6 +110,10 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
     half _AnisoStrandDir;
+    half _SpecularF0;
+    half4 _AnisoSecColor;
+    half _AnisoSecThickness;
+    half _AnisoSecOffset;
 
     // [Sequin Glitter]
     half4 _GlitterColor;

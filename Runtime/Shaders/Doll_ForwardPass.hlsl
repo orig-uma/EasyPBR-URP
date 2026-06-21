@@ -8,6 +8,7 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "EasyPBR_Effects.hlsl"
 #include "DollLighting.hlsl"
+#include "DollShadows.hlsl"
 
 struct Attributes
 {
@@ -48,9 +49,9 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS, half3 cleanNormalWS,
+    Light light, half3 detailNormalWS,
     half3 viewDirectionWS, float3 objectForwardWS,
-    half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
+    half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
@@ -63,8 +64,8 @@ half3 CalculateSingleLight(
     float3 priSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _PriSpecularLightLimit);
     float3 secSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _SecSpecularLightLimit);
 
-    float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction, _BacklightPreserve);
-    half3 diffuseNormalWS = GetFaceSmoothedNormal(detailNormalWS, cleanNormalWS, _FaceNormalSmoothness);
+    float proceduralMask = GetProceduralMask(baseProceduralMask, objectForwardWS, light.direction);
+    half3 diffuseNormalWS = detailNormalWS;
 
     float diffuseNdotL = dot(diffuseNormalWS, light.direction);
     float halfLambert = GetHalfLambert(diffuseNdotL, _HalfLambertWrap);
@@ -83,12 +84,12 @@ half3 CalculateSingleLight(
         detailNormalWS, light.direction, viewDirectionWS, NdotL_Specular,
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
-        specMask, castShadow, specularMaskVal);
+        specMask, castShadow, _SpecularF0, specularMaskVal);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
 
-    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
     half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
@@ -96,6 +97,7 @@ half3 CalculateSingleLight(
         anisoPrecomp,
         detailNormalWS, light.direction, viewDirectionWS,
         _AnisoColor, _AnisoThickness,
+        _AnisoSecColor, _AnisoSecThickness,
         diffuseLightEnergy, castShadow);
 
     half3 finalGlitter = half3(0, 0, 0);
@@ -151,11 +153,7 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
-
-    float4 shadowCoord = input.shadowCoord;
-    #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
-        shadowCoord = ComputeScreenPos(input.positionCS);
-    #endif
+    half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
 
     // ライトループ外の事前計算
     float baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
@@ -165,7 +163,8 @@ half4 frag(Varyings input) : SV_Target
     
     AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
         input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
-        _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength, _AnisoOffset);
+        _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength,
+        _AnisoOffset, _AnisoSecOffset);
     
     half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
 
@@ -179,10 +178,24 @@ half4 frag(Varyings input) : SV_Target
 
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
-    Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
+
+    #if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+        Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
+        float mainNdotL = dot(cleanNormalWS, mainLight.direction);
+        mainLight.shadowAttenuation = SampleMainShadowHQ(
+            input.positionWS, cleanNormalWS, mainNdotL,
+            input.positionCS.xy, _ShadowMapSoftness);
+    #else
+        float4 shadowCoord = input.shadowCoord;
+        #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+            shadowCoord = ComputeScreenPos(input.positionCS);
+        #endif
+        Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
+    #endif
+
     finalColor += CalculateSingleLight(
-        mainLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
-        albedo.rgb, receiveShadowMask, specMask, ditherValue,
+        mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+        albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, anisoPrecomp, glitterGeom, glitterActive);
 
@@ -196,8 +209,8 @@ half4 frag(Varyings input) : SV_Target
         LIGHT_LOOP_BEGIN(pixelLightCount)
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
             half3 addContrib = CalculateSingleLight(
-                addLight, detailNormalWS, cleanNormalWS, viewDirectionWS, objectForwardWS,
-                albedo.rgb, receiveShadowMask, specMask, ditherValue,
+                addLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+                albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
                 baseProceduralMask, rimFresnel, fuzzFresnel,
                 half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
             // 0 = Add（物理的・白飛びしやすい）, 1 = Max（アニメ向け・彩度を保つ）
