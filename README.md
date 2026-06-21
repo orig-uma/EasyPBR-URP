@@ -46,6 +46,8 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
   SSS / Rim / Peach Fuzz / Grain / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
 * **ブルーノイズ**
   1 枚のテクスチャを影エッジのディザ（Self Shadow Quality: Off）とグレイン（法線の微細揺らぎ）で共通サンプルする。
+* **汎用ライブラリ分割**
+  陰影・BRDF・エフェクトの計算本体を、キーワード分岐やマテリアルプロパティに依存しない純粋関数として `Common/` に切り出す。`Doll` 固有のロジックはポリシー層に集約し、他シェーダーへの流用を容易にする（[ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) 参照）。
 
 ## 機能
 
@@ -75,21 +77,9 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | ShadowCaster | ShadowCaster | 落ち影の生成 |
 | Outline | SRPDefaultUnlit | 輪郭線 |
 
-## ファイル構成
+## ファイル構成・ライブラリ構成
 
-| パス | 役割 |
-| :--- | :--- |
-| `Runtime/Shaders/Doll.shader` | Properties、Pass 定義 |
-| `Runtime/Shaders/EasyPBR_Input.hlsl` | 共通変数・テクスチャ（CBUFFER） |
-| `Runtime/Shaders/EasyPBR_Effects.hlsl` | Dissolve、MatCap、Emission |
-| `Runtime/Shaders/DollLighting.hlsl` | ライティング統合（顔影 / Toon、Dual-Lobe、SSS / Rim / Fuzz、Anisotropic、Glitter） |
-| `Runtime/Shaders/DollShadows.hlsl` | メインライト高品質セルフシャドウ（PCF / PCSS） |
-| `Runtime/Shaders/Doll_ForwardPass.hlsl` | ForwardLit パス |
-| `Runtime/Shaders/Doll_ShadowPass.hlsl` | ShadowCaster パス |
-| `Runtime/Shaders/Doll_OutlinePass.hlsl` | Outline パス |
-| `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
-| `Runtime/Textures/dissolve_noise.png` | Dissolve ノイズ |
-| `Editor/DollShaderGUI.cs` | カスタムインスペクター |
+ディレクトリ構成、ポリシー層と汎用ライブラリ（`Common/`）の分離方針、include 順、他シェーダーへの流用例は [Documentation~/ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) を参照。
 
 ## 使い方
 
@@ -111,7 +101,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 * **Shadow Softness** はペナンブラ幅（PCF / PCSS のカーネル半径）を兼ねる。
 * **Receiver Normal Bias** は受け側のノーマルオフセット量。縞状のシャドウアクネが出る場合に上げる。上げ過ぎると影が痩せる。
 * Receiver Normal Bias を使う場合は、URP Asset 側の Light の **Normal Bias を 0〜0.3 程度に下げる**と二重バイアスによる影の浮き（ピーターパン）を防げる。
-* PCSS のブロッカー探索は `_MainLightShadowmapTexture` を point sampler で読むため、環境によっては `sampler_PointClamp` の宣言が必要になる（`DollShadows.hlsl` 内のコメント参照）。
+* PCSS のブロッカー探索は `_MainLightShadowmapTexture` を point sampler で読むため、環境によっては `sampler_PointClamp` の宣言が必要になる（`Common/URP/Shadow_HQ_URP.hlsl` 内のコメント参照）。
 
 ### インスペクター
 

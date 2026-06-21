@@ -179,7 +179,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         HLSLINCLUDE
             // 共通変数をインクルード
-            #include "EasyPBR_Input.hlsl"
+            #include "DollInput.hlsl"
         ENDHLSL
 
         // =====================================================================
@@ -223,7 +223,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
             // メイン処理を記述したパスファイルをインクルード
-            #include "Doll_ForwardPass.hlsl"
+            #include "Passes/ForwardPass.hlsl"
             ENDHLSL
         }
 
@@ -251,7 +251,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
             // 影処理を記述したパスファイルをインクルード
-            #include "Doll_ShadowPass.hlsl"
+            #include "Passes/ShadowPass.hlsl"
             ENDHLSL
         }
 
@@ -285,7 +285,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
 
-            #include "Doll_OutlinePass.hlsl"
+            #include "Passes/OutlinePass.hlsl"
             ENDHLSL
         }
     }
