@@ -14,8 +14,8 @@
 - スペキュラモデル切り替え（`_SpecularModel`: BlinnPhong / GGX）。GGX は Schlick Fresnel・Smith 可視性込みの Cook-Torrance。`_SpecularF0` を追加。
 - 異方性ハイライトの第 2 バンド（`_AnisoSecColor` / `_AnisoSecThickness` / `_AnisoSecOffset`）。主＋副の 2 段ハイライト。
 - `Runtime/Shaders/DollShadows.hlsl`（メインライト高品質シャドウサンプラ）。
-- `DollShaderGUI`: 初期値と異なるプロパティ行に ↺ リセットボタン（項目単位でシェーダー既定値に復帰）。
 - `DollShaderGUI`: ブルーノイズ専用セクション（影ディザ・グレイン共通サンプルである旨を Help で表示）。
+- SSSコントロールマップ対応
 
 ### Changed
 - 落ち影をピクセル単位のシャドウ座標で算出（頂点補間誤差を排除）。

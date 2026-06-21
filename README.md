@@ -52,17 +52,17 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | 項目 | 内容 |
 | :--- | :--- |
 | Shading Style | Toon / Smooth の切り替え |
-| Base Core | Base Map、HSV 色調補正、Detail Map（RGBA ブレンド）、Normal Map |
+| Base Core | Base Map、HSV 色調補正（Color Correction）、Detail Map（RGBA ブレンド）、Normal Map |
 | Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク） |
-| Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、受け側ノーマルオフセット、ブルーノイズディザ |
+| Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、Receiver Normal Bias、Shadow Dither |
 | Specular | Dual-Lobe（Primary / Secondary）。Blinn-Phong / GGX（Schlick Fresnel・Smith 可視性）を切り替え |
 | Anisotropic Highlight | 髪・シルク向け異方性ハイライト。2 バンド（主 / 副）、Strand パラメータ |
 | MatCap | Add / Multiply |
-| Dissolve | Outer / Inner 2 色、Step Edge、Axis（None / WorldY / LocalY）、焦げアルベド |
+| Dissolve | Edge Outer / Inner 2 色、Edge Width、Step Edge、Axis（None / WorldY / LocalY） |
 | Glitter | マスク付きスパンコール。Iridescence、Sparsity、Base Reflection |
 | Outline | 背面法線拡張。Alpha Clip / Dissolve 同期。Outline 専用 Stencil |
 | Black Out | 最終色の暗転 |
-| Optional | SSS / Rim Light / Peach Fuzz（既定 OFF、Intensity 0 で計算スキップ） |
+| Optional | SSS / Rim Light / Peach Fuzz / Grain（既定 OFF、Intensity 0 で計算スキップ） |
 | Emission | Emission Map、HDR Color、Intensity |
 | Anti-Blowout | Diffuse / Specular の輝度上限、追加ライト合成（Add / Max） |
 | Stencil | ForwardLit / Outline それぞれ独立設定 |
@@ -124,21 +124,20 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 
 ### パラメータ（Custom UI）
 
+セクションの並びと項目名は、Custom UI に表示されるラベルと一致させている。
+
 | セクション | 主な項目 |
 | :--- | :--- |
-| Surface Options | Render Mode、Cull、ZWrite、ZTest、Blend |
-| Stencil | Ref、Compare、Pass / Fail / ZFail |
-| Base Core | Base Map、HSV、Detail Map、Normal Map、Alpha Clip |
-| Auto Face Shadow Fix | Front / Up Brightness、Mask Falloff |
-| Light and Shadow | Shading Style、Shadow Color、Receive Shadow、Self Shadow Quality、Receiver Normal Bias、Shadow Softness、Dither、Light Wrap、Toon Step / Feather、Light Limit、Additional Light Blend |
-| Blue Noise | 影ディザ・グレイン共通のブルーノイズテクスチャ |
-| Specular and Reflection | Specular Model（BlinnPhong / GGX）、Fresnel F0、Dual-Lobe（Primary / Secondary）、Anisotropic（主 / 副 2 バンド）、MatCap |
-| Emission | Emission Map、Color、Intensity |
-| Dissolve | Amount、Axis、Edge Color、Step Edge |
-| Optional Effects | Glitter、SSS、Peach Fuzz、Rim Light、Grain（Intensity / Scale） |
-| Black Out | Black Out |
-| Outline | Enable、Color、Width、Cutoff Shift、Stencil |
-| Advanced | GPU Instancing、Double-Sided GI |
+| Surface Options | Render Mode (Preset)、Cull、ZWrite、ZTest、Source Blend、Destination Blend、Alpha Blend (Transparent)、Alpha Clipping、Alpha Cutoff、Stencil（Ref / Compare Function / Pass / Fail / ZFail Operation） |
+| Base Core | Base Map、Color Correction（Hue Shift / Saturation / Value Multiplier）、Detail Map、Normal Map |
+| Light and Shadow | Shading Style、Shadow Color、Receive Shadow Mask、Receive Shadow Strength、Self Shadow Quality、Shadow Softness、Receiver Normal Bias、Shadow Edge Dither、Light Wrap、Toon Threshold / Toon Softness、Auto Face Shadow Fix（Front / Up Brightness、Mask Falloff）、Anti-Blowout（Diffuse Light Limit、Additional Light Blend） |
+| Specular and Reflection | Specular Model（BlinnPhong / GGX）、Fresnel (F0)、Specular Mask、Primary（Color / Smoothness / Intensity / Primary Light Limit）、Secondary（Color / Smoothness / Intensity / Secondary Light Limit）、Anisotropic（Thickness / Position Offset / Angle / Strand Scale / Strand Strength / Strand Direction、Sub Highlight）、MatCap（Blend Mode / Texture / Tint / Intensity） |
+| Outline | Enable Outline、Color、Width、Cutoff Shift、Masking (Stencil)（Ref / Compare Function / Pass / Fail / ZFail Operation） |
+| Emission | Enable Emission、Emission Map & Color、Intensity |
+| Optional Effects | Glitter（Mask / Color / Intensity / Density Scale / Dot Size / Normal Tilt / Sparsity / Iridescence / Iridescence Shift / Base Reflection）、SSS（Color / Intensity / Falloff / Distortion）、Peach Fuzz（Color / Intensity / Width）、Rim Light（Color / Intensity / Thickness）、Grain（Intensity / Scale） |
+| Special Effects | Dissolve（Amount / Invert / Axis / Start Y / End Y / Noise / Edge Outer Color / Edge Inner Color / Edge Width / Step Edge）、Black Out |
+| Blue Noise | Blue Noise Texture（影ディザ・グレイン共通） |
+| Advanced Options | GPU Instancing、Double-Sided GI |
 
 ## ライセンス
 
