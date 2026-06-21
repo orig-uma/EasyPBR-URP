@@ -103,12 +103,18 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Discard pixels by alpha value",
                             "アルファ値によるピクセルの破棄");
                         if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
+                        {
                             using (new EditorGUI.IndentLevelScope())
                             {
                                 P(materialEditor, "_Cutoff", "Alpha Cutoff",
                                     "Clipping threshold",
                                     "クリッピングの閾値");
                             }
+
+                            P(materialEditor, "_ShadowCutoffBias", "Shadow Cutoff Bias",
+                                "Casts a slightly fatter alpha shadow to stabilize wispy hair-tip flicker. 0 = same as the visible cutoff",
+                                "影だけ少し太めのアルファで落として毛先のチラつきを安定させる。0で前面cutoffと同じ");
+                        }
 
 
                         EditorGUILayout.Space(4);
@@ -244,31 +250,33 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_ReceiveShadowStrength", "Receive Shadow Strength",
                             "Strength of darkening from the cast shadow map. 0 = no cast shadow",
                             "落ち影(shadow map)で暗くする強さ。0で落ち影なし");
-                        var shadowQualityProp = Prop("_ShadowQuality");
-                        P(materialEditor, shadowQualityProp, "Self Shadow Quality",
-                            "Off: URP default / Pcf: high-quality soft shadow (recommended) / Pcss: contact-hardening (costly)",
-                            "Off: URP標準 / Pcf: 高品質ソフト影（推奨）/ Pcss: 接地で硬く遠方で柔らかく（高負荷）");
+                        var shadowModeProp = Prop("_ShadowMode");
+                        P(materialEditor, shadowModeProp, "Self Shadow Mode",
+                            "Off: URP default (lightest). TentPcf: deterministic, noise-free (best for live/broadcast). VogelPcf: adjustable/wide soft, slight noise. Pcss: Vogel + contact hardening (costly, hero shots)",
+                            "Off: URP標準（最軽量）/ TentPcf: 決定論的・ノイズなし（ライブ/配信向け）/ VogelPcf: 可変・広いぼかし・微ノイズ / Pcss: Vogel＋接地硬化（高負荷・寄り用）");
 
-                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
-                            "Penumbra width for PCF/PCSS; edge softness when Off",
-                            "PCF/PCSS時はペナンブラ幅、Off時はエッジの柔らかさ");
+                        float shadowMode = shadowModeProp != null ? shadowModeProp.floatValue : 1f;
+                        bool isOff  = shadowMode < 0.5f;                        // Off
+                        bool isTent = shadowMode >= 0.5f && shadowMode < 1.5f;  // TentPcf
+                        bool isHQ   = !isOff;                                   // TentPcf / VogelPcf / Pcss
 
-                        var hqShadow = shadowQualityProp != null && shadowQualityProp.floatValue >= 0.5f;
-
-                        if (hqShadow)
-                        {
-                            // PCF/PCSS のときだけ意味を持つ：受け側ノーマルオフセット
+                        // 受け側ノーマルオフセットは HQ 全モードで効く
+                        if (isHQ)
                             P(materialEditor, "_ReceiverNormalBias", "Receiver Normal Bias",
                                 "Raise if you see shadow acne (banding). Too high thins the shadow; lower the Light's Normal Bias too",
                                 "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
-                        }
-                        else
-                        {
-                            // Off のときだけ意味を持つ：UV連動ディザ
+
+                        // ソフトネスは Tent 以外で効く（Off=エッジ柔らかさ / VogelPcf・Pcss=ペナンブラ幅）
+                        if (!isTent)
+                            P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
+                                "Penumbra width for VogelPcf/Pcss; edge softness for Off. Tent uses a fixed kernel (no effect)",
+                                "VogelPcf/Pcss時はペナンブラ幅、Off時はエッジの柔らかさ。Tentは固定カーネルなので無効");
+
+                        // ディザは Off のときだけ意味を持つ（UV連動ブルーノイズ）
+                        if (isOff)
                             P(materialEditor, "_ShadowDither", "Shadow Edge Dither",
-                                "When Self Shadow Quality is Off, dithers the shadow edge with blue noise to break up banding",
-                                "Self Shadow Quality が Off のとき、影エッジをブルーノイズでディザして階調の段差を散らす");
-                        }
+                                "When Self Shadow Mode is Off, dithers the shadow edge with blue noise to break up banding",
+                                "Self Shadow Mode が Off のとき、影エッジをブルーノイズでディザして階調の段差を散らす");
                         P(materialEditor, "_HalfLambertWrap", "Light Wrap",
                             "Lifts the shaded side to soften shading (Half-Lambert wrap). 0 = Lambert, 1 = brighter overall",
                             "陰側を持ち上げて陰影を柔らかくする（Half-Lambert の wrap 量）。0でランバート、1で全体的に明るい");
