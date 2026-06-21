@@ -2,8 +2,17 @@
 
 シェーダー名: `Origuma/EasyPBR_URP/Doll`
 
-URP 向けのキャラクターシェーダー。PBR 系の質感表現とトゥーン陰影を同一マテリアルで切り替えられる。
-フィギュア・人形向けのハイライト表現と、アニメ調陰影の両立を想定している。
+複雑な照明環境でもキャラクターが自然に馴染む、PBRベースのURP向けキャラクターシェーダーです。
+セットアップの容易さと、3Dライブ等での運用しやすさに特化して設計しています。
+
+## 特徴
+
+インスペクター上の数値制御による手軽なセットアップと、各種コントロールマップを用いた局所制御に対応しています。
+
+* **物理ベースの質感と影:** GGXなどのBRDFを用いた光の反射と、PCFやPCSSによる高品質なセルフシャドウを搭載しています。
+* **ハイブリッドなパラメータ制御:** 顔や瞳に落ちる不要なセルフシャドウの除外や、各エフェクトの強度をスライダーで設定可能です。各種コントロールマップ（マスク）を用いた局所的な適用もサポートしています。
+* **ビルトインエフェクト:** 異方性ハイライト、グリッター（スパンコール）、ディゾルブ（消失）などを標準搭載しています。
+* **運用サポート機能:** 多灯環境での白飛びを防ぐ輝度リミッター（Anti-Blowout）や、演出用の一括暗転（Black Out）機能を搭載しています。
 
 ## インストール
 
@@ -29,25 +38,6 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.4
 
 * Unity 6 (6000.x) 以降
 * Universal RP 14.0 以降
-
-## 設計方針
-
-* **高品質セルフシャドウ（中核）**
-  メインライト専用に、スクリーン空間回転 Vogel ディスクの PCF とブロッカー探索による PCSS（コンタクトハードニング）を実装する。低解像度シャドウマップ由来のアクネ・ジャギーを発生源で除去し、顔のような曲面でも**マスクテクスチャ無しでクリーンな落ち影**が出る。追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。落ち影（Shadow map）と陰影（NdotL）は分離して合成する。
-* **顔影（独立した調整軸）**
-  「正しいが描きたくない」落ち影・陰を、顔用マスクテクスチャ無しのプロシージャルマスクで正面/上向きの面に限って明るく戻す（逆光時は陰を維持）。アクネを消す Receiver Normal Bias とは目的が逆（誤った影 vs 正しい影）の別軸。Quality: Off ではエッジが硬いぶん主要な調整手段になり、PCF / PCSS 時は Normal Bias で足りるため**既定 OFF**だが、強い側光時に併用すると最も細かく追い込める。
-* **パラメータ**
-  Rim Light / Peach Fuzz / Anisotropic は `Thickness`（0.0〜1.0）等の直感的な値で指定する。
-* **スペキュラ**
-  Dual-Lobe を基本に、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Fresnel）を切り替えられる。
-* **半透明**
-  Render Mode プリセット（Opaque / Cutout / Transparent）で Render Queue、Blend Mode、ZWrite を一括設定する。
-* **任意効果**
-  SSS / Rim / Peach Fuzz / Grain / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
-* **ブルーノイズ**
-  1 枚のテクスチャを影エッジのディザ（Self Shadow Quality: Off）とグレイン（法線の微細揺らぎ）で共通サンプルする。
-* **汎用ライブラリ分割**
-  陰影・BRDF・エフェクトの計算本体を、キーワード分岐やマテリアルプロパティに依存しない純粋関数として `Common/` に切り出す。`Doll` 固有のロジックはポリシー層に集約し、他シェーダーへの流用を容易にする（[ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) 参照）。
 
 ## 機能
 
@@ -120,7 +110,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.4
 
 ## ファイル構成・ライブラリ構成
 
-ディレクトリ構成、ポリシー層と汎用ライブラリ（`Common/`）の分離方針、include 順、他シェーダーへの流用例は [Documentation~/ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) を参照。
+ディレクトリ構成、ポリシー層と汎用ライブラリ（`Common/`）の分離方針、include 順、他シェーダーへの流用例など、技術的な設計仕様については [Documentation~/ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) を参照。
 
 ## 使い方
 
@@ -176,4 +166,4 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.4
 
 ## 作者
 
-Origuma — https://github.com/orig-uma
+Origuma — [https://github.com/orig-uma](https://github.com/orig-uma)
