@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-## [0.3.3] - 2026-06-29
+## [0.3.3] - 2026-06-21
 
 ### Added
 - 高品質セルフシャドウ（`_ShadowQuality`）。メインライト専用。
@@ -33,7 +33,7 @@
 ### Removed
 - `_BacklightPreserve` / `_FaceNormalSmoothness` プロパティと `GetFaceSmoothedNormal`（UI・CBUFFER から削除。逆光維持は内部固定）。
 
-## [0.3.2] - 2026-06-28
+## [0.3.2] - 2026-06-20
 ### Added
 - _AdditionalLightBlendModeの追加。白飛び対策。
 
