@@ -100,14 +100,4 @@ URP Core.hlsl          ← 必ず最初（PI / TWO_PI / SafeNormalize / UNITY_* 
   └─ DollEffects.hlsl       （Common_Color + Effects を内部 include）
 URP Shadows.hlsl
   └─ DollShadows.hlsl       （Common/URP/Shadow_HQ_URP.hlsl を内部 include）
-```
-
-各 Common ファイルの先頭コメントに「前提」（Core 必須 / 依存ゼロ）を明記している。
-
-### 他シェーダーへの流用例
-
-* 別キャラのトゥーン / PBR — `Common.hlsl` を include し、独自ポリシー層だけ書く
-* アクセサリのラメ表現 — `BRDF_Glitter.hlsl` 単体
-* VFX ディゾルブ専用 — `Fx_Dissolve.hlsl` + `Common_Color.hlsl`
-* ヘアシェーダー — `BRDF_Anisotropic.hlsl`
-* 背景 / プロップ — `Fx_MatCap.hlsl` + `BRDF_RimFuzz.hlsl` + `Common_Color.hlsl`
+````
