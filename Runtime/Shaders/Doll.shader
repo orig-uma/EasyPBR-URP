@@ -25,9 +25,9 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 半透明描画 ---------------------------------------------------------
         [Header(Surface Options (Transparency))]
-        [Toggle(_SURFACE_TRANSPARENT)] _SurfaceTransparent ("Transparent Surface (Use Alpha Blend)", Float) = 0
-        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Src Blend", Float) = 1
-        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 0
+        [Toggle(_SURFACE_TRANSPARENT)] _SurfaceTransparent ("Alpha Blend (Transparent)", Float) = 0
+        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Source Blend", Float) = 1
+        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Destination Blend", Float) = 0
         [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 1
         [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 4 // 4 = LEqual
 
@@ -50,24 +50,24 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Auto Face Shadow Fix (No Mask Needed))]
         _FrontMaskStrength ("Front Brightness", Range(0.0, 1.0)) = 0.0
         _UpMaskStrength ("Up Brightness", Range(0.0, 1.0)) = 0.0
-        _MaskFalloff ("Shadow Erase Breadth", Range(0.1, 10.0)) = 2.0
+        _MaskFalloff ("Mask Falloff", Range(0.1, 10.0)) = 2.0
 
         // --- ライティングと影 ------------------------------------------------
         [Header(Light and Shadow)]
         [KeywordEnum(Smooth, Toon)] _ShadingStyle ("Shading Style", Float) = 0
-        _ShadowColor ("Shadow Color Tint", Color) = (0.7, 0.7, 0.75, 1)
+        _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         [KeywordEnum(Off, Pcf, Pcss)] _ShadowQuality ("Self Shadow Quality", Float) = 1
         _ReceiverNormalBias ("Receiver Normal Bias", Range(0.0, 3.0)) = 0.6
         _ReceiveShadowStrength ("Receive Shadow Strength", Range(0.0, 1.0)) = 1.0
-        _ShadowMapSoftness ("Receive Shadow Softness", Range(0.0, 1.0)) = 0.4
+        _ShadowMapSoftness ("Shadow Softness", Range(0.0, 1.0)) = 0.4
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
         _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.5
         _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
         [Enum(Add, 0, Max, 1)] _AdditionalLightBlendMode ("Additional Light Blend", Float) = 1
         [Space(10)]
-        _ToonStep ("Toon Shadow Threshold", Range(0.0, 1.0)) = 0.5
-        _ToonFeather ("Toon Shadow Softness", Range(0.0, 1.0)) = 0.2
+        _ToonStep ("Toon Threshold", Range(0.0, 1.0)) = 0.5
+        _ToonFeather ("Toon Softness", Range(0.0, 1.0)) = 0.2
 
         // --- ブルーノイズ（影ディザ・グレイン共通）-------------------------
         [Header(Blue Noise)]
@@ -76,25 +76,25 @@ Shader "Origuma/EasyPBR_URP/Doll"
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
         [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 0
-        _SpecularF0 ("Specular Fresnel (F0)", Range(0.0, 1.0)) = 0.04
+        _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
         _SpecularColor ("Primary Specular Color", Color) = (1, 1, 1, 1)
         _Smoothness ("Primary Smoothness", Range(0.01, 1.0)) = 0.8
         _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 0.0
-        _PriSpecularLightLimit ("Primary Specular Limit", Range(0.1, 10.0)) = 2
+        _PriSpecularLightLimit ("Primary Light Limit", Range(0.1, 10.0)) = 2
         [Space(10)]
         _SecSpecularColor ("Secondary Specular Color", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.0
-        _SecSpecularLightLimit ("Secondary Specular Limit", Range(0.1, 5.0)) = 1.2
+        _SecSpecularLightLimit ("Secondary Light Limit", Range(0.1, 5.0)) = 1.2
         [Header(Anisotropic Highlight)]
         [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
         _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
         _AnisoOffset ("Aniso Position Offset", Range(-1.0, 1.0)) = 0.0
         _AnisoAngle ("Aniso Angle", Range(-180.0, 180.0)) = 0.0
         _AnisoStrandScale ("Strand Scale", Range(1.0,500.0)) = 50.0
-        _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.2
+        _AnisoStrandStrength ("Strand Strength", Range(0.0, 1.0)) = 0.05
         _AnisoStrandDir ("Strand Direction", Range(-180.0, 180.0)) = 0.0
         [HDR] _AnisoSecColor ("Aniso 2nd Color (A=Enable)", Color) = (0,0,0,0)
         _AnisoSecThickness ("Aniso 2nd Thickness", Range(0.0, 1.0)) = 0.7
@@ -129,7 +129,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [HDR] _GlitterColor ("Glitter Color (HDR)", Color) = (2, 2, 2, 1)
         _GlitterIntensity ("Glitter Intensity", Range(0.0, 50.0)) = 0.0
         _GlitterScale ("Glitter Density (Scale)", Range(10.0, 1000.0)) = 100.0
-        _GlitterSize ("Glitter Absolute Size", Range(0.0005, 0.05)) = 0.005
+        _GlitterSize ("Dot Size", Range(0.0005, 0.05)) = 0.005
         _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.2
         _GlitterSparsity ("Sparsity (間引き率)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
@@ -138,6 +138,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
         _GrainScale ("Grain UV Scale", Float) = 10.0
         [Space(10)]
+        [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0

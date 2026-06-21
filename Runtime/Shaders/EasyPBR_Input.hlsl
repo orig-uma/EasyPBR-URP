@@ -21,6 +21,7 @@ TEXTURE2D(_ReceiveShadowMask);
 TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
+TEXTURE2D(_SSSMask);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -78,7 +79,7 @@ CBUFFER_START(UnityPerMaterial)
     half _MaskFalloff;
     half _ShadingStyle;
     half4 _ShadowColor;
-    float _ReceiverNormalBias;
+    half _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;
     half _ShadowDither;

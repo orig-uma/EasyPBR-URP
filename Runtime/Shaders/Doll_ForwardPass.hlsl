@@ -51,7 +51,7 @@ Varyings vert(Attributes input)
 half3 CalculateSingleLight(
     Light light, half3 detailNormalWS,
     half3 viewDirectionWS, float3 objectForwardWS,
-    half3 baseColor, half receiveShadowMask, half specMask, half ditherValue,
+    half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
@@ -89,7 +89,7 @@ half3 CalculateSingleLight(
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
 
-    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
     half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
@@ -153,6 +153,7 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
+    half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
 
     // ライトループ外の事前計算
     float baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
@@ -194,7 +195,7 @@ half4 frag(Varyings input) : SV_Target
 
     finalColor += CalculateSingleLight(
         mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
-        albedo.rgb, receiveShadowMask, specMask, ditherValue,
+        albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, anisoPrecomp, glitterGeom, glitterActive);
 
@@ -209,7 +210,7 @@ half4 frag(Varyings input) : SV_Target
             Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
             half3 addContrib = CalculateSingleLight(
                 addLight, detailNormalWS, viewDirectionWS, objectForwardWS,
-                albedo.rgb, receiveShadowMask, specMask, ditherValue,
+                albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
                 baseProceduralMask, rimFresnel, fuzzFresnel,
                 half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
             // 0 = Add（物理的・白飛びしやすい）, 1 = Max（アニメ向け・彩度を保つ）

@@ -27,11 +27,6 @@ namespace Origuma.EasyPBR.URP.Editor
 
         // シェーダー初期値の取得用（Shader が変わったら破棄）
         private Shader _cachedShader;
-        private readonly Dictionary<string, int> _shaderIndexCache = new();
-
-        // リセットボタン（↺）の GUIContent / GUIStyle（言語変更時に _resetIcon を破棄）
-        private GUIContent _resetIcon;
-        private GUIStyle _resetStyle;
 
         // ----------------------------------------------------------------
         //  静的定数（毎フレームの new を排除）
@@ -46,6 +41,11 @@ namespace Origuma.EasyPBR.URP.Editor
         private static readonly string[] s_LangOptions = { "English", "日本語" };
         private static readonly string[] s_RenderModeEn = { "Opaque", "Cutout", "Transparent" };
         private static readonly string[] s_RenderModeJp = { "Opaque (不透明)", "Cutout (くり抜き)", "Transparent (半透明)" };
+        private static readonly int SurfaceTransparent = Shader.PropertyToID("_SurfaceTransparent");
+        private static readonly int AlphaClip = Shader.PropertyToID("_AlphaClip");
+        private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
+        private static readonly int DstBlend = Shader.PropertyToID("_DstBlend");
+        private static readonly int ZWrite = Shader.PropertyToID("_ZWrite");
 
         // ================================================================
         //  エントリポイント
@@ -74,29 +74,42 @@ namespace Origuma.EasyPBR.URP.Editor
                         DrawRenderModeSetup(materialEditor, properties);
                         EditorGUILayout.Space(4);
 
-                        P(materialEditor, "_Cull", "Cull", "Cull", "", "描画する面 (Off / Front / Back)");
-                        P(materialEditor, "_ZWrite", "ZWrite", "ZWrite", "", "深度バッファへの書き込み (On / Off)");
-                        P(materialEditor, "_ZTest", "ZTest", "ZTest", "", "深度テストの条件 (LEqual: 通常, Always: 常に前面に描画 など)");
-                        P(materialEditor, "_SrcBlend", "Source Blend", "Source Blend", "", "背景と合成する際の元カラーの係数");
-                        P(materialEditor, "_DstBlend", "Destination Blend", "Destination Blend", "",
+                        P(materialEditor, "_Cull", "Cull",
+                            "Which faces to render (Off / Front / Back)",
+                            "描画する面 (Off / Front / Back)");
+                        P(materialEditor, "_ZWrite", "ZWrite",
+                            "Write to the depth buffer (On / Off)",
+                            "深度バッファへの書き込み (On / Off)");
+                        P(materialEditor, "_ZTest", "ZTest",
+                            "Depth test condition (LEqual: normal, Always: draw on top, etc.)",
+                            "深度テストの条件 (LEqual: 通常, Always: 常に前面に描画 など)");
+                        P(materialEditor, "_SrcBlend", "Source Blend",
+                            "Blend factor for the source (this object's) color",
+                            "背景と合成する際の元カラーの係数");
+                        P(materialEditor, "_DstBlend", "Destination Blend",
+                            "Blend factor for the destination (background) color",
                             "背景と合成する際の背景カラーの係数");
 
                         EditorGUILayout.Space(4);
                         materialEditor.RenderQueueField();
 
                         EditorGUILayout.Space(4);
-                        P(materialEditor, "_SurfaceTransparent", "Output Alpha (_SURFACE_TRANSPARENT)",
-                            "アルファ出力 (_SURFACE_TRANSPARENT)", "", "アルファ値を出力するかどうか");
+                        P(materialEditor, "_SurfaceTransparent", "Alpha Blend (_SURFACE_TRANSPARENT)",
+                            "Render as alpha-blended transparent",
+                            "半透明（アルファブレンド）として描画します");
 
                         var alphaClipProp = Prop("_AlphaClip");
-                        P(materialEditor, alphaClipProp, "Alpha Clipping (_ALPHATEST_ON)", "アルファ切り抜き (_ALPHATEST_ON)",
-                            "", "アルファ値によるピクセルの破棄");
+                        P(materialEditor, alphaClipProp, "Alpha Clipping (_ALPHATEST_ON)",
+                            "Discard pixels by alpha value",
+                            "アルファ値によるピクセルの破棄");
                         if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_Cutoff", "Alpha Cutoff", "Alpha Cutoff", "", "クリッピングの閾値");
+                                P(materialEditor, "_Cutoff", "Alpha Cutoff",
+                                    "Clipping threshold",
+                                    "クリッピングの閾値");
                             }
-                        
+
 
                         EditorGUILayout.Space(4);
                         {
@@ -118,15 +131,20 @@ namespace Origuma.EasyPBR.URP.Editor
                             if (newStencilOpen)
                                 using (new EditorGUI.IndentLevelScope())
                                 {
-                                    P(materialEditor, "_StencilRef", "Stencil Ref", "Stencil Ref", "",
+                                    P(materialEditor, "_StencilRef", "Stencil Ref",
+                                        "Stencil reference value (0-255)",
                                         "ステンシルの参照値 (0-255)");
-                                    P(materialEditor, "_StencilComp", "Compare Function", "Compare Function", "",
+                                    P(materialEditor, "_StencilComp", "Compare Function",
+                                        "Stencil compare function (Always, Equal, NotEqual, etc.)",
                                         "ステンシルテストの比較条件 (Always, Equal, NotEqual など)");
-                                    P(materialEditor, "_StencilPass", "Pass Operation", "Pass Operation", "",
+                                    P(materialEditor, "_StencilPass", "Pass Operation",
+                                        "Operation when the test passes (Keep, Replace, etc.)",
                                         "テスト通過時の処理 (Keep, Replace など)");
-                                    P(materialEditor, "_StencilFail", "Fail Operation", "Fail Operation", "",
+                                    P(materialEditor, "_StencilFail", "Fail Operation",
+                                        "Operation when the stencil test fails",
                                         "ステンシルテスト失敗時の処理");
-                                    P(materialEditor, "_StencilZFail", "ZFail Operation", "ZFail Operation", "",
+                                    P(materialEditor, "_StencilZFail", "ZFail Operation",
+                                        "Operation when stencil passes but the depth test fails",
                                         "ステンシルテスト成功、かつZテスト失敗時の処理");
                                 }
                         }
@@ -147,7 +165,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         if (mainTex != null)
                         {
                             materialEditor.TexturePropertySingleLine(
-                                Label("Base Map (RGB / Alpha)", "ベースマップ (RGB/Alpha)", "", ""),
+                                Label("Base Map (RGB / Alpha)",
+                                    "Albedo. Alpha is used for clipping / transparency",
+                                    "アルベド。アルファはクリップ／透過に使用"),
                                 mainTex, baseColor);
                             materialEditor.TextureScaleOffsetProperty(mainTex);
                         }
@@ -155,14 +175,21 @@ namespace Origuma.EasyPBR.URP.Editor
                         EditorGUILayout.Space(4);
                         SubHeader("Color Correction", "色調補正 (HSV)");
                         var useCCProp = Prop("_UseColorCorrection");
-                        P(materialEditor, useCCProp, "Enable Color Correction", "色調補正を有効にする", "",
+                        P(materialEditor, useCCProp, "Enable Color Correction",
+                            "Skips HSV conversion when off (cheaper)",
                             "OFFのとき HSV 変換をスキップします（軽量）");
                         if (useCCProp != null && useCCProp.floatValue > 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_HueShift", "Hue Shift", "色相シフト", "", "色合いを回転させます");
-                                P(materialEditor, "_Saturation", "Saturation", "彩度", "", "鮮やかさを調整します");
-                                P(materialEditor, "_ValueMulti", "Value Multiplier", "明度", "", "明るさを調整します");
+                                P(materialEditor, "_HueShift", "Hue Shift",
+                                    "Rotates the hue",
+                                    "色合いを回転させます");
+                                P(materialEditor, "_Saturation", "Saturation",
+                                    "Adjusts vividness",
+                                    "鮮やかさを調整します");
+                                P(materialEditor, "_ValueMulti", "Value Multiplier",
+                                    "Adjusts brightness",
+                                    "明るさを調整します");
                             }
 
                         EditorGUILayout.Space(4);
@@ -171,7 +198,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         if (detailTex != null)
                         {
                             materialEditor.TexturePropertySingleLine(
-                                Label("Detail Map (RGBA)", "ディテールマップ (RGBA)", "", "アルファ値でブレンドされます"),
+                                Label("Detail Map (RGBA)",
+                                    "Blended using its alpha channel",
+                                    "アルファ値でブレンドされます"),
                                 detailTex, Prop("_DetailColor"));
                             materialEditor.TextureScaleOffsetProperty(detailTex);
                         }
@@ -181,7 +210,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         var normalTex = Prop("_NormalMap");
                         if (normalTex != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("Normal Map", "ノーマルマップ", "", ""),
+                                Label("Normal Map",
+                                    "Tangent-space normal map",
+                                    "接空間ノーマルマップ"),
                                 normalTex, Prop("_NormalScale"));
                     }
             }
@@ -196,42 +227,61 @@ namespace Origuma.EasyPBR.URP.Editor
                     using (new EditorGUI.IndentLevelScope())
                     {
                         var shadingStyleProp = Prop("_ShadingStyle");
-                        P(materialEditor, shadingStyleProp, "Shading Style", "シェーディング", "", "");
-                        P(materialEditor, "_ShadowColor", "Shadow Color", "影の色", "", "");
+                        P(materialEditor, shadingStyleProp, "Shading Style",
+                            "Smooth: continuous shading / Toon: hard two-tone anime look",
+                            "Smooth: なめらかな階調 / Toon: 境界で2値化したアニメ調");
+                        P(materialEditor, "_ShadowColor", "Shadow Color",
+                            "Tint multiplied into the base color in shadowed areas",
+                            "影部分でベースカラーに乗算する色味");
 
                         var recvMask = Prop("_ReceiveShadowMask");
                         if (recvMask != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("Receive Shadow Mask (R)", "落ち影マスク (R)", "", ""), recvMask);
+                                Label("Receive Shadow Mask (R)",
+                                    "Only the white parts of the R channel receive cast shadows",
+                                    "Rチャンネルの白い部分だけ落ち影を受ける"), recvMask);
 
-                        P(materialEditor, "_ReceiveShadowStrength", "Receive Strength", "落ち影の強さ", "", "");
+                        P(materialEditor, "_ReceiveShadowStrength", "Receive Shadow Strength",
+                            "Strength of darkening from the cast shadow map. 0 = no cast shadow",
+                            "落ち影(shadow map)で暗くする強さ。0で落ち影なし");
                         var shadowQualityProp = Prop("_ShadowQuality");
-                        P(materialEditor, shadowQualityProp, "Self Shadow Quality", "落ち影の品質", "",
+                        P(materialEditor, shadowQualityProp, "Self Shadow Quality",
+                            "Off: URP default / Pcf: high-quality soft shadow (recommended) / Pcss: contact-hardening (costly)",
                             "Off: URP標準 / Pcf: 高品質ソフト影（推奨）/ Pcss: 接地で硬く遠方で柔らかく（高負荷）");
 
-                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness", "落ち影のソフトさ", "",
+                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
+                            "Penumbra width for PCF/PCSS; edge softness when Off",
                             "PCF/PCSS時はペナンブラ幅、Off時はエッジの柔らかさ");
 
-                        bool hqShadow = shadowQualityProp != null && shadowQualityProp.floatValue >= 0.5f;
+                        var hqShadow = shadowQualityProp != null && shadowQualityProp.floatValue >= 0.5f;
 
                         if (hqShadow)
                         {
                             // PCF/PCSS のときだけ意味を持つ：受け側ノーマルオフセット
-                            P(materialEditor, "_ReceiverNormalBias", "Receiver Normal Bias", "影アクネ補正", "",
+                            P(materialEditor, "_ReceiverNormalBias", "Receiver Normal Bias",
+                                "Raise if you see shadow acne (banding). Too high thins the shadow; lower the Light's Normal Bias too",
                                 "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
                         }
                         else
                         {
                             // Off のときだけ意味を持つ：UV連動ディザ
-                            P(materialEditor, "_ShadowDither", "Shadow Dither", "影のディザ", "", "");
+                            P(materialEditor, "_ShadowDither", "Shadow Edge Dither",
+                                "When Self Shadow Quality is Off, dithers the shadow edge with blue noise to break up banding",
+                                "Self Shadow Quality が Off のとき、影エッジをブルーノイズでディザして階調の段差を散らす");
                         }
-                        P(materialEditor, "_HalfLambertWrap", "Light Wrap", "ライトラップ", "", "");
+                        P(materialEditor, "_HalfLambertWrap", "Light Wrap",
+                            "Lifts the shaded side to soften shading (Half-Lambert wrap). 0 = Lambert, 1 = brighter overall",
+                            "陰側を持ち上げて陰影を柔らかくする（Half-Lambert の wrap 量）。0でランバート、1で全体的に明るい");
 
                         if (shadingStyleProp != null && shadingStyleProp.floatValue >= 0.5f)
                         {
                             EditorGUILayout.Space(2);
-                            P(materialEditor, "_ToonStep", "Toon Threshold", "トゥーン境界位置", "", "");
-                            P(materialEditor, "_ToonFeather", "Toon Softness", "トゥーン境界の柔らかさ", "", "");
+                            P(materialEditor, "_ToonStep", "Toon Threshold",
+                                "Lit/shadow boundary position (threshold where lit flips to shadow)",
+                                "トゥーン陰の境界位置（明→暗が切り替わるしきい値）");
+                            P(materialEditor, "_ToonFeather", "Toon Softness",
+                                "Blur width of that boundary. 0 = crisp",
+                                "境界のぼかし幅。0でくっきり、上げるほど柔らかい");
                         }
 
                         EditorGUILayout.Space(4);
@@ -244,7 +294,7 @@ namespace Origuma.EasyPBR.URP.Editor
                             }
 
                             var newShadowFixOpen = EditorGUILayout.Foldout(shadowFixOpen,
-                                _jp ? "影補正 (自動)" : "Auto Shadow Fix", true, EditorStyles.foldoutHeader);
+                                _jp ? "顔の影補正" : "Auto Face Shadow Fix", true, EditorStyles.foldoutHeader);
                             if (newShadowFixOpen != shadowFixOpen)
                             {
                                 _foldCache["auto_shadow_fix"] = newShadowFixOpen;
@@ -254,16 +304,25 @@ namespace Origuma.EasyPBR.URP.Editor
                             if (newShadowFixOpen)
                                 using (new EditorGUI.IndentLevelScope())
                                 {
-                                    P(materialEditor, "_FrontMaskStrength", "Front Brightness", "正面の明るさ", "", "");
-                                    P(materialEditor, "_UpMaskStrength", "Up Brightness", "上向きの明るさ", "", "");
-                                    P(materialEditor, "_MaskFalloff", "Erase Breadth", "補正の範囲", "", "");
+                                    P(materialEditor, "_FrontMaskStrength", "Front Brightness",
+                                        "Front-facing surfaces suppress self-shadow and stay bright (face shadow fix)",
+                                        "正面を向いた面ほどセルフシャドウを抑えて明るくする（顔の陰落ち対策）");
+                                    P(materialEditor, "_UpMaskStrength", "Up Brightness",
+                                        "Upward-facing surfaces suppress self-shadow and stay bright",
+                                        "上を向いた面ほどセルフシャドウを抑えて明るくする");
+                                    P(materialEditor, "_MaskFalloff", "Mask Falloff",
+                                        "Tightness of the erase region. Higher limits it to near front/up only, making it narrower and sharper",
+                                        "陰を消す範囲の絞り。大きいほど真正面・真上だけに限定され、消える範囲が狭くシャープになる");
                                 }
                         }
 
                         EditorGUILayout.Space(4);
                         SubHeader("Anti-Blowout", "白飛び防止");
-                        P(materialEditor, "_DiffuseLightLimit", "Diffuse Light Limit", "ベース明るさ上限", "", "1灯あたりの拡散光の上限");
-                        P(materialEditor, "_AdditionalLightBlendMode", "Additional Light Blend", "追加ライトの合成方法", "",
+                        P(materialEditor, "_DiffuseLightLimit", "Diffuse Light Limit",
+                            "Luminance cap of diffuse light per light (blowout prevention)",
+                            "1灯あたりの拡散光の輝度上限（白飛び防止）");
+                        P(materialEditor, "_AdditionalLightBlendMode", "Additional Light Blend",
+                            "Add: physical (can blow out) / Max: anime-friendly (keeps saturation)",
                             "Add: 物理的（白飛びしやすい）/ Max: アニメ向け（彩度を保つ）");
                     }
             }
@@ -279,59 +338,84 @@ namespace Origuma.EasyPBR.URP.Editor
                     {
                         // --- Model ---
                         var specModelProp = Prop("_SpecularModel");
-                        P(materialEditor, specModelProp, "Specular Model", "スペキュラモデル", "",
+                        P(materialEditor, specModelProp, "Specular Model",
+                            "BlinnPhong: cheap, legacy-compatible / Ggx: physically based (Fresnel, natural falloff)",
                             "BlinnPhong: 軽量・従来互換 / Ggx: 物理ベース（Fresnel・自然な裾）");
                         if (specModelProp != null && specModelProp.floatValue >= 0.5f)
                             using (new EditorGUI.IndentLevelScope())
-                                P(materialEditor, "_SpecularF0", "Fresnel (F0)", "フレネル反射率", "", "誘電体は 0.04 前後");
+                                P(materialEditor, "_SpecularF0", "Fresnel (F0)",
+                                    "~0.04 for dielectrics",
+                                    "誘電体は 0.04 前後");
 
                         var specMask = Prop("_SpecularMask");
                         if (specMask != null)
-                            materialEditor.TexturePropertySingleLine(Label("Specular Mask (R)", "スペキュラマスク (R)", "", ""),
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Specular Mask (R)",
+                                    "R channel masks specular intensity",
+                                    "Rチャンネルでスペキュラ強度をマスク"),
                                 specMask);
 
                         // --- Dual-Lobe ---
                         SubHeader("Primary (Sharp)", "Primary（シャープ）");
-                        P(materialEditor, "_SpecularColor", "Color", "色", "", "");
-                        P(materialEditor, "_Smoothness", "Smoothness", "なめらかさ", "", "");
-                        P(materialEditor, "_SpecularIntensity", "Intensity", "強度", "", "");
-                        P(materialEditor, "_PriSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
+                        P(materialEditor, "_SpecularColor", "Color",
+                            "Primary specular tint", "主スペキュラの色味");
+                        P(materialEditor, "_Smoothness", "Smoothness",
+                            "Higher = tighter, sharper highlight", "高いほど締まった鋭いハイライト");
+                        P(materialEditor, "_SpecularIntensity", "Intensity",
+                            "Primary specular strength. 0 = off", "主スペキュラの強度。0でOFF");
+                        P(materialEditor, "_PriSpecularLightLimit", "Light Limit",
+                            "Luminance cap for the primary lobe (blowout prevention)",
+                            "主ローブの輝度上限（白飛び防止）");
 
                         SubHeader("Secondary (Matte)", "Secondary（マット）");
-                        P(materialEditor, "_SecSpecularColor", "Color", "色", "", "");
-                        P(materialEditor, "_SecSmoothness", "Smoothness", "なめらかさ", "", "");
-                        P(materialEditor, "_SecSpecularIntensity", "Intensity", "強度", "", "");
-                        P(materialEditor, "_SecSpecularLightLimit", "Light Limit", "明るさ上限", "", "");
+                        P(materialEditor, "_SecSpecularColor", "Color",
+                            "Secondary specular tint", "副スペキュラの色味");
+                        P(materialEditor, "_SecSmoothness", "Smoothness",
+                            "Higher = tighter (broad matte sheen when low)", "高いほど締まる（低いと広いマット質感）");
+                        P(materialEditor, "_SecSpecularIntensity", "Intensity",
+                            "Secondary specular strength. 0 = off", "副スペキュラの強度。0でOFF");
+                        P(materialEditor, "_SecSpecularLightLimit", "Light Limit",
+                            "Luminance cap for the secondary lobe", "副ローブの輝度上限");
 
                         // --- Anisotropic ---
                         SubHeader("Anisotropic (Hair / Silk)", "異方性ハイライト (髪 / シルク)");
                         var anisoColorProp = Prop("_AnisoColor");
-                        P(materialEditor, anisoColorProp, "Color (A=0 is Off)", "色 (アルファ0で無効)", "",
+                        P(materialEditor, anisoColorProp, "Color (A=0 is Off)",
+                            "Set alpha to 0 to skip the calculation entirely",
                             "アルファ値を0にすると計算自体がスキップされます");
                         if (anisoColorProp != null && anisoColorProp.colorValue.a > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_AnisoThickness", "Thickness", "太さ", "", "");
-                                P(materialEditor, "_AnisoOffset", "Position Offset", "位置のズレ", "", "");
-                                P(materialEditor, "_AnisoAngle", "Angle", "角度 (向き)", "", "");
-                                P(materialEditor, "_AnisoStrandScale", "Strand Scale", "繊維の細かさ", "",
+                                P(materialEditor, "_AnisoThickness", "Thickness",
+                                    "Highlight band width", "ハイライト帯の太さ");
+                                P(materialEditor, "_AnisoOffset", "Position Offset",
+                                    "Shifts the highlight band along the normal", "ハイライト帯を法線方向にずらす");
+                                P(materialEditor, "_AnisoAngle", "Angle",
+                                    "Highlight direction (tangent rotation)", "ハイライトの向き（接線の回転）");
+                                P(materialEditor, "_AnisoStrandScale", "Strand Scale",
+                                    "Higher = finer strands",
                                     "数値を上げるほど毛束が細かくなります");
-                                P(materialEditor, "_AnisoStrandStrength", "Strand Strength", "繊維の凹凸感", "",
+                                P(materialEditor, "_AnisoStrandStrength", "Strand Strength",
+                                    "Breaks the highlight into jagged strands",
                                     "ハイライトが毛束に沿ってギザギザに割れます");
-                                P(materialEditor, "_AnisoStrandDir", "Strand Direction", "繊維の方向", "",
+                                P(materialEditor, "_AnisoStrandDir", "Strand Direction",
+                                    "Rotates the UV direction the strands flow along",
                                     "繊維（ノイズ）が流れるUVの方向を回転させます");
 
                                 // 2nd Lobe（主ハイライトが有効なときのみ意味を持つ）
                                 EditorGUILayout.Space(2);
                                 SubHeader("Sub Highlight (2nd Lobe)", "サブハイライト (2nd Lobe)");
                                 var anisoSecProp = Prop("_AnisoSecColor");
-                                P(materialEditor, anisoSecProp, "Color (A=0 is Off)", "副の色 (アルファ0で無効)", "",
+                                P(materialEditor, anisoSecProp, "Color (A=0 is Off)",
+                                    "Adds a second, broader sheen on the opposite side",
                                     "主の逆側にもう一本の広いツヤを足します");
                                 if (anisoSecProp != null && anisoSecProp.colorValue.a > 0f)
                                     using (new EditorGUI.IndentLevelScope())
                                     {
-                                        P(materialEditor, "_AnisoSecThickness", "Thickness", "太さ", "", "");
-                                        P(materialEditor, "_AnisoSecOffset", "Position Offset", "位置のズレ", "",
+                                        P(materialEditor, "_AnisoSecThickness", "Thickness",
+                                            "Width of the secondary band", "副の帯の太さ");
+                                        P(materialEditor, "_AnisoSecOffset", "Position Offset",
+                                            "Use the opposite sign to the primary to split them top/bottom like hair",
                                             "主と逆符号にすると上下に分かれて髪らしくなります");
                                     }
                             }
@@ -339,17 +423,23 @@ namespace Origuma.EasyPBR.URP.Editor
                         // --- MatCap ---
                         SubHeader("MatCap", "MatCap");
                         var useMatCapProp = Prop("_UseMatCap");
-                        P(materialEditor, useMatCapProp, "Enable MatCap", "MatCapを使う", "", "");
+                        P(materialEditor, useMatCapProp, "Enable MatCap",
+                            "Adds a view-space MatCap sphere", "ビュー空間のMatCapを合成します");
                         if (useMatCapProp != null && useMatCapProp.floatValue > 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_MatCapBlend", "Blend Mode", "合成モード", "", "");
+                                P(materialEditor, "_MatCapBlend", "Blend Mode",
+                                    "Add or Multiply", "Add（加算）/ Multiply（乗算）");
                                 var matcap = Prop("_MatCapTex");
                                 if (matcap != null)
                                     materialEditor.TexturePropertySingleLine(
-                                        Label("MatCap Texture (RGB)", "MatCapテクスチャ (RGB)", "", ""), matcap);
-                                P(materialEditor, "_MatCapColor", "Tint", "色", "", "");
-                                P(materialEditor, "_MatCapIntensity", "Intensity", "強度", "", "");
+                                        Label("MatCap Texture (RGB)",
+                                            "Sphere / MatCap lighting texture",
+                                            "球状ライティングテクスチャ"), matcap);
+                                P(materialEditor, "_MatCapColor", "Tint",
+                                    "MatCap tint color", "MatCapの色味");
+                                P(materialEditor, "_MatCapIntensity", "Intensity",
+                                    "MatCap strength", "MatCapの強度");
                             }
                     }
             }
@@ -379,7 +469,8 @@ namespace Origuma.EasyPBR.URP.Editor
                     using (new EditorGUI.IndentLevelScope())
                     {
                         var useEmissionProp = Prop("_UseEmission");
-                        P(materialEditor, useEmissionProp, "Enable Emission", "発光を有効にする", "", "");
+                        P(materialEditor, useEmissionProp, "Enable Emission",
+                            "Adds self-illumination", "自己発光を加えます");
 
                         if (useEmissionProp != null && useEmissionProp.floatValue > 0.5f)
                             using (new EditorGUI.IndentLevelScope())
@@ -388,10 +479,13 @@ namespace Origuma.EasyPBR.URP.Editor
                                 var emColor = Prop("_EmissionColor");
                                 if (emTex != null && emColor != null)
                                     materialEditor.TexturePropertySingleLine(
-                                        Label("Emission Map & Color", "発光マップと色 (HDR)", "", ""),
+                                        Label("Emission Map & Color",
+                                            "Emission texture (RGB) x HDR color",
+                                            "発光テクスチャ(RGB) × HDRカラー"),
                                         emTex, emColor);
 
-                                P(materialEditor, "_EmissionIntensity", "Intensity", "発光の強度", "", "");
+                                P(materialEditor, "_EmissionIntensity", "Intensity",
+                                    "Emission strength", "発光の強度");
                                 materialEditor.LightmapEmissionProperty();
                             }
                     }
@@ -410,70 +504,100 @@ namespace Origuma.EasyPBR.URP.Editor
                         var glitterMask = Prop("_GlitterMask");
                         if (glitterMask != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("Glitter Mask (R)", "発生マスク (R)", "", "白く塗られた部分にだけグリッターが発生します"), glitterMask);
+                                Label("Glitter Mask (R)",
+                                    "Glitter only appears where the R channel is white",
+                                    "白く塗られた部分にだけグリッターが発生します"), glitterMask);
 
-                        P(materialEditor, "_GlitterColor", "Color (HDR)", "色 (HDR)", "",
+                        P(materialEditor, "_GlitterColor", "Color (HDR)",
+                            "Use HDR values to trigger Bloom / Glare post effects",
                             "HDRで白飛びさせることで画面のBloomやGlareエフェクトを誘発します");
                         var glitterIntProp = Prop("_GlitterIntensity");
-                        P(materialEditor, glitterIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "",
+                        P(materialEditor, glitterIntProp, "Intensity (0 = Off)",
+                            "Flash strength. Raise until post effects react. 0 = off",
                             "発光の強さ。ポストエフェクトが反応するまで上げてください");
 
                         if (glitterIntProp != null && glitterIntProp.floatValue > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_GlitterScale", "Density Scale", "密度", "", "数値を上げるほど粒が細かく密集します");
-                                P(materialEditor, "_GlitterSize", "Dot Size", "粒の大きさ", "", "発光の起点となるコアの大きさ");
-                                P(materialEditor, "_GlitterTilt", "Normal Tilt", "法線の傾き(ばらつき)", "",
+                                P(materialEditor, "_GlitterScale", "Density Scale",
+                                    "Higher = finer, denser particles", "数値を上げるほど粒が細かく密集します");
+                                P(materialEditor, "_GlitterSize", "Dot Size",
+                                    "Size of each particle's glowing core", "発光の起点となるコアの大きさ");
+                                P(materialEditor, "_GlitterTilt", "Normal Tilt",
+                                    "0 follows the surface; higher tilts particles randomly for more sparkle",
                                     "0でモデルの表面に沿い、数値を上げるほどランダムな方向を向いてチラつきます");
-                                P(materialEditor, "_GlitterSparsity", "Sparsity", "間引き率", "",
+                                P(materialEditor, "_GlitterSparsity", "Sparsity",
+                                    "Thinning rate. Lower = sparser (recommended 0.5)",
                                     "スパンコールの密集度。値が小さいほどまばらになります（推奨:0.5）");
-                                P(materialEditor, "_GlitterIridescence", "Iridescence", "虹色強度", "",
+                                P(materialEditor, "_GlitterIridescence", "Iridescence",
+                                    "Closer to 1 shifts toward rainbow (hologram) by view angle",
                                     "1に近づけるほど、視線角度に応じて虹色（ホログラム）に変化します");
-                                P(materialEditor, "_GlitterIridescenceShift", "IridescenceShift", "虹色移動", "",
-                                    "1に近づけるほど、視線角度に応じて虹色が変化します");
-                                P(materialEditor, "_GlitterBaseReflection", "Base Reflection", "暗い反射（ベース）", "",
+                                P(materialEditor, "_GlitterIridescenceShift", "Iridescence Shift",
+                                    "How much the rainbow hue moves with view angle",
+                                    "視線角度に応じて虹色がずれる量");
+                                P(materialEditor, "_GlitterBaseReflection", "Base Reflection",
+                                    "Metallic presence of sequins when not flashing (~0-0.1 recommended)",
                                     "光っていない時のスパンコール自体の存在感（メタリック感）。0～0.1程度推奨");
                             }
 
                         SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
-                        P(materialEditor, "_SSSColor", "Color", "色", "", "");
+                        var sssMask = Prop("_SSSMask");
+                        if (sssMask != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("SSS Mask (R)",
+                                    "R channel masks subsurface intensity",
+                                    "Rチャンネルで表面下散乱の強度をマスク"),
+                                sssMask);
+                        P(materialEditor, "_SSSColor", "Color",
+                            "Subsurface tint (backlit glow)", "表面下散乱の色味（逆光の透け）");
                         var sssIntProp = Prop("_SSSIntensity");
-                        P(materialEditor, sssIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        P(materialEditor, sssIntProp, "Intensity (0 = Off)",
+                            "Backlit transmission strength. 0 = off", "逆光の透け強度。0でOFF");
                         if (sssIntProp != null && sssIntProp.floatValue > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_SSSPower", "Falloff", "減衰", "", "");
-                                P(materialEditor, "_SSSDistortion", "Distortion", "歪み", "", "");
+                                P(materialEditor, "_SSSPower", "Falloff",
+                                    "Higher = tighter, more concentrated glow", "高いほど透けが締まる");
+                                P(materialEditor, "_SSSDistortion", "Distortion",
+                                    "Bends the backlight direction by the normal", "逆光方向を法線で歪める");
                             }
 
                         SubHeader("Peach Fuzz (Soft Edge Sheen)", "Peach Fuzz（縁の柔らかい光沢）");
-                        P(materialEditor, "_FuzzColor", "Color", "色", "", "");
+                        P(materialEditor, "_FuzzColor", "Color",
+                            "Soft edge sheen tint", "縁の柔らかい光沢の色");
                         var fuzzIntProp = Prop("_FuzzIntensity");
-                        P(materialEditor, fuzzIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        P(materialEditor, fuzzIntProp, "Intensity (0 = Off)",
+                            "Edge sheen strength. 0 = off", "縁光沢の強度。0でOFF");
                         if (fuzzIntProp != null && fuzzIntProp.floatValue > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_FuzzPower", "Width", "幅", "", "");
+                                P(materialEditor, "_FuzzPower", "Width",
+                                    "Higher = narrower rim", "高いほど縁が細い");
                             }
 
                         SubHeader("Rim Light", "Rim Light（リムライト）");
-                        P(materialEditor, "_RimColor", "Color", "色", "", "");
+                        P(materialEditor, "_RimColor", "Color",
+                            "Rim light color", "リムライトの色");
                         var rimIntProp = Prop("_RimIntensity");
-                        P(materialEditor, rimIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "", "");
+                        P(materialEditor, rimIntProp, "Intensity (0 = Off)",
+                            "Rim light strength. 0 = off", "リムライトの強度。0でOFF");
                         if (rimIntProp != null && rimIntProp.floatValue > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_RimThickness", "Thickness", "太さ", "", "");
+                                P(materialEditor, "_RimThickness", "Thickness",
+                                    "Higher = thicker rim", "高いほど縁が太い");
                             }
 
                         SubHeader("Grain", "グレイン（表面の微細ザラつき）");
                         var grainIntProp = Prop("_GrainIntensity");
-                        P(materialEditor, grainIntProp, "Intensity (0 = Off)", "強度 (0でOFF)", "",
+                        P(materialEditor, grainIntProp, "Intensity (0 = Off)",
+                            "Slightly jitters the normal with blue noise to reduce a too-smooth look. 0 = off",
                             "ブルーノイズで法線を僅かに揺らし、つるつる感を抑えます");
                         if (grainIntProp != null && grainIntProp.floatValue > 0f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_GrainScale", "Scale", "スケール", "",
+                                P(materialEditor, "_GrainScale", "Scale",
+                                    "Blue-noise UV scale",
                                     "ブルーノイズの UV スケール");
                             }
                     }
@@ -490,48 +614,60 @@ namespace Origuma.EasyPBR.URP.Editor
                     {
                         SubHeader("Dissolve", "消失エフェクト");
                         var useDissolveProp = Prop("_UseDissolve");
-                        P(materialEditor, useDissolveProp, "Enable Dissolve", "ディゾルブを有効にする", "",
+                        P(materialEditor, useDissolveProp, "Enable Dissolve",
+                            "Enables the dissolve effect",
                             "ディゾルブ（消失）エフェクトを有効にします");
 
                         if (useDissolveProp != null && useDissolveProp.floatValue > 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                P(materialEditor, "_DissolveAmount", "Dissolve Amount", "消失量", "", "0で完全表示、1で完全消失");
-                                P(materialEditor, "_DissolveInvert", "Invert Dissolve", "方向を反転", "",
+                                P(materialEditor, "_DissolveAmount", "Dissolve Amount",
+                                    "0 = fully visible, 1 = fully dissolved", "0で完全表示、1で完全消失");
+                                P(materialEditor, "_DissolveInvert", "Invert Dissolve",
+                                    "Reverses the dissolve direction / condition",
                                     "チェックを入れると消失方向（条件）が逆転します");
                                 var typeProp = Prop("_DissolveType");
-                                P(materialEditor, typeProp, "Dissolve Axis", "消失軸", "",
+                                P(materialEditor, typeProp, "Dissolve Axis",
+                                    "None = texture only, WorldY = world Y, LocalY = object Y",
                                     "None=テクスチャのみ, WorldY=空間のY座標, LocalY=モデルのY座標");
 
                                 if (typeProp != null && typeProp.floatValue > 0.5f)
                                 {
-                                    P(materialEditor, "_DissolveStartY", "Start Y", "開始Y", "", "フェードが始まるY座標");
-                                    P(materialEditor, "_DissolveEndY", "End Y", "終了Y", "", "フェードが終わるY座標");
+                                    P(materialEditor, "_DissolveStartY", "Start Y",
+                                        "Y where the fade starts", "フェードが始まるY座標");
+                                    P(materialEditor, "_DissolveEndY", "End Y",
+                                        "Y where the fade ends", "フェードが終わるY座標");
                                 }
 
                                 EditorGUILayout.Space(2);
                                 var disTex = Prop("_DissolveTex");
                                 if (disTex != null)
                                     materialEditor.TexturePropertySingleLine(
-                                        Label("Dissolve Noise", "ノイズテクスチャ", "", "境界を揺らすためのノイズテクスチャ"), disTex);
+                                        Label("Dissolve Noise",
+                                            "Noise texture that perturbs the edge",
+                                            "境界を揺らすためのノイズテクスチャ"), disTex);
 
-                                P(materialEditor, "_DissolveNoiseScale", "Noise Scale", "ノイズスケール", "", "ノイズの細かさ");
-                                P(materialEditor, "_DissolveNoiseStrength", "Noise Strength", "ノイズ強度", "",
-                                    "ノイズによる境界の揺れ幅");
+                                P(materialEditor, "_DissolveNoiseScale", "Noise Scale",
+                                    "Noise frequency", "ノイズの細かさ");
+                                P(materialEditor, "_DissolveNoiseStrength", "Noise Strength",
+                                    "How much the noise perturbs the edge", "ノイズによる境界の揺れ幅");
 
                                 EditorGUILayout.Space(2);
-                                P(materialEditor, "_DissolveEdgeColor", "Edge Outer Color (HDR)", "エッジ外側の色 (HDR)", "",
-                                    "消失の最前線の輝き");
-                                P(materialEditor, "_DissolveEdgeColor2", "Edge Inner Color (HDR)", "エッジ内側の色 (HDR)", "",
-                                    "少し内側のグラデーション色");
-                                P(materialEditor, "_DissolveEdgeWidth", "Edge Width", "エッジ幅", "", "発光する境界線の太さ");
-                                P(materialEditor, "_DissolveEdgeStep", "Step Edge (Toon Style)", "エッジの段階化 (Toon調)", "",
+                                P(materialEditor, "_DissolveEdgeColor", "Edge Outer Color (HDR)",
+                                    "Glow at the dissolving frontline", "消失の最前線の輝き");
+                                P(materialEditor, "_DissolveEdgeColor2", "Edge Inner Color (HDR)",
+                                    "Gradient color just inside the edge", "少し内側のグラデーション色");
+                                P(materialEditor, "_DissolveEdgeWidth", "Edge Width",
+                                    "Thickness of the glowing edge", "発光する境界線の太さ");
+                                P(materialEditor, "_DissolveEdgeStep", "Step Edge (Toon Style)",
+                                    "Quantizes the gradient into crisp toon-style bands",
                                     "チェックを入れるとグラデーションがパキッとした階調（層）になります");
                             }
 
                         EditorGUILayout.Space(6);
                         SubHeader("Black Out", "暗転エフェクト");
-                        P(materialEditor, "_BlackOut", "Black Out Amount", "暗転率", "", "");
+                        P(materialEditor, "_BlackOut", "Black Out Amount",
+                            "Darkens the final color toward black", "最終色を黒へ暗転させます");
                     }
             }
 
@@ -549,7 +685,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         var noise = Prop("_BlueNoiseTex");
                         if (noise != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("Blue Noise Texture", "ブルーノイズテクスチャ", "", ""), noise);
+                                Label("Blue Noise Texture",
+                                    "Shared by shadow-edge dither and grain",
+                                    "影エッジディザとグレインで共通使用"), noise);
                     }
             }
 
@@ -582,7 +720,8 @@ namespace Origuma.EasyPBR.URP.Editor
             else if (alphaClipProp.floatValue > 0.5f) currentMode = 1;
 
             EditorGUI.BeginChangeCheck();
-            var lbl = Label("Render Mode (Preset)", "Render Mode (プリセット)", "Sets Queue, Blend, ZWrite automatically",
+            var lbl = Label("Render Mode (Preset)",
+                "Sets Queue, Blend, ZWrite automatically",
                 "一括で半透明用の設定に切り替えます");
             var newMode = EditorGUILayout.Popup(lbl, currentMode, _jp ? s_RenderModeJp : s_RenderModeEn);
             if (EditorGUI.EndChangeCheck())
@@ -598,33 +737,33 @@ namespace Origuma.EasyPBR.URP.Editor
             switch (mode)
             {
                 case 0: // Opaque
-                    mat.SetFloat("_SurfaceTransparent", 0f);
-                    mat.SetFloat("_AlphaClip", 0f);
-                    mat.SetFloat("_SrcBlend", (float)BlendMode.One);
-                    mat.SetFloat("_DstBlend", (float)BlendMode.Zero);
-                    mat.SetFloat("_ZWrite", 1f);
+                    mat.SetFloat(SurfaceTransparent, 0f);
+                    mat.SetFloat(AlphaClip, 0f);
+                    mat.SetFloat(SrcBlend, (float)BlendMode.One);
+                    mat.SetFloat(DstBlend, (float)BlendMode.Zero);
+                    mat.SetFloat(ZWrite, 1f);
                     mat.renderQueue = 2000;
                     mat.SetOverrideTag("RenderType", "Opaque");
                     mat.DisableKeyword("_SURFACE_TRANSPARENT");
                     mat.DisableKeyword("_ALPHATEST_ON");
                     break;
                 case 1: // Cutout
-                    mat.SetFloat("_SurfaceTransparent", 0f);
-                    mat.SetFloat("_AlphaClip", 1f);
-                    mat.SetFloat("_SrcBlend", (float)BlendMode.One);
-                    mat.SetFloat("_DstBlend", (float)BlendMode.Zero);
-                    mat.SetFloat("_ZWrite", 1f);
+                    mat.SetFloat(SurfaceTransparent, 0f);
+                    mat.SetFloat(AlphaClip, 1f);
+                    mat.SetFloat(SrcBlend, (float)BlendMode.One);
+                    mat.SetFloat(DstBlend, (float)BlendMode.Zero);
+                    mat.SetFloat(ZWrite, 1f);
                     mat.renderQueue = 2450;
                     mat.SetOverrideTag("RenderType", "TransparentCutout");
                     mat.DisableKeyword("_SURFACE_TRANSPARENT");
                     mat.EnableKeyword("_ALPHATEST_ON");
                     break;
                 case 2: // Transparent
-                    mat.SetFloat("_SurfaceTransparent", 1f);
-                    mat.SetFloat("_AlphaClip", 0f);
-                    mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-                    mat.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-                    mat.SetFloat("_ZWrite", 0f);
+                    mat.SetFloat(SurfaceTransparent, 1f);
+                    mat.SetFloat(AlphaClip, 0f);
+                    mat.SetFloat(SrcBlend, (float)BlendMode.SrcAlpha);
+                    mat.SetFloat(DstBlend, (float)BlendMode.OneMinusSrcAlpha);
+                    mat.SetFloat(ZWrite, 0f);
                     mat.renderQueue = 3000;
                     mat.SetOverrideTag("RenderType", "Transparent");
                     mat.EnableKeyword("_SURFACE_TRANSPARENT");
@@ -640,32 +779,41 @@ namespace Origuma.EasyPBR.URP.Editor
 
             EditorGUI.BeginChangeCheck();
 
-            P(materialEditor, outlineProp, "Enable Outline", "アウトラインを有効にする", "", "");
+            P(materialEditor, outlineProp, "Enable Outline",
+                "Inverted-hull outline pass", "背面法線を押し出す輪郭線パス");
             var isOutlineOn = outlineProp.floatValue > 0.5f;
 
             if (isOutlineOn)
                 using (new EditorGUI.IndentLevelScope())
                 {
-                    P(materialEditor, "_OutlineColor", "Color", "色", "", "");
-                    P(materialEditor, "_OutlineWidth", "Width", "太さ", "", "");
+                    P(materialEditor, "_OutlineColor", "Color",
+                        "Outline color", "輪郭線の色");
+                    P(materialEditor, "_OutlineWidth", "Width",
+                        "Outline thickness", "輪郭線の太さ");
 
                     var alphaClipProp = Prop("_AlphaClip");
                     if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
                     {
                         EditorGUILayout.Space(2);
-                        P(materialEditor, "_OutlineCutoffShift", "Cutoff Shift (Fix)", "透過エッジの補正", "",
+                        P(materialEditor, "_OutlineCutoffShift", "Cutoff Shift",
+                            "Cancels thick dark outlines left on semi-transparent gradients like hair tips",
                             "毛先などの半透明グラデーション部分で、アウトラインが黒く太く残ってしまう現象を打ち消します");
                     }
 
                     EditorGUILayout.Space(4);
                     SubHeader("Masking (Stencil)", "マスク処理 (ステンシル)");
-                    P(materialEditor, "_OutlineStencilRef", "Stencil Ref", "参照値", "", "本体側のStencil Refと同じ数値を入れます");
-                    P(materialEditor, "_OutlineStencilComp", "Compare Function", "比較条件", "",
+                    P(materialEditor, "_OutlineStencilRef", "Stencil Ref",
+                        "Use the same value as the body's Stencil Ref", "本体側のStencil Refと同じ数値を入れます");
+                    P(materialEditor, "_OutlineStencilComp", "Compare Function",
+                        "Set to NotEqual to hide the outline where the body is drawn",
                         "NotEqualにすると、本体が描画された部分には線が描かれなくなります");
-                    P(materialEditor, "_OutlineStencilPass", "Pass Operation", "Pass Operation", "",
+                    P(materialEditor, "_OutlineStencilPass", "Pass Operation",
+                        "Operation when the test passes (usually Keep)",
                         "テスト通過時の処理 (基本はKeep)");
-                    P(materialEditor, "_OutlineStencilFail", "Fail Operation", "Fail Operation", "", "ステンシルテスト失敗時の処理");
-                    P(materialEditor, "_OutlineStencilZFail", "ZFail Operation", "ZFail Operation", "",
+                    P(materialEditor, "_OutlineStencilFail", "Fail Operation",
+                        "Operation when the stencil test fails", "ステンシルテスト失敗時の処理");
+                    P(materialEditor, "_OutlineStencilZFail", "ZFail Operation",
+                        "Operation when stencil passes but the depth test fails",
                         "ステンシルテスト成功、かつZテスト失敗時の処理");
                 }
 
@@ -770,14 +918,17 @@ namespace Origuma.EasyPBR.URP.Editor
             EditorGUILayout.LabelField(_jp ? jp : en, EditorStyles.miniBoldLabel);
         }
 
-        // GUIContent をキャッシュして返す（言語変更時は _labelCache.Clear() で破棄）
-        private GUIContent Label(string en, string jp, string tipEn, string tipJp)
+        // ラベルは英語固定。説明は tooltip に日英で持たせ、言語に応じて切り替える。
+        // キャッシュは「ラベル＋日英ツールチップ」をキーにする（同名ラベルで別ツールチップでも衝突しない）。
+        // 言語変更時は DrawToolbar 内で _labelCache.Clear() している。
+        private GUIContent Label(string label, string tipEn, string tipJp)
         {
+            var key = label + "\u241F" + tipEn + "\u241F" + tipJp;
             GUIContent content;
-            if (!_labelCache.TryGetValue(en, out content))
+            if (!_labelCache.TryGetValue(key, out content))
             {
-                content = new GUIContent(_jp ? jp : en, _jp ? tipJp : tipEn);
-                _labelCache[en] = content;
+                content = new GUIContent(label, _jp ? tipJp : tipEn);
+                _labelCache[key] = content;
             }
 
             return content;
@@ -791,21 +942,21 @@ namespace Origuma.EasyPBR.URP.Editor
         }
 
         // MaterialProperty を直接渡すオーバーロード
-        private void P(MaterialEditor editor, MaterialProperty prop, string en, string jp, string tipEn, string tipJp)
+        private void P(MaterialEditor editor, MaterialProperty prop, string label, string tipEn, string tipJp)
         {
             if (prop == null) return;
 
-            var label = Label(en, jp, tipEn, tipJp);
+            var content = Label(label, tipEn, tipJp);
             var h = editor.GetPropertyHeight(prop);
             var row = EditorGUILayout.GetControlRect(true, h);
 
-            editor.ShaderProperty(row, prop, label);
+            editor.ShaderProperty(row, prop, content);
         }
 
         // 名前で引いて描画（propCache 経由）
-        private void P(MaterialEditor editor, string name, string en, string jp, string tipEn, string tipJp)
+        private void P(MaterialEditor editor, string name, string label, string tipEn, string tipJp)
         {
-            P(editor, Prop(name), en, jp, tipEn, tipJp);
+            P(editor, Prop(name), label, tipEn, tipJp);
         }
     }
 }
