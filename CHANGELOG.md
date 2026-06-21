@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-21
+
+### Changed
+- HLSL を `Common/`（汎用ライブラリ）と `Doll/`（キャラ固有ポリシー層）に再構成。BRDF・エフェクト・高品質シャドウの計算本体を純粋関数として切り出し。
+- ファイル配置を整理（`Doll/` 配下に Pass・Input・Lighting・Shadows を集約、`EasyPBR_*` を `Doll*` へリネーム）。
+- 公開 API（`GetCastShadow` / `CalculateDualLobeSpecular` 等）と描画挙動は維持。
+
+### Added
+- `Documentation~/ARCHITECTURE.md`（内部構成・設計方針の解説）。
+
 ## [0.3.3] - 2026-06-21
 
 ### Added
