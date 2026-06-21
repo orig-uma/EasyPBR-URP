@@ -1,5 +1,5 @@
 // =============================================================================
-//  Doll_ShadowPass.hlsl
+//  ShadowPass.hlsl
 //  影を落とすためのパス（ShadowCaster）
 // =============================================================================
 #ifndef DOLL_SHADOW_PASS_INCLUDED
@@ -7,7 +7,7 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-#include "EasyPBR_Effects.hlsl"
+#include "../DollEffects.hlsl"
 
 // URPの組み込み変数を明示
 float4 _LightPosition;

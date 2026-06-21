@@ -1,12 +1,12 @@
 ﻿// =============================================================================
-//  Doll_OutlinePass.hlsl
+//  OutlinePass.hlsl
 // =============================================================================
 #ifndef DOLL_OUTLINE_PASS_INCLUDED
 #define DOLL_OUTLINE_PASS_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-#include "EasyPBR_Input.hlsl"
-#include "EasyPBR_Effects.hlsl"
+#include "../DollInput.hlsl"
+#include "../DollEffects.hlsl"
 
 struct Attributes
 {

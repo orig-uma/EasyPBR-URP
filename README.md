@@ -18,7 +18,7 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
+https://github.com/orig-uma/EasyPBR-URP.git#v0.3.4
 ```
 
 ### Embedded
@@ -27,17 +27,17 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 
 ## 動作環境
 
-* Unity 2022.2 以降（Forward+ / Cluster Light Loop）、または Unity 6 (6000.x)
+* Unity 6 (6000.x) 以降
 * Universal RP 14.0 以降
 
 ## 設計方針
 
+* **高品質セルフシャドウ（中核）**
+  メインライト専用に、スクリーン空間回転 Vogel ディスクの PCF とブロッカー探索による PCSS（コンタクトハードニング）を実装する。低解像度シャドウマップ由来のアクネ・ジャギーを発生源で除去し、顔のような曲面でも**マスクテクスチャ無しでクリーンな落ち影**が出る。追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。落ち影（Shadow map）と陰影（NdotL）は分離して合成する。
+* **顔影（独立した調整軸）**
+  「正しいが描きたくない」落ち影・陰を、顔用マスクテクスチャ無しのプロシージャルマスクで正面/上向きの面に限って明るく戻す（逆光時は陰を維持）。アクネを消す Receiver Normal Bias とは目的が逆（誤った影 vs 正しい影）の別軸。Quality: Off ではエッジが硬いぶん主要な調整手段になり、PCF / PCSS 時は Normal Bias で足りるため**既定 OFF**だが、強い側光時に併用すると最も細かく追い込める。
 * **パラメータ**
   Rim Light / Peach Fuzz / Anisotropic は `Thickness`（0.0〜1.0）等の直感的な値で指定する。
-* **顔影**
-  顔用マスクテクスチャは不要。プロシージャルマスクにより自己陰を抑制する（逆光時は陰を維持）。
-* **セルフシャドウ**
-  落ち影と陰影を分離して合成する。落ち影はメインライト専用に PCF / PCSS で高品質化でき、追加ライトの影は URP 標準のままにして多灯時の負荷を抑える。
 * **スペキュラ**
   Dual-Lobe を基本に、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Fresnel）を切り替えられる。
 * **半透明**
@@ -46,15 +46,17 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
   SSS / Rim / Peach Fuzz / Grain / MatCap / Glitter / Anisotropic は既定 OFF または Intensity 0 で GPU 計算をスキップする。
 * **ブルーノイズ**
   1 枚のテクスチャを影エッジのディザ（Self Shadow Quality: Off）とグレイン（法線の微細揺らぎ）で共通サンプルする。
+* **汎用ライブラリ分割**
+  陰影・BRDF・エフェクトの計算本体を、キーワード分岐やマテリアルプロパティに依存しない純粋関数として `Common/` に切り出す。`Doll` 固有のロジックはポリシー層に集約し、他シェーダーへの流用を容易にする（[ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) 参照）。
 
 ## 機能
 
 | 項目 | 内容 |
 | :--- | :--- |
+| Self Shadow（中核） | メインライト専用の高品質セルフシャドウ。Self Shadow Quality（Off / PCF / PCSS、コンタクトハードニング）、Receiver Normal Bias、Shadow Dither。落ち影（Shadow map）と陰影（NdotL）を分離合成し、マスク無しで顔がクリーンに出る |
 | Shading Style | Toon / Smooth の切り替え |
 | Base Core | Base Map、HSV 色調補正（Color Correction）、Detail Map（RGBA ブレンド）、Normal Map |
-| Auto Face Shadow Fix | マスク不要の顔自己陰抑制（プロシージャルマスク） |
-| Self Shadow | 落ち影（Shadow map）と陰影（NdotL）の分離合成。Self Shadow Quality（Off / PCF / PCSS）、Receiver Normal Bias、Shadow Dither |
+| Auto Face Shadow Fix | 落ち影/陰の独立した調整軸。マスク不要のプロシージャルマスクで正面を明るく戻す。Off 時の主要調整・PCF 時の追い込み用。既定 OFF |
 | Specular | Dual-Lobe（Primary / Secondary）。Blinn-Phong / GGX（Schlick Fresnel・Smith 可視性）を切り替え |
 | Anisotropic Highlight | 髪・シルク向け異方性ハイライト。2 バンド（主 / 副）、Strand パラメータ |
 | MatCap | Add / Multiply |
@@ -75,21 +77,50 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 | ShadowCaster | ShadowCaster | 落ち影の生成 |
 | Outline | SRPDefaultUnlit | 輪郭線 |
 
-## ファイル構成
+## シェーダーバリアント（キーワード）
 
-| パス | 役割 |
-| :--- | :--- |
-| `Runtime/Shaders/Doll.shader` | Properties、Pass 定義 |
-| `Runtime/Shaders/EasyPBR_Input.hlsl` | 共通変数・テクスチャ（CBUFFER） |
-| `Runtime/Shaders/EasyPBR_Effects.hlsl` | Dissolve、MatCap、Emission |
-| `Runtime/Shaders/DollLighting.hlsl` | ライティング統合（顔影 / Toon、Dual-Lobe、SSS / Rim / Fuzz、Anisotropic、Glitter） |
-| `Runtime/Shaders/DollShadows.hlsl` | メインライト高品質セルフシャドウ（PCF / PCSS） |
-| `Runtime/Shaders/Doll_ForwardPass.hlsl` | ForwardLit パス |
-| `Runtime/Shaders/Doll_ShadowPass.hlsl` | ShadowCaster パス |
-| `Runtime/Shaders/Doll_OutlinePass.hlsl` | Outline パス |
-| `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
-| `Runtime/Textures/dissolve_noise.png` | Dissolve ノイズ |
-| `Editor/DollShaderGUI.cs` | カスタムインスペクター |
+バリアントを生むキーワードと、それを切り替えるマテリアルプロパティの対応。
+
+### 機能キーワード（`shader_feature_local` — マテリアルの設定で切り替え）
+
+| キーワード | 状態数 | 対応プロパティ（UI ラベル） | 対象パス |
+| :--- | :---: | :--- | :--- |
+| `_ALPHATEST_ON` | 2 | `_AlphaClip`（Alpha Clipping） | ForwardLit / ShadowCaster / Outline |
+| `_SURFACE_TRANSPARENT` | 2 | `_SurfaceTransparent`（Alpha Blend (Transparent)） | ForwardLit |
+| `_SHADINGSTYLE_TOON` | 2 | `_ShadingStyle`（Shading Style: Smooth / Toon） | ForwardLit |
+| `_SPECULARMODEL_BLINNPHONG` / `_GGX` | 2 | `_SpecularModel`（Specular Model: BlinnPhong / GGX） | ForwardLit |
+| `_SHADOWQUALITY_OFF` / `_PCF` / `_PCSS` | 3 | `_ShadowQuality`（Self Shadow Quality: Off / PCF / PCSS） | ForwardLit |
+| `_DISSOLVE_ON` | 2 | `_UseDissolve`（Enable Dissolve） | ForwardLit / ShadowCaster / Outline |
+| `_DISSOLVETYPE_NONE` / `_WORLDY` / `_LOCALY` | 3 | `_DissolveType`（Dissolve Axis: None / WorldY / LocalY） | ForwardLit / ShadowCaster / Outline |
+| `_OUTLINE_ON` | 2 | `_UseOutline`（Enable Outline） | Outline |
+
+> MatCap / Emission / Color Correction は keyword を廃止し、`_UseMatCap` / `_UseEmission` / `_UseColorCorrection`（Float）による `UNITY_BRANCH` の動的分岐にしている。無効時はテクスチャサンプルごとスキップされ、バリアントは増えない。
+
+### システムキーワード（`multi_compile` — URP が常に全て生成）
+
+| キーワードセット | 状態数 |
+| :--- | :---: |
+| `_MAIN_LIGHT_SHADOWS` / `_CASCADE` / `_SCREEN` | 4 |
+| `_ADDITIONAL_LIGHTS_VERTEX` / `_ADDITIONAL_LIGHTS` | 3 |
+| `_CLUSTER_LIGHT_LOOP` | 2 |
+| `_ADDITIONAL_LIGHT_SHADOWS` | 2 |
+| `_SHADOWS_SOFT` | 2 |
+| `_CASTING_PUNCTUAL_LIGHT_SHADOW`（ShadowCaster） | 2 |
+
+### バリアント数（理論上の最大）
+
+| Pass | 機能（`shader_feature`） | システム（`multi_compile`） | 合計 |
+| :--- | ---: | ---: | ---: |
+| ForwardLit | 2·2·2·2·3·2·3 = **288** | 4·3·2·2·2 = **96** | **27,648** |
+| ShadowCaster | 2·2·3 = **12** | 2 | **24** |
+| Outline | 2·2·2·3 = **24** | — | **24** |
+| **総計** | | | **27,696** |
+
+> `shader_feature_local` はプロジェクト内のマテリアルが実際に使う組み合わせのみビルドに含まれる（1 マテリアルは機能キーワードの 1 通りを選ぶだけ）。一方 `multi_compile` は常に全展開されるため、**実ビルドのバリアント数は概ね「使用中の機能組み合わせ数 × システム 96（ForwardLit）」程度**に収まり、上の理論最大には達しない。
+
+## ファイル構成・ライブラリ構成
+
+ディレクトリ構成、ポリシー層と汎用ライブラリ（`Common/`）の分離方針、include 順、他シェーダーへの流用例は [Documentation~/ARCHITECTURE.md](Documentation~/ARCHITECTURE.md) を参照。
 
 ## 使い方
 
@@ -111,7 +142,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.3
 * **Shadow Softness** はペナンブラ幅（PCF / PCSS のカーネル半径）を兼ねる。
 * **Receiver Normal Bias** は受け側のノーマルオフセット量。縞状のシャドウアクネが出る場合に上げる。上げ過ぎると影が痩せる。
 * Receiver Normal Bias を使う場合は、URP Asset 側の Light の **Normal Bias を 0〜0.3 程度に下げる**と二重バイアスによる影の浮き（ピーターパン）を防げる。
-* PCSS のブロッカー探索は `_MainLightShadowmapTexture` を point sampler で読むため、環境によっては `sampler_PointClamp` の宣言が必要になる（`DollShadows.hlsl` 内のコメント参照）。
+* PCSS のブロッカー探索は `_MainLightShadowmapTexture` を point sampler で読むため、環境によっては `sampler_PointClamp` の宣言が必要になる（`Common/URP/Shadow_HQ_URP.hlsl` 内のコメント参照）。
 
 ### インスペクター
 

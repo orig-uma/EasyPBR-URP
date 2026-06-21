@@ -1,14 +1,14 @@
 // =============================================================================
-//  Doll_ForwardPass.hlsl
+//  ForwardPass.hlsl
 //  メインの描画パス（UniversalForward）
 // =============================================================================
 #ifndef DOLL_FORWARD_PASS_INCLUDED
 #define DOLL_FORWARD_PASS_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-#include "EasyPBR_Effects.hlsl"
-#include "DollLighting.hlsl"
-#include "DollShadows.hlsl"
+#include "../DollEffects.hlsl"
+#include "../DollLighting.hlsl"
+#include "../DollShadows.hlsl"
 
 struct Attributes
 {
