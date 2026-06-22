@@ -75,7 +75,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
-        [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 0
+        [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 1
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
