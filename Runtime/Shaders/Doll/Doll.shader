@@ -26,7 +26,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- 半透明描画 ---------------------------------------------------------
         [Header(Surface Options (Transparency))]
-        [Toggle(_SURFACE_TRANSPARENT)] _SurfaceTransparent ("Alpha Blend (Transparent)", Float) = 0
+        [ToggleUI] _SurfaceTransparent ("Alpha Blend (Transparent)", Float) = 0
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Source Blend", Float) = 1
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Destination Blend", Float) = 0
         [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 1
@@ -55,7 +55,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- ライティングと影 ------------------------------------------------
         [Header(Light and Shadow)]
-        [KeywordEnum(Smooth, Toon)] _ShadingStyle ("Shading Style", Float) = 0
+        [Enum(Smooth, 0, Toon, 1)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         [KeywordEnum(Off, Pcf (Tent), Pcf (Vogel), Pcss)] _ShadowMode ("Self Shadow Mode", Float) = 1
@@ -77,7 +77,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
-        [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 1
+        [Enum(BlinnPhong, 0, Ggx, 1)] _SpecularModel ("Specular Model", Float) = 1
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
@@ -211,11 +211,10 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma fragment frag
 
             #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _SURFACE_TRANSPARENT
-            #pragma shader_feature_local_fragment _SHADINGSTYLE_TOON
+            // _SURFACE_TRANSPARENT / _SHADINGSTYLE_TOON / _SPECULARMODEL_* は
+            // バリアントを生まない uniform 動的分岐へ移行（混在マテリアルのバッチング維持）。
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
-            #pragma shader_feature_local_fragment _SPECULARMODEL_BLINNPHONG _SPECULARMODEL_GGX
             #pragma shader_feature_local_fragment _SHADOWMODE_OFF _SHADOWMODE_TENTPCF _SHADOWMODE_VOGELPCF _SHADOWMODE_PCSS
             
 

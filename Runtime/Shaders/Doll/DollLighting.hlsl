@@ -72,18 +72,15 @@ float GetCastShadow(float shadowAttenuation, float receiveShadowMask, float rece
     return lerp(castShadow, 1.0, proceduralMask);
 }
 
-// 陰の量子化: toon/smooth をキーワードで解決 + 顔正面での陰消し（Doll ポリシー）。
+// 陰の量子化: toon/smooth を uniform 動的分岐で解決 + 顔正面での陰消し（Doll ポリシー）。
 float GetLitMask(float halfLambert, float proceduralMask, float toonStep, float toonFeather)
 {
-    bool useToon = false;
-#if defined(_SHADINGSTYLE_TOON)
-    useToon = true;
-#endif
+    bool useToon = (_ShadingStyle > 0.5);
     float litMask = ShadeRamp(halfLambert, useToon, toonStep, toonFeather);
     return lerp(litMask, 1.0, proceduralMask);
 }
 
-// デュアルローブスペキュラ: スペキュラモデルをキーワードで解決。
+// デュアルローブスペキュラ: スペキュラモデルを uniform 動的分岐で解決。
 half3 CalculateDualLobeSpecular(
     half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS, float ndotlSpecular,
     float3 priSpecEnergy, half4 specColor1, float smoothness1, float intensity1,
@@ -91,19 +88,20 @@ half3 CalculateDualLobeSpecular(
     float specMask, float castShadow, float specF0,
     out float specularMaskVal)
 {
-#if defined(_SPECULARMODEL_GGX)
-    return DualLobeSpecularGGX(
-        detailNormalWS, lightDirWS, viewDirectionWS, ndotlSpecular,
-        priSpecEnergy, specColor1, smoothness1, intensity1,
-        secSpecEnergy, specColor2, smoothness2, intensity2,
-        specMask, castShadow, specF0, specularMaskVal);
-#else
+    UNITY_BRANCH
+    if (_SpecularModel > 0.5)
+    {
+        return DualLobeSpecularGGX(
+            detailNormalWS, lightDirWS, viewDirectionWS, ndotlSpecular,
+            priSpecEnergy, specColor1, smoothness1, intensity1,
+            secSpecEnergy, specColor2, smoothness2, intensity2,
+            specMask, castShadow, specF0, specularMaskVal);
+    }
     return DualLobeSpecularBlinn(
         detailNormalWS, lightDirWS, viewDirectionWS, ndotlSpecular,
         priSpecEnergy, specColor1, smoothness1, intensity1,
         secSpecEnergy, specColor2, smoothness2, intensity2,
         specMask, castShadow, specularMaskVal);
-#endif
 }
 
 // CalculateSSS / CalculateRimLight / CalculatePeachFuzz / GetFresnelTerms /
