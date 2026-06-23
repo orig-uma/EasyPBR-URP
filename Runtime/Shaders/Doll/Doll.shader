@@ -172,11 +172,11 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
     SubShader
     {
-        Tags 
-        { 
-            "RenderType" = "TransparentCutout" 
-            "RenderPipeline" = "UniversalPipeline" 
-            "Queue" = "AlphaTest" 
+        Tags
+        {
+            "RenderType" = "Opaque"
+            "RenderPipeline" = "UniversalPipeline"
+            "Queue" = "Geometry"
         }
 
         HLSLINCLUDE

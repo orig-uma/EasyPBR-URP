@@ -11,6 +11,11 @@ namespace Origuma.EasyPBR.URP.Editor
         private const string LangKey = KeyPrefix + "lang.jp";
         private const string CustomUIKey = KeyPrefix + "use.custom.ui";
 
+        // GitHub 上のドキュメント（GUI からリンクで開く）。
+        private const string DocBaseUrl = "https://github.com/orig-uma/EasyPBR-URP/blob/main/Documentation~/";
+        private const string ShadowsDocUrl = DocBaseUrl + "SHADOWS.md";
+        private const string SrpBatcherDocUrl = DocBaseUrl + "SRP_BATCHER.md";
+
         private bool _jp;
         private bool _useCustomUI = true;
         private bool _prefsLoaded;
@@ -20,6 +25,11 @@ namespace Origuma.EasyPBR.URP.Editor
 
         // GUIContent（言語切り替え時に Clear）
         private readonly Dictionary<string, GUIContent> _labelCache = new();
+
+        // 折り返し対応の miniLabel（凡例用。GUIStyle は OnGUI 内でのみ生成可なので遅延初期化）
+        private GUIStyle _miniWrapStyle;
+        private GUIStyle MiniWrapStyle =>
+            _miniWrapStyle ??= new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
 
         // MaterialProperty（properties 配列参照が変わったら再構築）
         private MaterialProperty[] _cachedPropsRef;
@@ -270,6 +280,12 @@ namespace Origuma.EasyPBR.URP.Editor
                                 foreach (Material mat in materialEditor.targets)
                                     SetShadowModeKeyword(mat, smNew);
                             }
+
+                            using (new EditorGUILayout.HorizontalScope())
+                            {
+                                GUILayout.FlexibleSpace();
+                                DocLink(_jp ? "影モードの選び方" : "Shadow mode guide", ShadowsDocUrl);
+                            }
                         }
 
                         var shadowMode = shadowModeProp != null ? shadowModeProp.floatValue : 1f;
@@ -284,11 +300,11 @@ namespace Origuma.EasyPBR.URP.Editor
                                 "Raise if you see shadow acne (banding). Too high thins the shadow; lower the Light's Normal Bias too",
                                 "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
 
-                        // ソフトネスは Tent 以外で効く（Off=エッジ柔らかさ / VogelPcf・Pcss=ペナンブラ幅）
+                        // ソフトネスは Vogel のみで有効（Tent=固定カーネル / PCSS=接地硬化で自動）
                         if (isVogel)
                             P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
-                                "Penumbra width for VogelPcf/Pcss; edge softness for Off. Tent uses a fixed kernel (no effect)",
-                                "VogelPcf/Pcss時はペナンブラ幅、Off時はエッジの柔らかさ。Tentは固定カーネルなので無効");
+                                "Penumbra width. PCF (Vogel) only (Tent uses a fixed kernel, PCSS auto-derives it)",
+                                "ペナンブラ幅。PCF (Vogel) のみ有効（Tentは固定カーネル、PCSSは接地硬化で自動決定）");
 
                         // ディザは Off のときだけ意味を持つ（UV連動ブルーノイズ）
                         if (isOff)
@@ -842,6 +858,17 @@ namespace Origuma.EasyPBR.URP.Editor
             if (isOutlineOn)
                 using (new EditorGUI.IndentLevelScope())
                 {
+                    // アウトラインは独自パス（LightMode=DollOutline）。RendererFeature が必要。
+                    EditorGUILayout.HelpBox(
+                        _jp
+                            ? "アウトラインの表示には Doll Outline Feature を Renderer に追加する必要があります（ForwardLit のバッチング維持のため独自パス化）。"
+                            : "Outline requires the Doll Outline Feature on your Renderer (separated pass keeps ForwardLit batching).",
+                        MessageType.Info);
+                    if (GUILayout.Button(_jp ? "Outline セットアップを開く" : "Open Outline Setup"))
+                        DollOutlineSetupWindow.Open();
+                    EditorGUILayout.Space(2);
+
+
                     P(materialEditor, "_OutlineColor", "Color",
                         "Outline color", "輪郭線の色");
                     P(materialEditor, "_OutlineWidth", "Width",
@@ -931,11 +958,18 @@ namespace Origuma.EasyPBR.URP.Editor
                 EditorGUI.BeginChangeCheck();
             }
 
-            // ⚡ 印の凡例（バリアント生成プロパティであることの説明）。
+            // ⚡ 印の凡例（バリアント生成プロパティであることの説明）＋ドキュメントリンク。
             var legend = _jp
-                ? "⚡ = シェーダーバリアントを生成（混在すると SRP Batcher のバッチが分断）"
-                : "⚡ = generates a shader variant (mixing splits SRP Batcher batches)";
-            EditorGUILayout.LabelField(legend, EditorStyles.miniLabel);
+                ? "⚡ = シェーダーバリアントを生成（混在するとバッチが分断）"
+                : "⚡ = generates a shader variant (mixing splits batches)";
+            var legendContent = new GUIContent(legend);
+            var legendH = MiniWrapStyle.CalcHeight(legendContent, EditorGUIUtility.currentViewWidth);
+            EditorGUILayout.LabelField(legendContent, MiniWrapStyle, GUILayout.Height(legendH));
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                DocLink(_jp ? "SRP Batcher ガイド" : "SRP Batcher guide", SrpBatcherDocUrl);
+            }
         }
 
         // ================================================================
@@ -1049,6 +1083,13 @@ namespace Origuma.EasyPBR.URP.Editor
         private GUIContent VariantLabel(string label, string tipEn, string tipJp)
         {
             return Label(label + VariantMark, tipEn + VariantTipEn, tipJp + VariantTipJp);
+        }
+
+        // GitHub ドキュメントを開くリンクボタン（クリックでブラウザ起動）。
+        private static void DocLink(string label, string url)
+        {
+            if (EditorGUILayout.LinkButton(label))
+                Application.OpenURL(url);
         }
     }
 }

@@ -13,7 +13,7 @@
 * **スペキュラとマテリアルモデル**
   Dual-Lobe を基本とし、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Schlick Fresnel・Smith 可視性込みの Cook-Torrance）をパス内で切り替える。
 * **ブルーノイズの共通化**
-  1 枚のテクスチャを、影エッジのディザリング（Self Shadow Quality: Off）とグレイン（法線の微細揺らぎ）で共通サンプルし、テクスチャフェッチを節約する。
+  1 枚のテクスチャを、影エッジのディザリング（Self Shadow Mode: Off）とグレイン（法線の微細揺らぎ）で共通サンプルし、テクスチャフェッチを節約する。
 
 ## ライブラリの分離方針
 
@@ -23,6 +23,7 @@
 
 ```text
 Runtime/
+  DollOutlineFeature.cs         アウトライン描画 RendererFeature（独自 LightMode "DollOutline"）
   Shaders/
     Doll/                       Doll シェーダー（流用しない固有実装）
       Doll.shader               Properties、Pass 定義
@@ -33,6 +34,8 @@ Runtime/
       Passes/
         ForwardPass.hlsl        ForwardLit パス
         ShadowPass.hlsl         ShadowCaster パス
+        DepthOnlyPass.hlsl      DepthOnly パス
+        DepthNormalsPass.hlsl   DepthNormals パス
         OutlinePass.hlsl        Outline パス
     Common/                     汎用ライブラリ（流用する価値のある純粋関数）
       Common.hlsl               アンブレラ
@@ -48,6 +51,7 @@ Runtime/
   Textures/                     BlueNoise / Ramp / Dissolve ノイズ
 Editor/
   DollShaderGUI.cs              カスタムインスペクター
+  DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
 ```
 
 ## ファイル構成
@@ -61,7 +65,10 @@ Editor/
 | `Runtime/Shaders/Doll/DollShadows.hlsl` | メインライト高品質セルフシャドウのラッパー（PCF / PCSS）。実装は `Common/URP/Shadow_HQ_URP.hlsl` |
 | `Runtime/Shaders/Doll/Passes/ForwardPass.hlsl` | ForwardLit パス |
 | `Runtime/Shaders/Doll/Passes/ShadowPass.hlsl` | ShadowCaster パス |
-| `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス |
+| `Runtime/Shaders/Doll/Passes/DepthOnlyPass.hlsl` | DepthOnly パス |
+| `Runtime/Shaders/Doll/Passes/DepthNormalsPass.hlsl` | DepthNormals パス |
+| `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス（LightMode = `DollOutline`） |
+| `Runtime/DollOutlineFeature.cs` | `DollOutline` パスを後段でまとめて描く RendererFeature（ForwardLit のバッチング維持） |
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
 | `Runtime/Textures/DissolveNoise.png` | Dissolve ノイズ |
@@ -81,7 +88,8 @@ Editor/
   | ポリシー（薄い） | キーワード / プロパティ / キャラ方針 | 顔マスク、キーワード分岐、互換ラッパー |
 
 * **汎用化方針**
-  キーワード（`_SHADINGSTYLE_TOON` / `_SPECULARMODEL_GGX` / `_SHADOWQUALITY_*`）は `bool` 引数化、マテリアルプロパティ（`_ReceiverNormalBias` / `_Dissolve*` 等）と Dissolve のテクスチャサンプリングは呼び出し側へ外出しする。`Doll_` 接頭辞は除去する。
+  キーワード（`_SHADOWMODE_*` 等）は `bool` 引数化、マテリアルプロパティ（`_ReceiverNormalBias` / `_Dissolve*` 等）と Dissolve のテクスチャサンプリングは呼び出し側へ外出しする。`Doll_` 接頭辞は除去する。
+  なお Shading Style / Specular Model は keyword を持たず、`_ShadingStyle` / `_SpecularModel`（uniform）の `UNITY_BRANCH` 動的分岐で解決する（混在マテリアルの SRP Batcher バッチング維持のため。0.3.5）。
 * **互換性**
   公開関数名（`GetCastShadow` / `GetLitMask` / `CalculateDualLobeSpecular` / `SampleMainShadowHQ` / `ApplyDissolveClip` 等）と挙動は維持する。各パスのフラグメント側は無改修で動作する。
 
