@@ -23,11 +23,15 @@ half SampleMainShadowHQ(float3 positionWS, float3 normalWS, float NdotL,
                         float2 screenPix, float softness)
 {
     bool contactHardening = false;
-#if defined(_SHADOWQUALITY_PCSS)
-    contactHardening = true;
+    bool useTent          = false;
+#if defined(_SHADOWMODE_TENTPCF)
+    useTent = true;
+#elif defined(_SHADOWMODE_PCSS)
+    contactHardening = true;   // PCSS = Vogel + 接地硬化
 #endif
+    // VogelPcf は両方 false（素の Vogel PCF）。Off はこの関数を呼ばない。
     return EasyPBR_SampleMainShadowHQ(positionWS, normalWS, NdotL, screenPix, softness,
-                                      _ReceiverNormalBias, contactHardening);
+                                      _ReceiverNormalBias, contactHardening, useTent);
 }
 
 #endif // DOLL_SHADOWS_INCLUDED

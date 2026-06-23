@@ -183,7 +183,7 @@ half4 frag(Varyings input) : SV_Target
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
 
-    #if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+    #if defined(_SHADOWMODE_TENTPCF) || defined(_SHADOWMODE_VOGELPCF) || defined(_SHADOWMODE_PCSS)
         Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
         float mainNdotL = dot(cleanNormalWS, mainLight.direction);
         mainLight.shadowAttenuation = SampleMainShadowHQ(

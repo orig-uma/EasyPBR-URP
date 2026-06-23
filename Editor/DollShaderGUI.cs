@@ -41,6 +41,10 @@ namespace Origuma.EasyPBR.URP.Editor
         private static readonly string[] s_LangOptions = { "English", "日本語" };
         private static readonly string[] s_RenderModeEn = { "Opaque", "Cutout", "Transparent" };
         private static readonly string[] s_RenderModeJp = { "Opaque (不透明)", "Cutout (くり抜き)", "Transparent (半透明)" };
+        private static readonly string[] s_ShadowModeEn = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
+        private static readonly string[] s_ShadowModeJp = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
+        private static readonly string[] s_ShadowModeKeywords =
+            { "_SHADOWMODE_OFF", "_SHADOWMODE_TENTPCF", "_SHADOWMODE_VOGELPCF", "_SHADOWMODE_PCSS" };
         private static readonly int SurfaceTransparent = Shader.PropertyToID("_SurfaceTransparent");
         private static readonly int AlphaClip = Shader.PropertyToID("_AlphaClip");
         private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
@@ -103,12 +107,18 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Discard pixels by alpha value",
                             "アルファ値によるピクセルの破棄");
                         if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
+                        {
                             using (new EditorGUI.IndentLevelScope())
                             {
                                 P(materialEditor, "_Cutoff", "Alpha Cutoff",
                                     "Clipping threshold",
                                     "クリッピングの閾値");
                             }
+
+                            P(materialEditor, "_ShadowCutoffBias", "Shadow Cutoff Bias",
+                                "Casts a slightly fatter alpha shadow to stabilize wispy hair-tip flicker. 0 = same as the visible cutoff",
+                                "影だけ少し太めのアルファで落として毛先のチラつきを安定させる。0で前面cutoffと同じ");
+                        }
 
 
                         EditorGUILayout.Space(4);
@@ -244,31 +254,47 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_ReceiveShadowStrength", "Receive Shadow Strength",
                             "Strength of darkening from the cast shadow map. 0 = no cast shadow",
                             "落ち影(shadow map)で暗くする強さ。0で落ち影なし");
-                        var shadowQualityProp = Prop("_ShadowQuality");
-                        P(materialEditor, shadowQualityProp, "Self Shadow Quality",
-                            "Off: URP default / Pcf: high-quality soft shadow (recommended) / Pcss: contact-hardening (costly)",
-                            "Off: URP標準 / Pcf: 高品質ソフト影（推奨）/ Pcss: 接地で硬く遠方で柔らかく（高負荷）");
-
-                        P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
-                            "Penumbra width for PCF/PCSS; edge softness when Off",
-                            "PCF/PCSS時はペナンブラ幅、Off時はエッジの柔らかさ");
-
-                        var hqShadow = shadowQualityProp != null && shadowQualityProp.floatValue >= 0.5f;
-
-                        if (hqShadow)
+                        var shadowModeProp = Prop("_ShadowMode");
+                        if (shadowModeProp != null)
                         {
-                            // PCF/PCSS のときだけ意味を持つ：受け側ノーマルオフセット
+                            EditorGUI.BeginChangeCheck();
+                            var smLbl = Label("Self Shadow Mode",
+                                "Off: URP default (lightest). PCF (Tent): deterministic, noise-free (best for live). PCF (Vogel): adjustable/wide soft, slight noise. PCSS: Vogel + contact hardening (costly)",
+                                "Off: URP標準（最軽量）/ PCF (Tent): 決定論的・ノイズなし（ライブ向け）/ PCF (Vogel): 可変・広いぼかし・微ノイズ / PCSS: Vogel＋接地硬化（高負荷）");
+                            var smCur = Mathf.Clamp((int)shadowModeProp.floatValue, 0, 3);
+                            var smNew = EditorGUILayout.Popup(smLbl, smCur, _jp ? s_ShadowModeJp : s_ShadowModeEn);
+                            if (EditorGUI.EndChangeCheck())
+                            {
+                                materialEditor.RegisterPropertyChangeUndo("Self Shadow Mode");
+                                shadowModeProp.floatValue = smNew;
+                                foreach (Material mat in materialEditor.targets)
+                                    SetShadowModeKeyword(mat, smNew);
+                            }
+                        }
+
+                        var shadowMode = shadowModeProp != null ? shadowModeProp.floatValue : 1f;
+                        var isOff  = shadowMode < 0.5f;                        // Off
+                        var isTent = shadowMode >= 0.5f && shadowMode < 1.5f;  // TentPcf
+                        var isVogel = shadowMode >= 1.5f && shadowMode < 2.5f; // Vogel
+                        var isHQ   = !isOff;                                   // TentPcf / VogelPcf / Pcss
+
+                        // 受け側ノーマルオフセットは HQ 全モードで効く
+                        if (isHQ)
                             P(materialEditor, "_ReceiverNormalBias", "Receiver Normal Bias",
                                 "Raise if you see shadow acne (banding). Too high thins the shadow; lower the Light's Normal Bias too",
                                 "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
-                        }
-                        else
-                        {
-                            // Off のときだけ意味を持つ：UV連動ディザ
+
+                        // ソフトネスは Tent 以外で効く（Off=エッジ柔らかさ / VogelPcf・Pcss=ペナンブラ幅）
+                        if (isVogel)
+                            P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
+                                "Penumbra width for VogelPcf/Pcss; edge softness for Off. Tent uses a fixed kernel (no effect)",
+                                "VogelPcf/Pcss時はペナンブラ幅、Off時はエッジの柔らかさ。Tentは固定カーネルなので無効");
+
+                        // ディザは Off のときだけ意味を持つ（UV連動ブルーノイズ）
+                        if (isOff)
                             P(materialEditor, "_ShadowDither", "Shadow Edge Dither",
-                                "When Self Shadow Quality is Off, dithers the shadow edge with blue noise to break up banding",
-                                "Self Shadow Quality が Off のとき、影エッジをブルーノイズでディザして階調の段差を散らす");
-                        }
+                                "When Self Shadow Mode is Off, dithers the shadow edge with blue noise to break up banding",
+                                "Self Shadow Mode が Off のとき、影エッジをブルーノイズでディザして階調の段差を散らす");
                         P(materialEditor, "_HalfLambertWrap", "Light Wrap",
                             "Lifts the shaded side to soften shading (Half-Lambert wrap). 0 = Lambert, 1 = brighter overall",
                             "陰側を持ち上げて陰影を柔らかくする（Half-Lambert の wrap 量）。0でランバート、1で全体的に明るい");
@@ -730,6 +756,25 @@ namespace Origuma.EasyPBR.URP.Editor
                 foreach (Material mat in materialEditor.targets)
                     SetupRenderMode(mat, newMode);
             }
+        }
+
+        // KeywordEnum を使わずキーワードを手動同期（表示名を自由にするため）。
+        private static void SetShadowModeKeyword(Material mat, int mode)
+        {
+            mode = Mathf.Clamp(mode, 0, s_ShadowModeKeywords.Length - 1);
+            for (var i = 0; i < s_ShadowModeKeywords.Length; i++)
+            {
+                if (i == mode) mat.EnableKeyword(s_ShadowModeKeywords[i]);
+                else mat.DisableKeyword(s_ShadowModeKeywords[i]);
+            }
+        }
+
+        // マテリアル読み込み/検証時に float からキーワードを復元（stale / リネーム耐性）。
+        public override void ValidateMaterial(Material material)
+        {
+            base.ValidateMaterial(material);
+            if (material.HasProperty("_ShadowMode"))
+                SetShadowModeKeyword(material, (int)material.GetFloat("_ShadowMode"));
         }
 
         private void SetupRenderMode(Material mat, int mode)
