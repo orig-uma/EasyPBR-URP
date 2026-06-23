@@ -259,7 +259,58 @@ Shader "Origuma/EasyPBR_URP/Doll"
         }
 
         // =====================================================================
-        //  Outline パス 
+        //  DepthOnly パス
+        //  Forward の Depth Prepass / Depth Priming、Forward+ の深度生成に使用。
+        // =====================================================================
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+
+            Cull [_Cull]
+            ZWrite On
+            ZTest LEqual
+            ColorMask R
+
+            HLSLPROGRAM
+            #pragma vertex vert_depth
+            #pragma fragment frag_depth
+
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+
+            #include "Passes/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  DepthNormals パス
+        //  Forward+ の Depth Normals Prepass や SSAO / Decal 用の法線生成に使用。
+        // =====================================================================
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+
+            Cull [_Cull]
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma vertex vert_depthnormals
+            #pragma fragment frag_depthnormals
+
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+
+            #include "Passes/DepthNormalsPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  Outline パス
         // =====================================================================
         Pass
         {
