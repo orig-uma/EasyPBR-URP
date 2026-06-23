@@ -36,8 +36,9 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.5
 
 ## 動作環境
 
-* Unity 6 (6000.x) 以降
-* Universal RP 14.0 以降
+* Unity 6 (6000.3) 以降
+* Universal RP 17.3 以降
+* Render Graph 有効（既定）。Render Graph Compatibility Mode ではアウトライン用の `DollOutlineFeature` が動作しません
 
 ## 機能
 
