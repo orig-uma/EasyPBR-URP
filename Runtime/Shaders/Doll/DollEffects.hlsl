@@ -39,14 +39,15 @@ void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 n
         blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z + 0.0001);
 
         float noiseX = 0.0, noiseY = 0.0, noiseZ = 0.0;
-        if (blendWeights.x > 0.0) noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.zy * _DissolveNoiseScale).r;
-        if (blendWeights.y > 0.0) noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xz * _DissolveNoiseScale).r;
-        if (blendWeights.z > 0.0) noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, positionWS.xy * _DissolveNoiseScale).r;
+        // MainTexを使わないときにsampler_MainTexがストリッピングされるのでここではグローバルのsampler_LinearRepeatを借りる
+        if (blendWeights.x > 0.0) noiseX = SAMPLE_TEXTURE2D(_DissolveTex, sampler_LinearRepeat, positionWS.zy * _DissolveNoiseScale).r;
+        if (blendWeights.y > 0.0) noiseY = SAMPLE_TEXTURE2D(_DissolveTex, sampler_LinearRepeat, positionWS.xz * _DissolveNoiseScale).r;
+        if (blendWeights.z > 0.0) noiseZ = SAMPLE_TEXTURE2D(_DissolveTex, sampler_LinearRepeat, positionWS.xy * _DissolveNoiseScale).r;
 
         dissolveNoise = noiseX * blendWeights.x + noiseY * blendWeights.y + noiseZ * blendWeights.z;
         dissolveGrad  = saturate((positionWS.y - _DissolveStartY) / (_DissolveEndY - _DissolveStartY + 0.0001));
     #else
-        dissolveNoise = SAMPLE_TEXTURE2D(_DissolveTex, sampler_MainTex, uv * _DissolveNoiseScale).r;
+        dissolveNoise = SAMPLE_TEXTURE2D(_DissolveTex, sampler_LinearRepeat, uv * _DissolveNoiseScale).r;
         #if defined(_DISSOLVETYPE_LOCALY)
             dissolveGrad = saturate((positionOS.y - _DissolveStartY) / (_DissolveEndY - _DissolveStartY + 0.0001));
         #endif
