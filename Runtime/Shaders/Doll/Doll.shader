@@ -19,7 +19,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
         _DetailMap("Detail Map", 2D) = "black" {}
         _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
-        [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 1
+        [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 0
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         _ShadowCutoffBias ("Shadow Cutoff Bias (fatten)", Range(0.0, 0.5)) = 0.2
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull Mode", Float) = 2
@@ -310,11 +310,15 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // =====================================================================
         //  Outline パス
+        //  LightMode は独自タグ "DollOutline"。URP は既定で描画しないため、
+        //  Forward と交互描画されず ForwardLit のバッチングを阻害しない。
+        //  描画には DollOutlineFeature（RendererFeature）が必要。
+        //  セットアップは Window > EasyPBR > Doll Outline Setup から。
         // =====================================================================
         Pass
         {
             Name "Outline"
-            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Tags { "LightMode" = "DollOutline" }
             
             Stencil
             {
