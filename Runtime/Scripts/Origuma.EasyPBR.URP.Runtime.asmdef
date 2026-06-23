@@ -1,14 +1,11 @@
 {
-    "name": "Origuma.EasyPBR.URP.Editor",
-    "rootNamespace": "Origuma.EasyPBR.URP.Editor",
+    "name": "Origuma.EasyPBR.URP.Runtime",
+    "rootNamespace": "Origuma.EasyPBR.URP",
     "references": [
-        "Origuma.EasyPBR.URP.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
