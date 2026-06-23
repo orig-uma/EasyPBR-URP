@@ -64,7 +64,7 @@ float GetCastShadow(float shadowAttenuation, float receiveShadowMask, float rece
                     float ditherValue, float shadowDither, float shadowMapSoftness, float proceduralMask)
 {
     bool penumbraReady = false;
-#if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+#if defined(_SHADOWMODE_TENTPCF) || defined(_SHADOWMODE_VOGELPCF) || defined(_SHADOWMODE_PCSS)
     penumbraReady = true; // PCF/PCSS が連続ペナンブラ生成済み → ディザ＆再量子化しない
 #endif
     float castShadow = ResolveCastShadow(shadowAttenuation, receiveShadowMask, receiveShadowStrength,
