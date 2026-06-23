@@ -41,6 +41,10 @@ namespace Origuma.EasyPBR.URP.Editor
         private static readonly string[] s_LangOptions = { "English", "日本語" };
         private static readonly string[] s_RenderModeEn = { "Opaque", "Cutout", "Transparent" };
         private static readonly string[] s_RenderModeJp = { "Opaque (不透明)", "Cutout (くり抜き)", "Transparent (半透明)" };
+        private static readonly string[] s_ShadowModeEn = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
+        private static readonly string[] s_ShadowModeJp = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
+        private static readonly string[] s_ShadowModeKeywords =
+            { "_SHADOWMODE_OFF", "_SHADOWMODE_TENTPCF", "_SHADOWMODE_VOGELPCF", "_SHADOWMODE_PCSS" };
         private static readonly int SurfaceTransparent = Shader.PropertyToID("_SurfaceTransparent");
         private static readonly int AlphaClip = Shader.PropertyToID("_AlphaClip");
         private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
@@ -251,14 +255,28 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Strength of darkening from the cast shadow map. 0 = no cast shadow",
                             "落ち影(shadow map)で暗くする強さ。0で落ち影なし");
                         var shadowModeProp = Prop("_ShadowMode");
-                        P(materialEditor, shadowModeProp, "Self Shadow Mode",
-                            "Off: URP default (lightest). TentPcf: deterministic, noise-free (best for live/broadcast). VogelPcf: adjustable/wide soft, slight noise. Pcss: Vogel + contact hardening (costly, hero shots)",
-                            "Off: URP標準（最軽量）/ TentPcf: 決定論的・ノイズなし（ライブ/配信向け）/ VogelPcf: 可変・広いぼかし・微ノイズ / Pcss: Vogel＋接地硬化（高負荷・寄り用）");
+                        if (shadowModeProp != null)
+                        {
+                            EditorGUI.BeginChangeCheck();
+                            var smLbl = Label("Self Shadow Mode",
+                                "Off: URP default (lightest). PCF (Tent): deterministic, noise-free (best for live). PCF (Vogel): adjustable/wide soft, slight noise. PCSS: Vogel + contact hardening (costly)",
+                                "Off: URP標準（最軽量）/ PCF (Tent): 決定論的・ノイズなし（ライブ向け）/ PCF (Vogel): 可変・広いぼかし・微ノイズ / PCSS: Vogel＋接地硬化（高負荷）");
+                            var smCur = Mathf.Clamp((int)shadowModeProp.floatValue, 0, 3);
+                            var smNew = EditorGUILayout.Popup(smLbl, smCur, _jp ? s_ShadowModeJp : s_ShadowModeEn);
+                            if (EditorGUI.EndChangeCheck())
+                            {
+                                materialEditor.RegisterPropertyChangeUndo("Self Shadow Mode");
+                                shadowModeProp.floatValue = smNew;
+                                foreach (Material mat in materialEditor.targets)
+                                    SetShadowModeKeyword(mat, smNew);
+                            }
+                        }
 
-                        float shadowMode = shadowModeProp != null ? shadowModeProp.floatValue : 1f;
-                        bool isOff  = shadowMode < 0.5f;                        // Off
-                        bool isTent = shadowMode >= 0.5f && shadowMode < 1.5f;  // TentPcf
-                        bool isHQ   = !isOff;                                   // TentPcf / VogelPcf / Pcss
+                        var shadowMode = shadowModeProp != null ? shadowModeProp.floatValue : 1f;
+                        var isOff  = shadowMode < 0.5f;                        // Off
+                        var isTent = shadowMode >= 0.5f && shadowMode < 1.5f;  // TentPcf
+                        var isVogel = shadowMode >= 1.5f && shadowMode < 2.5f; // Vogel
+                        var isHQ   = !isOff;                                   // TentPcf / VogelPcf / Pcss
 
                         // 受け側ノーマルオフセットは HQ 全モードで効く
                         if (isHQ)
@@ -267,7 +285,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 "縞ノイズ(アクネ)が出るなら上げる。上げ過ぎると影が痩せる。Light側のNormal Biasは下げる");
 
                         // ソフトネスは Tent 以外で効く（Off=エッジ柔らかさ / VogelPcf・Pcss=ペナンブラ幅）
-                        if (!isTent)
+                        if (isVogel)
                             P(materialEditor, "_ShadowMapSoftness", "Shadow Softness",
                                 "Penumbra width for VogelPcf/Pcss; edge softness for Off. Tent uses a fixed kernel (no effect)",
                                 "VogelPcf/Pcss時はペナンブラ幅、Off時はエッジの柔らかさ。Tentは固定カーネルなので無効");
@@ -738,6 +756,25 @@ namespace Origuma.EasyPBR.URP.Editor
                 foreach (Material mat in materialEditor.targets)
                     SetupRenderMode(mat, newMode);
             }
+        }
+
+        // KeywordEnum を使わずキーワードを手動同期（表示名を自由にするため）。
+        private static void SetShadowModeKeyword(Material mat, int mode)
+        {
+            mode = Mathf.Clamp(mode, 0, s_ShadowModeKeywords.Length - 1);
+            for (var i = 0; i < s_ShadowModeKeywords.Length; i++)
+            {
+                if (i == mode) mat.EnableKeyword(s_ShadowModeKeywords[i]);
+                else mat.DisableKeyword(s_ShadowModeKeywords[i]);
+            }
+        }
+
+        // マテリアル読み込み/検証時に float からキーワードを復元（stale / リネーム耐性）。
+        public override void ValidateMaterial(Material material)
+        {
+            base.ValidateMaterial(material);
+            if (material.HasProperty("_ShadowMode"))
+                SetShadowModeKeyword(material, (int)material.GetFloat("_ShadowMode"));
         }
 
         private void SetupRenderMode(Material mat, int mode)
