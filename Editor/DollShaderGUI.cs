@@ -98,12 +98,12 @@ namespace Origuma.EasyPBR.URP.Editor
                         materialEditor.RenderQueueField();
 
                         EditorGUILayout.Space(4);
-                        P(materialEditor, "_SurfaceTransparent", "Alpha Blend (_SURFACE_TRANSPARENT)",
+                        P(materialEditor, "_SurfaceTransparent", "Alpha Blend (Transparent)",
                             "Render as alpha-blended transparent",
                             "半透明（アルファブレンド）として描画します");
 
                         var alphaClipProp = Prop("_AlphaClip");
-                        P(materialEditor, alphaClipProp, "Alpha Clipping (_ALPHATEST_ON)",
+                        Pv(materialEditor, alphaClipProp, "Alpha Clipping",
                             "Discard pixels by alpha value",
                             "アルファ値によるピクセルの破棄");
                         if (alphaClipProp != null && alphaClipProp.floatValue > 0.5f)
@@ -258,9 +258,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         if (shadowModeProp != null)
                         {
                             EditorGUI.BeginChangeCheck();
-                            var smLbl = Label("Self Shadow Mode",
-                                "Off: URP default (lightest). PCF (Tent): deterministic, noise-free (best for live). PCF (Vogel): adjustable/wide soft, slight noise. PCSS: Vogel + contact hardening (costly)",
-                                "Off: URP標準（最軽量）/ PCF (Tent): 決定論的・ノイズなし（ライブ向け）/ PCF (Vogel): 可変・広いぼかし・微ノイズ / PCSS: Vogel＋接地硬化（高負荷）");
+                            var smLbl = VariantLabel("Self Shadow Mode",
+                                "Off: URP default (lightest). PCF (Tent): deterministic, noise-free (best for live). PCF (Vogel): adjustable/wide soft, slight noise. PCSS: Vogel + contact hardening (costly). See Documentation~/SHADOWS.md",
+                                "Off: URP標準（最軽量）/ PCF (Tent): 決定論的・ノイズなし（ライブ向け）/ PCF (Vogel): 可変・広いぼかし・微ノイズ / PCSS: Vogel＋接地硬化（高負荷）。詳細は Documentation~/SHADOWS.md");
                             var smCur = Mathf.Clamp((int)shadowModeProp.floatValue, 0, 3);
                             var smNew = EditorGUILayout.Popup(smLbl, smCur, _jp ? s_ShadowModeJp : s_ShadowModeEn);
                             if (EditorGUI.EndChangeCheck())
@@ -640,7 +640,7 @@ namespace Origuma.EasyPBR.URP.Editor
                     {
                         SubHeader("Dissolve", "消失エフェクト");
                         var useDissolveProp = Prop("_UseDissolve");
-                        P(materialEditor, useDissolveProp, "Enable Dissolve",
+                        Pv(materialEditor, useDissolveProp, "Enable Dissolve",
                             "Enables the dissolve effect",
                             "ディゾルブ（消失）エフェクトを有効にします");
 
@@ -653,7 +653,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Reverses the dissolve direction / condition",
                                     "チェックを入れると消失方向（条件）が逆転します");
                                 var typeProp = Prop("_DissolveType");
-                                P(materialEditor, typeProp, "Dissolve Axis",
+                                Pv(materialEditor, typeProp, "Dissolve Axis",
                                     "None = texture only, WorldY = world Y, LocalY = object Y",
                                     "None=テクスチャのみ, WorldY=空間のY座標, LocalY=モデルのY座標");
 
@@ -769,12 +769,26 @@ namespace Origuma.EasyPBR.URP.Editor
             }
         }
 
+        // 0.3.5 で uniform 動的分岐へ移行し廃止したキーワード。既存マテリアルから掃除する。
+        private static readonly string[] s_DeprecatedKeywords =
+        {
+            "_SURFACE_TRANSPARENT",
+            "_SHADINGSTYLE_TOON",
+            "_SPECULARMODEL_BLINNPHONG",
+            "_SPECULARMODEL_GGX",
+        };
+
         // マテリアル読み込み/検証時に float からキーワードを復元（stale / リネーム耐性）。
         public override void ValidateMaterial(Material material)
         {
             base.ValidateMaterial(material);
             if (material.HasProperty("_ShadowMode"))
                 SetShadowModeKeyword(material, (int)material.GetFloat("_ShadowMode"));
+
+            // 廃止キーワードが残っていても無害だが、バリアント表を汚さないよう除去する。
+            foreach (var kw in s_DeprecatedKeywords)
+                if (material.IsKeywordEnabled(kw))
+                    material.DisableKeyword(kw);
         }
 
         private void SetupRenderMode(Material mat, int mode)
@@ -789,7 +803,6 @@ namespace Origuma.EasyPBR.URP.Editor
                     mat.SetFloat(ZWrite, 1f);
                     mat.renderQueue = 2000;
                     mat.SetOverrideTag("RenderType", "Opaque");
-                    mat.DisableKeyword("_SURFACE_TRANSPARENT");
                     mat.DisableKeyword("_ALPHATEST_ON");
                     break;
                 case 1: // Cutout
@@ -800,7 +813,6 @@ namespace Origuma.EasyPBR.URP.Editor
                     mat.SetFloat(ZWrite, 1f);
                     mat.renderQueue = 2450;
                     mat.SetOverrideTag("RenderType", "TransparentCutout");
-                    mat.DisableKeyword("_SURFACE_TRANSPARENT");
                     mat.EnableKeyword("_ALPHATEST_ON");
                     break;
                 case 2: // Transparent
@@ -811,7 +823,6 @@ namespace Origuma.EasyPBR.URP.Editor
                     mat.SetFloat(ZWrite, 0f);
                     mat.renderQueue = 3000;
                     mat.SetOverrideTag("RenderType", "Transparent");
-                    mat.EnableKeyword("_SURFACE_TRANSPARENT");
                     mat.DisableKeyword("_ALPHATEST_ON");
                     break;
             }
@@ -824,7 +835,7 @@ namespace Origuma.EasyPBR.URP.Editor
 
             EditorGUI.BeginChangeCheck();
 
-            P(materialEditor, outlineProp, "Enable Outline",
+            Pv(materialEditor, outlineProp, "Enable Outline",
                 "Inverted-hull outline pass", "背面法線を押し出す輪郭線パス");
             var isOutlineOn = outlineProp.floatValue > 0.5f;
 
@@ -919,6 +930,12 @@ namespace Origuma.EasyPBR.URP.Editor
 
                 EditorGUI.BeginChangeCheck();
             }
+
+            // ⚡ 印の凡例（バリアント生成プロパティであることの説明）。
+            var legend = _jp
+                ? "⚡ = シェーダーバリアントを生成（混在すると SRP Batcher のバッチが分断）"
+                : "⚡ = generates a shader variant (mixing splits SRP Batcher batches)";
+            EditorGUILayout.LabelField(legend, EditorStyles.miniLabel);
         }
 
         // ================================================================
@@ -1002,6 +1019,36 @@ namespace Origuma.EasyPBR.URP.Editor
         private void P(MaterialEditor editor, string name, string label, string tipEn, string tipJp)
         {
             P(editor, Prop(name), label, tipEn, tipJp);
+        }
+
+        // ----------------------------------------------------------------
+        //  バリアント生成プロパティの明示
+        //  値がマテリアル間で割れると SRP Batcher のバッチが分断されるプロパティ。
+        //  ラベルに印(⚡)を付け、ツールチップに注記を足して GUI 上で可視化する。
+        //  詳細は Documentation~/SRP_BATCHER.md を参照。
+        // ----------------------------------------------------------------
+        private const string VariantMark = " ⚡"; // ⚡
+        private const string VariantTipEn =
+            "\n\n[⚡ Shader variant] Differing values between materials split SRP Batcher batches. See Documentation~/SRP_BATCHER.md.";
+        private const string VariantTipJp =
+            "\n\n[⚡ シェーダーバリアント] マテリアル間で値が異なると SRP Batcher のバッチが分断されます。詳細は Documentation~/SRP_BATCHER.md。";
+
+        // バリアント生成プロパティを ⚡ 付きで描画（MaterialProperty 版）。
+        private void Pv(MaterialEditor editor, MaterialProperty prop, string label, string tipEn, string tipJp)
+        {
+            P(editor, prop, label + VariantMark, tipEn + VariantTipEn, tipJp + VariantTipJp);
+        }
+
+        // バリアント生成プロパティを ⚡ 付きで描画（名前版）。
+        private void Pv(MaterialEditor editor, string name, string label, string tipEn, string tipJp)
+        {
+            Pv(editor, Prop(name), label, tipEn, tipJp);
+        }
+
+        // バリアント生成 Popup 用のラベル（⚡ 付き）。
+        private GUIContent VariantLabel(string label, string tipEn, string tipJp)
+        {
+            return Label(label + VariantMark, tipEn + VariantTipEn, tipJp + VariantTipJp);
         }
     }
 }

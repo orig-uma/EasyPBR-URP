@@ -276,12 +276,9 @@ half4 frag(Varyings input) : SV_Target
     float3 black = float3(0.0f, 0.0f, 0.0f);
     finalColor = lerp(finalColor, black, _BlackOut);
 
-    half outputAlpha = 1.0h;
-    #if defined(_SURFACE_TRANSPARENT)
-        outputAlpha = albedo.a;
-    #endif
-
-    return half4(finalColor, outputAlpha);
+    // アルファ出力は常に albedo.a。不透明/Cutout はブレンド(One Zero)側で
+    // 無視されるため、_SURFACE_TRANSPARENT で分岐せず常時出力してバリアントを削減する。
+    return half4(finalColor, albedo.a);
 }
 
 #endif // DOLL_FORWARD_PASS_INCLUDED
