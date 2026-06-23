@@ -9,7 +9,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
     {
         // --- 基本パラメータ ---------------------
         [Header(Base Core)]
-        _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
+        [MainTexture] _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
         _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
@@ -62,7 +62,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ReceiveShadowStrength ("Receive Shadow Strength", Range(0.0, 1.0)) = 1.0
         _ShadowMapSoftness ("Shadow Softness", Range(0.0, 1.0)) = 0.4
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
-        _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.5
+        _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.0
         _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
         [Enum(Add, 0, Max, 1)] _AdditionalLightBlendMode ("Additional Light Blend", Float) = 1
         [Space(10)]
@@ -130,7 +130,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterIntensity ("Glitter Intensity", Range(0.0, 50.0)) = 0.0
         _GlitterScale ("Glitter Density (Scale)", Range(10.0, 1000.0)) = 100.0
         _GlitterSize ("Dot Size", Range(0.0005, 0.05)) = 0.005
-        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.2
+        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.8
         _GlitterSparsity ("Sparsity (間引き率)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
