@@ -9,7 +9,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
     {
         // --- 基本パラメータ ---------------------
         [Header(Base Core)]
-        _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
+        [MainTexture] _MainTex ("Base Map (RGB / Alpha)", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
         [NoScaleOffset] _NormalMap("Normal Map", 2D) = "bump" {}
         _NormalScale("Normal Scale", Range(0.0, 2.0)) = 1.0
@@ -19,13 +19,14 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
         _DetailMap("Detail Map", 2D) = "black" {}
         _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
-        [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 1
+        [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 0
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
+        _ShadowCutoffBias ("Shadow Cutoff Bias (fatten)", Range(0.0, 0.5)) = 0.2
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull Mode", Float) = 2
 
         // --- 半透明描画 ---------------------------------------------------------
         [Header(Surface Options (Transparency))]
-        [Toggle(_SURFACE_TRANSPARENT)] _SurfaceTransparent ("Alpha Blend (Transparent)", Float) = 0
+        [ToggleUI] _SurfaceTransparent ("Alpha Blend (Transparent)", Float) = 0
         [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend ("Source Blend", Float) = 1
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Destination Blend", Float) = 0
         [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 1
@@ -54,15 +55,16 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- ライティングと影 ------------------------------------------------
         [Header(Light and Shadow)]
-        [KeywordEnum(Smooth, Toon)] _ShadingStyle ("Shading Style", Float) = 0
+        [Enum(Smooth, 0, Toon, 1)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
-        [KeywordEnum(Off, Pcf, Pcss)] _ShadowQuality ("Self Shadow Quality", Float) = 1
+        [KeywordEnum(Off, Pcf (Tent), Pcf (Vogel), Pcss)] _ShadowMode ("Self Shadow Mode", Float) = 1
+        
         _ReceiverNormalBias ("Receiver Normal Bias", Range(0.0, 3.0)) = 0.6
         _ReceiveShadowStrength ("Receive Shadow Strength", Range(0.0, 1.0)) = 1.0
         _ShadowMapSoftness ("Shadow Softness", Range(0.0, 1.0)) = 0.4
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
-        _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.5
+        _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.0
         _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
         [Enum(Add, 0, Max, 1)] _AdditionalLightBlendMode ("Additional Light Blend", Float) = 1
         [Space(10)]
@@ -75,7 +77,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
-        [KeywordEnum(BlinnPhong, Ggx)] _SpecularModel ("Specular Model", Float) = 0
+        [Enum(BlinnPhong, 0, Ggx, 1)] _SpecularModel ("Specular Model", Float) = 1
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
@@ -130,7 +132,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterIntensity ("Glitter Intensity", Range(0.0, 50.0)) = 0.0
         _GlitterScale ("Glitter Density (Scale)", Range(10.0, 1000.0)) = 100.0
         _GlitterSize ("Dot Size", Range(0.0005, 0.05)) = 0.005
-        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.2
+        _GlitterTilt ("Normal Tilt Strength", Range(0.0, 2.0)) = 0.8
         _GlitterSparsity ("Sparsity (間引き率)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
@@ -170,11 +172,11 @@ Shader "Origuma/EasyPBR_URP/Doll"
 
     SubShader
     {
-        Tags 
-        { 
-            "RenderType" = "TransparentCutout" 
-            "RenderPipeline" = "UniversalPipeline" 
-            "Queue" = "AlphaTest" 
+        Tags
+        {
+            "RenderType" = "Opaque"
+            "RenderPipeline" = "UniversalPipeline"
+            "Queue" = "Geometry"
         }
 
         HLSLINCLUDE
@@ -209,16 +211,16 @@ Shader "Origuma/EasyPBR_URP/Doll"
             #pragma fragment frag
 
             #pragma shader_feature_local_fragment _ALPHATEST_ON
-            #pragma shader_feature_local_fragment _SURFACE_TRANSPARENT
-            #pragma shader_feature_local_fragment _SHADINGSTYLE_TOON
+            // _SURFACE_TRANSPARENT / _SHADINGSTYLE_TOON / _SPECULARMODEL_* は
+            // バリアントを生まない uniform 動的分岐へ移行（混在マテリアルのバッチング維持）。
             #pragma shader_feature_local_fragment _DISSOLVE_ON
             #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
-            #pragma shader_feature_local_fragment _SPECULARMODEL_BLINNPHONG _SPECULARMODEL_GGX
-            #pragma shader_feature_local_fragment _SHADOWQUALITY_OFF _SHADOWQUALITY_PCF _SHADOWQUALITY_PCSS
+            #pragma shader_feature_local_fragment _SHADOWMODE_OFF _SHADOWMODE_TENTPCF _SHADOWMODE_VOGELPCF _SHADOWMODE_PCSS
+            
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ _FORWARD_PLUS _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
@@ -256,12 +258,67 @@ Shader "Origuma/EasyPBR_URP/Doll"
         }
 
         // =====================================================================
-        //  Outline パス 
+        //  DepthOnly パス
+        //  Forward の Depth Prepass / Depth Priming、Forward+ の深度生成に使用。
+        // =====================================================================
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+
+            Cull [_Cull]
+            ZWrite On
+            ZTest LEqual
+            ColorMask R
+
+            HLSLPROGRAM
+            #pragma vertex vert_depth
+            #pragma fragment frag_depth
+
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+
+            #include "Passes/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  DepthNormals パス
+        //  Forward+ の Depth Normals Prepass や SSAO / Decal 用の法線生成に使用。
+        // =====================================================================
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+
+            Cull [_Cull]
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma vertex vert_depthnormals
+            #pragma fragment frag_depthnormals
+
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+            #pragma shader_feature_local_fragment _DISSOLVE_ON
+            #pragma shader_feature_local_fragment _DISSOLVETYPE_NONE _DISSOLVETYPE_WORLDY _DISSOLVETYPE_LOCALY
+
+            #include "Passes/DepthNormalsPass.hlsl"
+            ENDHLSL
+        }
+
+        // =====================================================================
+        //  Outline パス
+        //  LightMode は独自タグ "DollOutline"。URP は既定で描画しないため、
+        //  Forward と交互描画されず ForwardLit のバッチングを阻害しない。
+        //  描画には DollOutlineFeature（RendererFeature）が必要。
+        //  セットアップは Window > EasyPBR > Doll Outline Setup から。
         // =====================================================================
         Pass
         {
             Name "Outline"
-            Tags { "LightMode" = "SRPDefaultUnlit" }
+            Tags { "LightMode" = "DollOutline" }
             
             Stencil
             {

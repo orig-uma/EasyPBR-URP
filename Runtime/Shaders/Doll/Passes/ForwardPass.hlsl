@@ -5,6 +5,10 @@
 #ifndef DOLL_FORWARD_PASS_INCLUDED
 #define DOLL_FORWARD_PASS_INCLUDED
 
+// Core.hlsl を明示 include する。USE_CLUSTER_LIGHT_LOOP / GetNormalizedScreenSpaceUV、
+// および _FORWARD_PLUS→_CLUSTER_LIGHT_LOOP の互換 shim を確実に供給するため。
+// Unity 6.3（URP 17.3）では Lighting.hlsl 経由で届くが、6.0 では届かない場合があるので明示する。
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 #include "../DollEffects.hlsl"
 #include "../DollLighting.hlsl"
@@ -179,7 +183,7 @@ half4 frag(Varyings input) : SV_Target
     // メインライト計算
     half3 indirectLight = SampleSH(cleanNormalWS);
 
-    #if defined(_SHADOWQUALITY_PCF) || defined(_SHADOWQUALITY_PCSS)
+    #if defined(_SHADOWMODE_TENTPCF) || defined(_SHADOWMODE_VOGELPCF) || defined(_SHADOWMODE_PCSS)
         Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
         float mainNdotL = dot(cleanNormalWS, mainLight.direction);
         mainLight.shadowAttenuation = SampleMainShadowHQ(
@@ -199,26 +203,56 @@ half4 frag(Varyings input) : SV_Target
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, anisoPrecomp, glitterGeom, glitterActive);
 
+    // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
+    #if defined(USE_CLUSTER_LIGHT_LOOP)
+        #define DOLL_CLUSTER_LIGHT_LOOP USE_CLUSTER_LIGHT_LOOP
+    #elif defined(USE_FORWARD_PLUS)
+        #define DOLL_CLUSTER_LIGHT_LOOP USE_FORWARD_PLUS
+    #else
+        #define DOLL_CLUSTER_LIGHT_LOOP 0
+    #endif
+
     // 追加ライト計算
-    #if defined(_ADDITIONAL_LIGHTS) || defined(_CLUSTER_LIGHT_LOOP)
+    #if defined(_ADDITIONAL_LIGHTS) || defined(_CLUSTER_LIGHT_LOOP) || defined(_FORWARD_PLUS)
         InputData inputData = (InputData)0;
         inputData.positionWS = input.positionWS;
-        inputData.normalizedScreenSpaceUV = input.positionCS.xy / _ScreenParams.xy;
+        inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS.xy);
 
         uint pixelLightCount = GetAdditionalLightsCount();
+
+        // 1 灯ぶんの寄与を finalColor に合成する共通処理（Add / Max を _AdditionalLightBlendMode で切替）。
+        // 0 = Add（物理的・白飛びしやすい）, 1 = Max（アニメ向け・彩度を保つ）
+        #define DOLL_ACCUMULATE_ADDITIONAL_LIGHT(index)                                   \
+            {                                                                             \
+                Light addLight = GetAdditionalLight(index, input.positionWS, half4(1,1,1,1)); \
+                half3 addContrib = CalculateSingleLight(                                  \
+                    addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
+                    albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
+                    baseProceduralMask, rimFresnel, fuzzFresnel,                          \
+                    half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);             \
+                finalColor = (_AdditionalLightBlendMode > 0.5)                            \
+                    ? max(finalColor, addContrib)                                         \
+                    : finalColor + addContrib;                                            \
+            }
+
+        // Forward+ では追加ディレクショナルライトはクラスタに含まれないため、専用ループで先に処理する。
+        #if DOLL_CLUSTER_LIGHT_LOOP
+        [loop] for (uint dirLightIndex = 0u;
+                    dirLightIndex < min(URP_FP_DIRECTIONAL_LIGHTS_COUNT, MAX_VISIBLE_LIGHTS);
+                    dirLightIndex++)
+        {
+            DOLL_ACCUMULATE_ADDITIONAL_LIGHT(dirLightIndex)
+        }
+        #endif
+
+        // 点光源 / スポット。Forward+ ではクラスタ経由、それ以外は通常の線形ループ。
         LIGHT_LOOP_BEGIN(pixelLightCount)
-            Light addLight = GetAdditionalLight(lightIndex, input.positionWS, half4(1,1,1,1));
-            half3 addContrib = CalculateSingleLight(
-                addLight, detailNormalWS, viewDirectionWS, objectForwardWS,
-                albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
-                baseProceduralMask, rimFresnel, fuzzFresnel,
-                half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);
-            // 0 = Add（物理的・白飛びしやすい）, 1 = Max（アニメ向け・彩度を保つ）
-            finalColor = (_AdditionalLightBlendMode > 0.5)
-                ? max(finalColor, addContrib)
-                : finalColor + addContrib;
+            DOLL_ACCUMULATE_ADDITIONAL_LIGHT(lightIndex)
         LIGHT_LOOP_END
+
+        #undef DOLL_ACCUMULATE_ADDITIONAL_LIGHT
     #endif
+    #undef DOLL_CLUSTER_LIGHT_LOOP
 
     // 追加エフェクト適用
     // keyword (_MATCAP_ON / _EMISSION_ON) を廃止し uniform 動的分岐に変更。
@@ -242,12 +276,9 @@ half4 frag(Varyings input) : SV_Target
     float3 black = float3(0.0f, 0.0f, 0.0f);
     finalColor = lerp(finalColor, black, _BlackOut);
 
-    half outputAlpha = 1.0h;
-    #if defined(_SURFACE_TRANSPARENT)
-        outputAlpha = albedo.a;
-    #endif
-
-    return half4(finalColor, outputAlpha);
+    // アルファ出力は常に albedo.a。不透明/Cutout はブレンド(One Zero)側で
+    // 無視されるため、_SURFACE_TRANSPARENT で分岐せず常時出力してバリアントを削減する。
+    return half4(finalColor, albedo.a);
 }
 
 #endif // DOLL_FORWARD_PASS_INCLUDED

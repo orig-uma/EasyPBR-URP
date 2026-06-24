@@ -1,13 +1,31 @@
 # EasyPBR for URP — アーキテクチャ
 
-ライブラリの内部構成と設計を解説する。利用者向けの導入・パラメータ説明は [README](../README.md) を参照。
+ライブラリの内部構成と技術的な設計方針を解説する。利用者向けの導入・パラメータ説明は [README](../README.md) を参照。
 
-切り分けの軸は **機能ではなく依存の方向**。汎用ライブラリ（計算本体）を `Common/` に純粋関数として切り出し、`Doll` 固有の方針はポリシー層に集約することで、他シェーダーへの流用を容易にする。
+## レンダリング設計方針
 
-## ディレクトリ構成
+シェーダーの描画における中核的なアプローチと仕様は以下の通り。
 
-```
+* **高品質セルフシャドウ（中核）**
+  メインライト専用に、スクリーン空間回転 Vogel ディスクの PCF とブロッカー探索による PCSS（コンタクトハードニング）を実装。低解像度シャドウマップ由来のアクネ・ジャギーを発生源で除去し、顔のような曲面でも**マスクテクスチャ無しでクリーンな落ち影**を生成する。追加ライトの影は URP 標準のままにして多灯時の負荷を抑え、落ち影（Shadow map）と陰影（NdotL）は分離して合成する。
+* **顔影（独立した調整軸）**
+  「正しいが描きたくない」落ち影・陰を、マスクテクスチャ無しのプロシージャルマスクで正面/上向きの面に限って明るく戻す（逆光時は陰を維持）。アクネを消す Receiver Normal Bias とは目的が逆（誤った影 vs 正しい影）の別軸。Quality: Off 時の主要な調整手段となる。
+* **スペキュラとマテリアルモデル**
+  Dual-Lobe を基本とし、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Schlick Fresnel・Smith 可視性込みの Cook-Torrance）をパス内で切り替える。
+* **ブルーノイズの共通化**
+  1 枚のテクスチャを、影エッジのディザリング（Self Shadow Mode: Off）とグレイン（法線の微細揺らぎ）で共通サンプルし、テクスチャフェッチを節約する。
+* **SRP Batcher を意識した設計（基本思想）**
+  3D ライブのように同種マテリアルを大量に同時描画する用途を前提に、**動的分岐にすると不利な処理だけをバリアントに残し、それ以外はバリアント化を避けてバッチ分断を最小化する**ことを設計方針としている。具体的には (1) 全マテリアルプロパティを単一 CBUFFER にまとめて SRP Batcher 互換を保つ、(2) マテリアル間で値が割れやすく動的化のデメリットが小さいスイッチ（Shading Style / Specular Model / Alpha Blend / MatCap / Emission / Color Correction）は keyword をやめて uniform 動的分岐にする、(3) **動的分岐にすると損するスイッチだけ** keyword として残す（Self Shadow Mode＝全経路コンパイルで occupancy 低下、Alpha Clip / Dissolve＝早期Z喪失や常時サンプル化）。Inspector では **⚡ マーク**で「バリアントを生む＝混在でバッチが切れる」ことを可視化する、(4) アウトラインは独自 LightMode（`DollOutline`）＋ RendererFeature に逃がし、ForwardLit と交互描画させない。詳細は [SRP_BATCHER](SRP_BATCHER.md) / [VARIANTS](VARIANTS.md)。
+
+## ライブラリの分離方針
+
+切り分けの軸は **機能ではなく依存の方向**である。汎用ライブラリ（計算本体）を `Common/` に純粋関数として切り出し、`Doll` 固有の方針はポリシー層に集約することで、他シェーダーへの流用を容易にする。
+
+### ディレクトリ構成
+
+```text
 Runtime/
+  DollOutlineFeature.cs         アウトライン描画 RendererFeature（独自 LightMode "DollOutline"）
   Shaders/
     Doll/                       Doll シェーダー（流用しない固有実装）
       Doll.shader               Properties、Pass 定義
@@ -18,6 +36,8 @@ Runtime/
       Passes/
         ForwardPass.hlsl        ForwardLit パス
         ShadowPass.hlsl         ShadowCaster パス
+        DepthOnlyPass.hlsl      DepthOnly パス
+        DepthNormalsPass.hlsl   DepthNormals パス
         OutlinePass.hlsl        Outline パス
     Common/                     汎用ライブラリ（流用する価値のある純粋関数）
       Common.hlsl               アンブレラ
@@ -33,6 +53,7 @@ Runtime/
   Textures/                     BlueNoise / Ramp / Dissolve ノイズ
 Editor/
   DollShaderGUI.cs              カスタムインスペクター
+  DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
 ```
 
 ## ファイル構成
@@ -46,11 +67,26 @@ Editor/
 | `Runtime/Shaders/Doll/DollShadows.hlsl` | メインライト高品質セルフシャドウのラッパー（PCF / PCSS）。実装は `Common/URP/Shadow_HQ_URP.hlsl` |
 | `Runtime/Shaders/Doll/Passes/ForwardPass.hlsl` | ForwardLit パス |
 | `Runtime/Shaders/Doll/Passes/ShadowPass.hlsl` | ShadowCaster パス |
-| `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス |
+| `Runtime/Shaders/Doll/Passes/DepthOnlyPass.hlsl` | DepthOnly パス |
+| `Runtime/Shaders/Doll/Passes/DepthNormalsPass.hlsl` | DepthNormals パス |
+| `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス（LightMode = `DollOutline`） |
+| `Runtime/DollOutlineFeature.cs` | `DollOutline` パスを後段でまとめて描く RendererFeature（ForwardLit のバッチング維持） |
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
 | `Runtime/Textures/DissolveNoise.png` | Dissolve ノイズ |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
+
+## Pass / LightMode
+
+| Pass | LightMode | 用途 |
+| :--- | :--- | :--- |
+| ForwardLit | UniversalForward | メイン描画 |
+| ShadowCaster | ShadowCaster | 落ち影の生成 |
+| DepthOnly | DepthOnly | Depth Prepass / Depth Priming、Forward+ の深度生成 |
+| DepthNormals | DepthNormals | Forward+ の Depth Normals Prepass、SSAO / Decal 用の法線生成 |
+| Outline | DollOutline | 輪郭線（描画には `DollOutlineFeature` が必要 → [OUTLINE](OUTLINE.md)） |
+
+> Outline は独自 LightMode タグ `DollOutline` を使い、URP の既定不透明描画に含まれない。これにより ForwardLit と交互描画されず ForwardLit のバッチングを阻害しない。各パスのキーワード・バリアントは [VARIANTS](VARIANTS.md)。
 
 ## 汎用ライブラリ構成（Common）
 
@@ -66,7 +102,8 @@ Editor/
   | ポリシー（薄い） | キーワード / プロパティ / キャラ方針 | 顔マスク、キーワード分岐、互換ラッパー |
 
 * **汎用化方針**
-  キーワード（`_SHADINGSTYLE_TOON` / `_SPECULARMODEL_GGX` / `_SHADOWQUALITY_*`）は `bool` 引数化、マテリアルプロパティ（`_ReceiverNormalBias` / `_Dissolve*` 等）と Dissolve のテクスチャサンプリングは呼び出し側へ外出しする。`Doll_` 接頭辞は除去する。
+  キーワード（`_SHADOWMODE_*` 等）は `bool` 引数化、マテリアルプロパティ（`_ReceiverNormalBias` / `_Dissolve*` 等）と Dissolve のテクスチャサンプリングは呼び出し側へ外出しする。`Doll_` 接頭辞は除去する。
+  なお Shading Style / Specular Model は keyword を持たず、`_ShadingStyle` / `_SpecularModel`（uniform）の `UNITY_BRANCH` 動的分岐で解決する（混在マテリアルの SRP Batcher バッチング維持のため。0.3.5）。
 * **互換性**
   公開関数名（`GetCastShadow` / `GetLitMask` / `CalculateDualLobeSpecular` / `SampleMainShadowHQ` / `ApplyDissolveClip` 等）と挙動は維持する。各パスのフラグメント側は無改修で動作する。
 

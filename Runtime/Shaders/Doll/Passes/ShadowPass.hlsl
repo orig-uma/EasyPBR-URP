@@ -65,7 +65,10 @@ half4 frag_shadow(Varyings input) : SV_Target
     //  アルファクリップ用に .a チャンネルのみ取得する（rgb 計算を省略）。
     #if defined(_ALPHATEST_ON)
         half alpha = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).a * _BaseColor.a;
-        clip(alpha - _Cutoff);
+        // 影は前面より少し太め(低いcutoff)で落とす。毛先のアルファ縁が
+        // しきい値を行き来する ON/OFF チラつきを抑え、安定した遮蔽にする。
+        half shadowCutoff = saturate(_Cutoff - _ShadowCutoffBias);
+        clip(alpha - shadowCutoff);
     #endif
 
     half3 dummyAlbedo = half3(0, 0, 0);

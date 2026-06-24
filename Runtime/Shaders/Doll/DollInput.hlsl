@@ -36,6 +36,7 @@ CBUFFER_START(UnityPerMaterial)
     half4 _DetailColor;
     half _AlphaClip;
     half _Cutoff;
+    half _ShadowCutoffBias;
     half _Cull;
     half _SurfaceTransparent;
     half _SrcBlend;
@@ -93,6 +94,7 @@ CBUFFER_START(UnityPerMaterial)
     half _GrainIntensity;
     half _GrainScale;
 
+    half _SpecularModel;
     half4 _SpecularColor;
     half _Smoothness;
     half _SpecularIntensity;

@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-06-24
+
+### Added
+- `DepthOnly` / `DepthNormals` パス（`Passes/DepthOnlyPass.hlsl` / `Passes/DepthNormalsPass.hlsl`）。Forward の Depth Prepass / Depth Priming、Forward+ の深度生成、SSAO / Decal 用の法線生成に対応。Alpha Clip / Dissolve も反映。
+- Forward+（Clustered）対応。`_FORWARD_PLUS` を multi_compile に追加し、クラスタに含まれない追加ディレクショナルライトを専用ループで処理。`USE_CLUSTER_LIGHT_LOOP`（6.1+）/ `USE_FORWARD_PLUS`（6.0）の両対応。
+- テント 5x5 PCF（`PCF (Tent)`）。決定論的・ノイズなしの自己影モード（ライブ配信向け）。
+- `_ShadowCutoffBias`（Shadow Cutoff Bias）。影だけ少し太めのアルファで落とし、毛先のアルファ縁が閾値を行き来する ON/OFF チラつきを抑制。
+
+### Changed
+- 自己影プロパティを `_ShadowQuality`（Off / PCF / PCSS）から `_ShadowMode`（Off / PCF (Tent) / PCF (Vogel) / PCSS）へ再編。キーワードも `_SHADOWQUALITY_*` → `_SHADOWMODE_*` にリネーム。`DollShaderGUI` は KeywordEnum を使わず手動同期（`SetShadowModeKeyword` / `ValidateMaterial` で stale・リネーム耐性を確保）。
+- 既定値を調整: `_SpecularModel` を GGX に、`_HalfLambertWrap` を 0.0 に、`_GlitterTilt` を 0.8 に。`_ShadowMode` の既定は PCF (Tent)。
+- 既定の Surface（Render Mode）を Cutout から **Opaque** に変更（`_AlphaClip` 既定を 0 に、SubShader Tags を `RenderType=Opaque` / `Queue=Geometry` に）。既存マテリアルは保存値を維持。
+- Outline パスの LightMode を `SRPDefaultUnlit` から独自タグ `DollOutline` に変更。URP の既定不透明描画から外れることで ForwardLit と交互描画されず、**ForwardLit のバッチング分断を解消**。**アウトラインの表示には `DollOutlineFeature` の追加が必要**（Setup Window 参照）。ShaderGUI は Outline 有効時に Window への導線を表示。
+- `_MainTex` に `[MainTexture]` 属性を付与。
+- Dissolve のノイズサンプルを `sampler_MainTex` から `sampler_LinearRepeat` へ変更。MainTex 未使用時（深度パス等）に sampler がストリッピングされる問題を回避。
+- `ForwardPass.hlsl` で `Core.hlsl` を明示 include（`USE_CLUSTER_LIGHT_LOOP` / `GetNormalizedScreenSpaceUV` / `_FORWARD_PLUS`→`_CLUSTER_LIGHT_LOOP` 互換 shim を 6.0 でも確実に供給）。追加ライトのスクリーン UV を `GetNormalizedScreenSpaceUV` 経由に変更。
+- シェーダーバリアントを削減し、マテリアル混在時の SRP Batcher バッチング分断を抑制。マテリアル間で値が割れやすい 3 キーワードを廃止して動的化:
+  - `_SHADINGSTYLE_TOON` → `_ShadingStyle`（uniform）の動的分岐（Property を `[Enum]` 化）。
+  - `_SPECULARMODEL_BLINNPHONG` / `_GGX` → `_SpecularModel`（uniform）の `UNITY_BRANCH` 動的分岐（CBUFFER に `_SpecularModel` を追加、Property を `[Enum]` 化）。
+  - `_SURFACE_TRANSPARENT` → 廃止。アルファ出力を常時 `albedo.a` に（不透明/Cutout はブレンド側で無視）。Property を `[ToggleUI]` 化。
+  - `DollShaderGUI.ValidateMaterial` で旧キーワードを既存マテリアルから除去。
+  - ForwardLit の理論バリアント数は 384 → 48（実ビルドは概ね 1/4 以下）に減少。
+
 ## [0.3.4] - 2026-06-21
 
 ### Changed
@@ -13,6 +36,13 @@
 
 ### Added
 - `Documentation~/ARCHITECTURE.md`（内部構成・設計方針の解説）。
+- `Documentation~/SHADOWS.md`（影モードの制御ガイドと推奨設定）。
+- `Documentation~/SRP_BATCHER.md`（SRP Batcher を効かせるための指針）。
+- `Documentation~/OUTLINE.md`（アウトラインの描画方式とセットアップ）。
+- `Documentation~/USAGE.md`（使い方・インスペクター・パラメータ一覧）/ `Documentation~/VARIANTS.md`（シェーダーバリアント一覧）。README から詳細・重複を移設し、README はリンク集に整理。
+- `DollOutlineFeature`（RendererFeature）と `Doll Outline Setup` Window（`Window > EasyPBR > Doll Outline Setup`）。アウトラインを独自パスとして後段でまとめて描画し、対象 Renderer への追加/削除/有効無効を Window から行える。
+- カスタム Inspector で、シェーダーバリアントを生成するプロパティに ⚡ マークと凡例・ツールチップ注記を表示。
+- カスタム Inspector から GitHub 上のドキュメント（影モードガイド / SRP Batcher ガイド）へ飛べるリンクを追加。
 
 ## [0.3.3] - 2026-06-21
 
