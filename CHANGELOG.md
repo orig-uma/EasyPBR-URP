@@ -4,10 +4,14 @@
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-06-25
+
 ### Added
+- **ディテールノーマルマップ**（`_DetailNormalMap` / `_DetailNormalScale`）。汎用タイリングの微細ノーマルで肌のキメ・布の織りを足す。Detail Map のタイリングを共有し、whiteout ブレンドでベース法線に重ねる。`bump`（既定）で無影響＝モデル別オーサリング不要（CC0 タイリング素材でOK）。
 - **Geometric Specular Anti-Aliasing**（`_SpecularAA`）。法線の画面内分散から実効ラフネスを上げ、大型 LED・激しいモーション時のハイライトのチラつき（ジャギ）を発生源で抑える。デュアルローブスペキュラ（GGX / Blinn-Phong 双方）に適用。`Common/BRDF/BRDF_GGX.hlsl` に `ComputeSpecularAAVariance` / `ApplySpecularAA` を追加。分散は frag で 1 回だけ算出（導関数は均一制御フロー）。**新規キーワードなし（uniform 動的分岐）。**
 - **ライト連動 MatCap**（`_MatCapLightInfluence`）。メインライトの画面内方向に MatCap のサンプリングを回転させ、焼かれた映り込みをステージ照明に反応させる。`Common/Effects/Fx_MatCap.hlsl` に `GetMatCapUVLightAligned` を追加。0 で従来のビュー固定。
 - **オクルージョンマップ**（`_OcclusionMap` / `_OcclusionStrength`）。ベイクした AO（R チャンネル）で拡散光を沈める。白（既定）で無効。
+- **環境反射（Reflection Probe）**（本体 Doll: `_ReflectionStrength`）。シーンの Reflection Probe を表面に反射させる汎用 PBR スペキュラ反射。瞳・エナメル・小物がステージ環境に反応する。ぼけは Primary Smoothness、縁の重みは Fresnel(F0) を流用し、Occlusion マップ・Specular Mask・**地平線オクルージョン**（反射ベクトルが面の裏へ潜るぶんを減衰）で整える。`Common/URP/Reflection_URP.hlsl` に `EasyPBR_SampleEnvironment` / `EasyPBR_EnvironmentReflection` を追加（URP 結合層）。0 で cube サンプルごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
 
 ### Changed
 - `_SpecularAA` の既定値を **1.0（ON）** とした。スペキュラ AA は静止時の見た目をほぼ変えずモーション時のチラつきのみを抑えるため既定で有効化。既存マテリアルにも適用される（チラつき低減方向の変化）。OFF にするには 0 に設定。

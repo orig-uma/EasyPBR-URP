@@ -234,6 +234,14 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Tangent-space normal map",
                                     "接空間ノーマルマップ"),
                                 normalTex, Prop("_NormalScale"));
+
+                        var detailNormalTex = Prop("_DetailNormalMap");
+                        if (detailNormalTex != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Detail Normal Map",
+                                    "Tiling micro-surface normal (skin pores, fabric weave). Shares the Detail Map tiling. \"bump\" (default) = no effect. Generic/CC0 tiling normals work without per-model authoring",
+                                    "タイリングの微細ノーマル（肌のキメ・布の織り）。Detail Map のタイリングを共有。\"bump\"（既定）で無効。汎用/CC0 のタイリング素材でOK（モデル別オーサリング不要）"),
+                                detailNormalTex, Prop("_DetailNormalScale"));
                     }
             }
 
@@ -421,6 +429,11 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Secondary specular strength. 0 = off", "副スペキュラの強度。0でOFF");
                         P(materialEditor, "_SecSpecularLightLimit", "Light Limit",
                             "Luminance cap for the secondary lobe", "副ローブの輝度上限");
+
+                        SubHeader("Environment Reflection", "環境反射（Reflection Probe）");
+                        P(materialEditor, "_ReflectionStrength", "Strength (0 = Off)",
+                            "Reflects the scene Reflection Probe onto the surface (wet eyes, enamel, glossy accessories that react to stage lighting). Uses Primary Smoothness for blur and Fresnel (F0) for edge weighting. Modulated by the Occlusion map and Specular Mask. 0 = off",
+                            "シーンの Reflection Probe を表面に反射させる（濡れた瞳・エナメル・小物がステージ照明に反応）。ぼけは Primary Smoothness、縁の強さは Fresnel(F0) を流用。Occlusion マップと Specular Mask で減衰。0でOFF");
 
                         // --- Anisotropic ---
                         SubHeader("Anisotropic (Hair / Silk)", "異方性ハイライト (髪 / シルク)");

@@ -21,6 +21,7 @@ TEXTURE2D(_ReceiveShadowMask);
 TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
+TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMask);
 TEXTURE2D(_OcclusionMap);
 
@@ -35,6 +36,7 @@ CBUFFER_START(UnityPerMaterial)
     half _ValueMulti;
     float4 _DetailMap_ST; // ScaleとOffset用
     half4 _DetailColor;
+    half _DetailNormalScale;
     half _AlphaClip;
     half _Cutoff;
     half _ShadowCutoffBias;
@@ -108,6 +110,8 @@ CBUFFER_START(UnityPerMaterial)
     half _SecSmoothness;
     half _SecSpecularIntensity;
     half _SecSpecularLightLimit;
+
+    half _ReflectionStrength;
 
     half4 _AnisoColor;
     half _AnisoThickness;
