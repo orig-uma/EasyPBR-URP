@@ -1,5 +1,7 @@
 # EasyPBR for URP — SRP Batcher を効かせるために
 
+このシェーダーは「同種マテリアルの大量同時描画でも破綻しないこと」を基本思想に、**動的分岐にすると不利な処理だけをバリアントに残し、それ以外はバリアント化を避けてバッチ分断を最小化する**設計を採っている（設計思想は [ARCHITECTURE](ARCHITECTURE.md)）。本ドキュメントはその実践ガイド。
+
 ## 要点
 
 SRP Batcher は**マテリアルが違っても同じシェーダーバリアント・同じ描画状態なら連続して低コストで描く**仕組み。本シェーダーは CBUFFER を 1 つにまとめており互換（Inspector で "SRP Batcher: compatible"）。
@@ -20,6 +22,8 @@ Inspector で **⚡ マーク**の付くプロパティ。値が割れると別�
 | Alpha Clipping | `_ALPHATEST_ON` |
 | Dissolve | `_DISSOLVE_ON` / `_DISSOLVETYPE_*` |
 | Outline | `_OUTLINE_ON`（専用パスのみ） |
+
+全キーワードとバリアント数は [VARIANTS](VARIANTS.md) を参照。
 
 ### 2. Surface 設定（描画状態）
 

@@ -14,6 +14,8 @@
   Dual-Lobe を基本とし、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Schlick Fresnel・Smith 可視性込みの Cook-Torrance）をパス内で切り替える。
 * **ブルーノイズの共通化**
   1 枚のテクスチャを、影エッジのディザリング（Self Shadow Mode: Off）とグレイン（法線の微細揺らぎ）で共通サンプルし、テクスチャフェッチを節約する。
+* **SRP Batcher を意識した設計（基本思想）**
+  3D ライブのように同種マテリアルを大量に同時描画する用途を前提に、**動的分岐にすると不利な処理だけをバリアントに残し、それ以外はバリアント化を避けてバッチ分断を最小化する**ことを設計方針としている。具体的には (1) 全マテリアルプロパティを単一 CBUFFER にまとめて SRP Batcher 互換を保つ、(2) マテリアル間で値が割れやすく動的化のデメリットが小さいスイッチ（Shading Style / Specular Model / Alpha Blend / MatCap / Emission / Color Correction）は keyword をやめて uniform 動的分岐にする、(3) **動的分岐にすると損するスイッチだけ** keyword として残す（Self Shadow Mode＝全経路コンパイルで occupancy 低下、Alpha Clip / Dissolve＝早期Z喪失や常時サンプル化）。Inspector では **⚡ マーク**で「バリアントを生む＝混在でバッチが切れる」ことを可視化する、(4) アウトラインは独自 LightMode（`DollOutline`）＋ RendererFeature に逃がし、ForwardLit と交互描画させない。詳細は [SRP_BATCHER](SRP_BATCHER.md) / [VARIANTS](VARIANTS.md)。
 
 ## ライブラリの分離方針
 
@@ -73,6 +75,18 @@ Editor/
 | `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
 | `Runtime/Textures/DissolveNoise.png` | Dissolve ノイズ |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
+
+## Pass / LightMode
+
+| Pass | LightMode | 用途 |
+| :--- | :--- | :--- |
+| ForwardLit | UniversalForward | メイン描画 |
+| ShadowCaster | ShadowCaster | 落ち影の生成 |
+| DepthOnly | DepthOnly | Depth Prepass / Depth Priming、Forward+ の深度生成 |
+| DepthNormals | DepthNormals | Forward+ の Depth Normals Prepass、SSAO / Decal 用の法線生成 |
+| Outline | DollOutline | 輪郭線（描画には `DollOutlineFeature` が必要 → [OUTLINE](OUTLINE.md)） |
+
+> Outline は独自 LightMode タグ `DollOutline` を使い、URP の既定不透明描画に含まれない。これにより ForwardLit と交互描画されず ForwardLit のバッチングを阻害しない。各パスのキーワード・バリアントは [VARIANTS](VARIANTS.md)。
 
 ## 汎用ライブラリ構成（Common）
 

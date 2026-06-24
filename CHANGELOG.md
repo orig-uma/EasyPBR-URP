@@ -39,6 +39,7 @@
 - `Documentation~/SHADOWS.md`（影モードの制御ガイドと推奨設定）。
 - `Documentation~/SRP_BATCHER.md`（SRP Batcher を効かせるための指針）。
 - `Documentation~/OUTLINE.md`（アウトラインの描画方式とセットアップ）。
+- `Documentation~/USAGE.md`（使い方・インスペクター・パラメータ一覧）/ `Documentation~/VARIANTS.md`（シェーダーバリアント一覧）。README から詳細・重複を移設し、README はリンク集に整理。
 - `DollOutlineFeature`（RendererFeature）と `Doll Outline Setup` Window（`Window > EasyPBR > Doll Outline Setup`）。アウトラインを独自パスとして後段でまとめて描画し、対象 Renderer への追加/削除/有効無効を Window から行える。
 - カスタム Inspector で、シェーダーバリアントを生成するプロパティに ⚡ マークと凡例・ツールチップ注記を表示。
 - カスタム Inspector から GitHub 上のドキュメント（影モードガイド / SRP Batcher ガイド）へ飛べるリンクを追加。
