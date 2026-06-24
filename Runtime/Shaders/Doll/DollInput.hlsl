@@ -22,6 +22,7 @@ TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
 TEXTURE2D(_SSSMask);
+TEXTURE2D(_OcclusionMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -73,6 +74,7 @@ CBUFFER_START(UnityPerMaterial)
     half _MatCapBlend;
     half4 _MatCapColor;
     half _MatCapIntensity;
+    half _MatCapLightInfluence;
 
     // [Doll Specific] 顔影・ライティング設定
     half _FrontMaskStrength;
@@ -93,8 +95,10 @@ CBUFFER_START(UnityPerMaterial)
     // [Doll Specific] 質感・ディテール
     half _GrainIntensity;
     half _GrainScale;
+    half _OcclusionStrength;
 
     half _SpecularModel;
+    half _SpecularAA;
     half4 _SpecularColor;
     half _Smoothness;
     half _SpecularIntensity;

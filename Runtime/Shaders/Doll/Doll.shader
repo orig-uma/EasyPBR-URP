@@ -78,6 +78,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
         [Enum(BlinnPhong, 0, Ggx, 1)] _SpecularModel ("Specular Model", Float) = 1
+        _SpecularAA ("Specular Anti-Aliasing", Range(0.0, 1.0)) = 1.0
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
@@ -107,6 +108,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [NoScaleOffset] _MatCapTex ("MatCap Texture (RGB)", 2D) = "black" {}
         _MatCapColor ("MatCap Tint", Color) = (1, 1, 1, 1)
         _MatCapIntensity ("MatCap Intensity", Range(0.0, 5.0)) = 1.0
+        _MatCapLightInfluence ("MatCap Light Influence", Range(0.0, 1.0)) = 0.0
 
         // --- Dissolve (消失エフェクト) --------------------------------
         [Header(Dissolve)]
@@ -139,6 +141,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
         _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
         _GrainScale ("Grain UV Scale", Float) = 10.0
+        [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
+        _OcclusionStrength ("Occlusion Strength", Range(0.0, 1.0)) = 1.0
         [Space(10)]
         [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)

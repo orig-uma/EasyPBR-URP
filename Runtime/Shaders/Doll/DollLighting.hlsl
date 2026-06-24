@@ -81,11 +81,12 @@ float GetLitMask(float halfLambert, float proceduralMask, float toonStep, float 
 }
 
 // デュアルローブスペキュラ: スペキュラモデルを uniform 動的分岐で解決。
+// aaVariance: Geometric Specular AA のカーネル量（frag 側で1回算出して渡す。0で無効）。
 half3 CalculateDualLobeSpecular(
     half3 detailNormalWS, float3 lightDirWS, half3 viewDirectionWS, float ndotlSpecular,
     float3 priSpecEnergy, half4 specColor1, float smoothness1, float intensity1,
     float3 secSpecEnergy, half4 specColor2, float smoothness2, float intensity2,
-    float specMask, float castShadow, float specF0,
+    float specMask, float castShadow, float specF0, float aaVariance,
     out float specularMaskVal)
 {
     UNITY_BRANCH
@@ -95,13 +96,13 @@ half3 CalculateDualLobeSpecular(
             detailNormalWS, lightDirWS, viewDirectionWS, ndotlSpecular,
             priSpecEnergy, specColor1, smoothness1, intensity1,
             secSpecEnergy, specColor2, smoothness2, intensity2,
-            specMask, castShadow, specF0, specularMaskVal);
+            specMask, castShadow, specF0, aaVariance, specularMaskVal);
     }
     return DualLobeSpecularBlinn(
         detailNormalWS, lightDirWS, viewDirectionWS, ndotlSpecular,
         priSpecEnergy, specColor1, smoothness1, intensity1,
         secSpecEnergy, specColor2, smoothness2, intensity2,
-        specMask, castShadow, specularMaskVal);
+        specMask, castShadow, aaVariance, specularMaskVal);
 }
 
 // CalculateSSS / CalculateRimLight / CalculatePeachFuzz / GetFresnelTerms /

@@ -57,6 +57,7 @@ half3 CalculateSingleLight(
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
+    float specAAVariance,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
     bool glitterActive)
@@ -88,7 +89,7 @@ half3 CalculateSingleLight(
         detailNormalWS, light.direction, viewDirectionWS, NdotL_Specular,
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
-        specMask, castShadow, _SpecularF0, specularMaskVal);
+        specMask, castShadow, _SpecularF0, specAAVariance, specularMaskVal);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
@@ -159,6 +160,15 @@ half4 frag(Varyings input) : SV_Target
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
     half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
 
+    // --- Occlusion Map: AO テクスチャがあるときだけ陰影を沈める（R チャンネル）---
+    half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
+    albedo.rgb *= lerp(1.0, occlusion, _OcclusionStrength);
+
+    // --- Geometric Specular AA: 法線分散を frag で1回だけ算出（導関数は均一制御フロー）---
+    float specAAVariance = (_SpecularAA > 0.0)
+        ? ComputeSpecularAAVariance(detailNormalWS, _SpecularAA, 0.25)
+        : 0.0;
+
     // ライトループ外の事前計算
     float baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
@@ -201,7 +211,7 @@ half4 frag(Varyings input) : SV_Target
         mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
-        indirectLight, anisoPrecomp, glitterGeom, glitterActive);
+        indirectLight, specAAVariance, anisoPrecomp, glitterGeom, glitterActive);
 
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
@@ -229,7 +239,7 @@ half4 frag(Varyings input) : SV_Target
                     addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
-                    half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);             \
+                    half3(0,0,0), specAAVariance, anisoPrecomp, glitterGeom, glitterActive); \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \
@@ -260,7 +270,8 @@ half4 frag(Varyings input) : SV_Target
     UNITY_BRANCH
     if (_UseMatCap > 0.5)
     {
-        float2 matcapUV = GetMatCapUV(detailNormalWS);
+        // ライト連動: メインライトの画面内方向へ映り込みを回転させる（0で従来どおり）。
+        float2 matcapUV = GetMatCapUVLightAligned(detailNormalWS, mainLight.direction, _MatCapLightInfluence);
         half3 matcapColor = SAMPLE_TEXTURE2D(_MatCapTex, sampler_MainTex, matcapUV).rgb * _MatCapColor.rgb;
         finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity, _MatCapBlend);
     }

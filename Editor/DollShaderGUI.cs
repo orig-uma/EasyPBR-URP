@@ -383,6 +383,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, specModelProp, "Specular Model",
                             "BlinnPhong: cheap, legacy-compatible / Ggx: physically based (Fresnel, natural falloff)",
                             "BlinnPhong: 軽量・従来互換 / Ggx: 物理ベース（Fresnel・自然な裾）");
+                        P(materialEditor, "_SpecularAA", "Specular Anti-Aliasing",
+                            "Geometric specular AA. Suppresses highlight shimmer/jaggies under motion on large LED screens by widening roughness where normals vary fast. 0 = off, 1 = full (recommended on)",
+                            "幾何スペキュラAA。法線が急変する箇所でラフネスを広げ、大型LED・激しいモーション時のハイライトのチラつき(ジャギ)を抑える。0でOFF、1で最大（基本ONを推奨）");
                         if (specModelProp != null && specModelProp.floatValue >= 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                                 P(materialEditor, "_SpecularF0", "Fresnel (F0)",
@@ -482,6 +485,9 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "MatCap tint color", "MatCapの色味");
                                 P(materialEditor, "_MatCapIntensity", "Intensity",
                                     "MatCap strength", "MatCapの強度");
+                                P(materialEditor, "_MatCapLightInfluence", "Light Influence",
+                                    "Rotates the MatCap lookup to follow the main light's on-screen direction, so the baked reflection reacts to stage lighting. 0 = classic view-locked",
+                                    "メインライトの画面内方向にMatCapのサンプリングを回転させ、焼かれた映り込みをステージ照明に反応させる。0で従来のビュー固定");
                             }
                     }
             }
@@ -642,6 +648,18 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Blue-noise UV scale",
                                     "ブルーノイズの UV スケール");
                             }
+
+                        SubHeader("Occlusion (AO Map)", "オクルージョン（AOマップ）");
+                        var occMap = Prop("_OcclusionMap");
+                        if (occMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Occlusion Map (R)",
+                                    "Baked ambient occlusion. R channel darkens diffuse in creases. White (default) = no effect",
+                                    "ベイクした AO。Rチャンネルでくぼみの拡散光を沈める。白（既定）で無効"),
+                                occMap);
+                        P(materialEditor, "_OcclusionStrength", "Strength",
+                            "How strongly the occlusion map darkens diffuse",
+                            "AOマップで拡散光を沈める強さ");
                     }
             }
 

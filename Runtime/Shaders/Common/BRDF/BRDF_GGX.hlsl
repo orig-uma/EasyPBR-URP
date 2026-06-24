@@ -37,6 +37,32 @@ float SmoothnessToAlpha(float smoothness)
     return max(roughness * roughness, 2e-3); // 完全鏡面のギラつき/NaN回避
 }
 
+// -----------------------------------------------------------------------------
+//  Geometric Specular Antialiasing（Tokuyoshi & Kaplanyan）
+//   画面内の法線分散から実効ラフネスを上げ、大型LED・激しいモーション時の
+//   ハイライトのチラつき（ジャギ）を発生源で抑える。
+//   variance は呼び出し側で ddx/ddy(normalWS) から1回だけ算出して渡すこと
+//   （導関数は均一制御フローで評価する必要があるため）。
+// -----------------------------------------------------------------------------
+
+// 法線の画面内分散 → カーネルラフネス（alpha^2 加算量）。0 で無効。
+float ComputeSpecularAAVariance(float3 normalWS, float strength, float threshold)
+{
+    float3 dndu = ddx(normalWS);
+    float3 dndv = ddy(normalWS);
+    float variance = strength * (dot(dndu, dndu) + dot(dndv, dndv));
+    return min(2.0 * variance, threshold);
+}
+
+// smoothness を分散ぶんだけ下げて返す（lobe へ渡す前に1回適用）。
+float ApplySpecularAA(float smoothness, float aaVariance)
+{
+    float roughness = 1.0 - saturate(smoothness);
+    float alpha     = roughness * roughness;
+    float alphaF    = sqrt(saturate(alpha * alpha + aaVariance)); // 分散を alpha^2 に加算
+    return 1.0 - sqrt(alphaF);
+}
+
 // 1ローブ分の Cook-Torrance（D*V*F。NdotL は呼び出し側で乗算）。
 half3 GGXLobe(float NdotH, float NdotL, float NdotV, float VdotH,
               float smoothness, half3 tint, float3 f0)

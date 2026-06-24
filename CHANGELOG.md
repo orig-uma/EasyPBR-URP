@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### Added
+- **Geometric Specular Anti-Aliasing**（`_SpecularAA`）。法線の画面内分散から実効ラフネスを上げ、大型 LED・激しいモーション時のハイライトのチラつき（ジャギ）を発生源で抑える。デュアルローブスペキュラ（GGX / Blinn-Phong 双方）に適用。`Common/BRDF/BRDF_GGX.hlsl` に `ComputeSpecularAAVariance` / `ApplySpecularAA` を追加。分散は frag で 1 回だけ算出（導関数は均一制御フロー）。**新規キーワードなし（uniform 動的分岐）。**
+- **ライト連動 MatCap**（`_MatCapLightInfluence`）。メインライトの画面内方向に MatCap のサンプリングを回転させ、焼かれた映り込みをステージ照明に反応させる。`Common/Effects/Fx_MatCap.hlsl` に `GetMatCapUVLightAligned` を追加。0 で従来のビュー固定。
+- **オクルージョンマップ**（`_OcclusionMap` / `_OcclusionStrength`）。ベイクした AO（R チャンネル）で拡散光を沈める。白（既定）で無効。
+
+### Changed
+- `_SpecularAA` の既定値を **1.0（ON）** とした。スペキュラ AA は静止時の見た目をほぼ変えずモーション時のチラつきのみを抑えるため既定で有効化。既存マテリアルにも適用される（チラつき低減方向の変化）。OFF にするには 0 に設定。
+- `CalculateSingleLight` / `CalculateDualLobeSpecular`（`DualLobeSpecularGGX` / `DualLobeSpecularBlinn`）にスペキュラ AA 分散を渡す引数を追加。フラグメント側以外の呼び出しは無し。
+
 ## [0.3.5] - 2026-06-24
 
 ### Added
