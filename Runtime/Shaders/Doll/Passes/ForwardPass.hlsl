@@ -13,6 +13,7 @@
 #include "../DollEffects.hlsl"
 #include "../DollLighting.hlsl"
 #include "../DollShadows.hlsl"
+#include "../../Common/URP/Reflection_URP.hlsl"
 
 struct Attributes
 {
@@ -142,6 +143,12 @@ half4 frag(Varyings input) : SV_Target
 
     half4 normalSample = SAMPLE_TEXTURE2D(_NormalMap, sampler_MainTex, input.uv);
     half3 normalTS = UnpackNormalScale(normalSample, _NormalScale);
+
+    // ディテールノーマル（汎用タイリング）を whiteout ブレンドで重ねる。
+    // 既定の "bump"（平坦 = 0,0,1）なら結果は base のままで無影響。detailUV のタイリングを共有。
+    half3 detailNormalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_MainTex, detailUV), _DetailNormalScale);
+    normalTS = normalize(half3(normalTS.xy + detailNormalTS.xy, normalTS.z * detailNormalTS.z));
+
     // TBNベクトルを用いてTangent空間の法線をWorld空間へ変換
     half3 cleanNormalWS = normalize(normalTS.x * input.tangentWS + normalTS.y * input.bitangentWS + normalTS.z * input.normalWS);
     half3 dissolveEmission;
@@ -263,6 +270,17 @@ half4 frag(Varyings input) : SV_Target
         #undef DOLL_ACCUMULATE_ADDITIONAL_LIGHT
     #endif
     #undef DOLL_CLUSTER_LIGHT_LOOP
+
+    // --- 環境反射（Reflection Probe）: ステージ環境の映り込みを汎用PBR反射として加算 ---
+    // ビュー依存・ライト非依存なのでループ外で1回。0で cube サンプルごとスキップ。
+    UNITY_BRANCH
+    if (_ReflectionStrength > 0.0)
+    {
+        half perceptualRoughness = 1.0 - _Smoothness;
+        finalColor += EasyPBR_EnvironmentReflection(
+            detailNormalWS, viewDirectionWS, perceptualRoughness, _SpecularF0,
+            _ReflectionStrength, occlusion * specMask);
+    }
 
     // 追加エフェクト適用
     // keyword (_MATCAP_ON / _EMISSION_ON) を廃止し uniform 動的分岐に変更。

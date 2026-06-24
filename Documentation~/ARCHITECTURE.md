@@ -127,6 +127,7 @@ Editor/
 | `Common/Effects/Fx_Emission.hlsl` | `CalculateEmission` |
 | `Common/Effects/Fx_Dissolve.hlsl` | `ResolveDissolve`（`DissolveInput` 構造体・サンプリングは外部） |
 | `Common/URP/Shadow_HQ_URP.hlsl` | `EasyPBR_SampleMainShadowHQ`、`EasyPBR_FindBlocker` |
+| `Common/URP/Reflection_URP.hlsl` | `EasyPBR_SampleEnvironment`、`EasyPBR_EnvironmentReflection`（Reflection Probe 反射） |
 
 ### include 順
 

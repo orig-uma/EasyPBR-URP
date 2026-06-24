@@ -19,6 +19,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
         _DetailMap("Detail Map", 2D) = "black" {}
         _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
+        [NoScaleOffset][Normal] _DetailNormalMap("Detail Normal Map", 2D) = "bump" {}
+        _DetailNormalScale("Detail Normal Scale", Range(0.0, 2.0)) = 1.0
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 0
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         _ShadowCutoffBias ("Shadow Cutoff Bias (fatten)", Range(0.0, 0.5)) = 0.2
@@ -91,6 +93,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.0
         _SecSpecularLightLimit ("Secondary Light Limit", Range(0.1, 5.0)) = 1.2
+        [Space(10)]
+        _ReflectionStrength ("Environment Reflection", Range(0.0, 1.0)) = 0.0
         [Header(Anisotropic Highlight)]
         [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
         _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
