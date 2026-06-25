@@ -11,8 +11,14 @@
 - **Geometric Specular Anti-Aliasing**（`_SpecularAA`）。法線の画面内分散から実効ラフネスを上げ、大型 LED・激しいモーション時のハイライトのチラつき（ジャギ）を発生源で抑える。デュアルローブスペキュラ（GGX / Blinn-Phong 双方）に適用。`Common/BRDF/BRDF_GGX.hlsl` に `ComputeSpecularAAVariance` / `ApplySpecularAA` を追加。分散は frag で 1 回だけ算出（導関数は均一制御フロー）。**新規キーワードなし（uniform 動的分岐）。**
 - **ライト連動 MatCap**（`_MatCapLightInfluence`）。メインライトの画面内方向に MatCap のサンプリングを回転させ、焼かれた映り込みをステージ照明に反応させる。`Common/Effects/Fx_MatCap.hlsl` に `GetMatCapUVLightAligned` を追加。0 で従来のビュー固定。
 - **オクルージョンマップ**（`_OcclusionMap` / `_OcclusionStrength`）。ベイクした AO（R チャンネル）で拡散光を沈める。白（既定）で無効。
+- **キャビティマップ**（`_CavityMap` / `_CavityStrength`）。細かいくぼみ（しわ・継ぎ目）の暗化（R チャンネル）。広域 AO とは別軸で重ねられる。白（既定）で無効。
 - **環境反射（Reflection Probe）**（本体 Doll: `_ReflectionStrength`）。シーンの Reflection Probe を表面に反射させる汎用 PBR スペキュラ反射。瞳・エナメル・小物がステージ環境に反応する。ぼけは Primary Smoothness、縁の重みは Fresnel(F0) を流用し、Occlusion マップ・Specular Mask・**地平線オクルージョン**（反射ベクトルが面の裏へ潜るぶんを減衰）で整える。`Common/URP/Reflection_URP.hlsl` に `EasyPBR_SampleEnvironment` / `EasyPBR_EnvironmentReflection` を追加（URP 結合層）。0 で cube サンプルごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
-
+- **ベイカー（マップ生成ツール）**（Editor 限定・`Editor/Baking/EasyPbrBaker.cs`、UI は `Editor/DollShaderGUI.Baking.cs`）。DCC 不要でメッシュからマップを焼く。マテリアル Inspector の **Baking** セクションから、選択中キャラの **Root（GameObject）を自動補完 → 1 ボタンで焼いて自動アサイン**（非破壊・再ベイク可）。共通土台 `RunBake`＝Root 配下で対象マテリアルを使う **複数 Renderer / サブメッシュをまとめて 1 枚に焼く**（1 マテリアルを複数メッシュで共有していても OK）。遮蔽計算は全パーツを遮蔽源にしつつ、書き込みは**編集中マテリアルのサブメッシュのみ**。頂点値 → UV 空間 CPU 累積ラスタライズ → ダイレート → ブラー → 保存(Linear) → アサイン。**焼くと対応機能を自動で有効化**（AO/Cavity の Strength、SSS の Intensity、顔 SDF の `_UseFaceSDF` を OFF なら ON に）して即座に見た目へ反映。
+  - **AO ベイカー**（→ `_OcclusionMap`）: 一時 MeshCollider への半球レイで頂点 AO を算出。平滑化 / ブラー / Floor / **Ignore Enclosed**（密着面・反転法線・内部メッシュ由来の黒つぶれを白へ戻す）。
+  - **キャビティ ベイカー**（→ `_CavityMap` / `_CavityStrength`、新スロット）: 隣接頂点の法線方向の偏りから凹（くぼみ）を検出してしわ・継ぎ目を細かく暗化。広域 AO とは別軸。レイ不要で高速。
+  - **厚み（SSS）ベイカー**（→ `_SSSMask`）: 内向き半球レイで出口までの距離＝厚みを測り、薄い部位（耳・鼻・指）ほど白＝SSS 強に。
+  - **顔 SDF ベイカー**（→ `_FaceSDFMap`）: 水平に光をスイープし、各点が陰に入る光角度を 0..1 で記録（鼻・眉の落ち影をレイで考慮）。**R=右光用 / G=左光用の 2 チャンネル**で焼くため、ランタイムは UV ミラー不要＝**左右非対称の顔（傷跡・マーク等）にも対応**。ベイク結果はブロック圧縮の混色を避けるため無圧縮インポート。
+- **顔 SDF シャドウ（ランタイム）**（`_UseFaceSDF` / `_FaceSDFMap` / `_FaceSDFFlip` / `_FaceSDFSoftness` / `_FaceSDFShadowMix` / `_FaceSDFFrontBlend` / `_FaceSDFFrontFade`）。ベイクした SDF でメインライトの顔影を駆動し、光に合わせて**滑らかに左右へ動く**（シャドウマップ非依存＝アクネ・シマー・ガタつき無し。3D ライブのモーション安定向け）。SDF 時は自己影マップを顔に使わず（`_FaceSDFShadowMix` で外部落ち影のみ任意合成）、エッジは `fwidth` ベースで常に AA。**2 チャンネル（R=右光 / G=左光）**を `side` でブレンドして使い、UV ミラー不要・**左右非対称の顔に対応**。正面横切りの継ぎ目は `_FaceSDFFrontBlend`（左右クロスフェード）＋ `_FaceSDFFrontFade`（正面ほど影を弱め切り替わりを隠す）で解消。**新規キーワードなし（uniform 動的分岐）。**
 ### Changed
 - `_SpecularAA` の既定値を **1.0（ON）** とした。スペキュラ AA は静止時の見た目をほぼ変えずモーション時のチラつきのみを抑えるため既定で有効化。既存マテリアルにも適用される（チラつき低減方向の変化）。OFF にするには 0 に設定。
 - `CalculateSingleLight` / `CalculateDualLobeSpecular`（`DualLobeSpecularGGX` / `DualLobeSpecularBlinn`）にスペキュラ AA 分散を渡す引数を追加。フラグメント側以外の呼び出しは無し。

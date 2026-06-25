@@ -58,7 +58,7 @@ half3 CalculateSingleLight(
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
-    float specAAVariance,
+    float specAAVariance, float sdfLit,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
     bool glitterActive)
@@ -78,8 +78,20 @@ half3 CalculateSingleLight(
 
     float castShadow = GetCastShadow(light.shadowAttenuation, receiveShadowMask, _ReceiveShadowStrength, ditherValue, _ShadowDither, _ShadowMapSoftness, proceduralMask);
 
-    float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
-    float finalShade = min(litMask, castShadow);
+    // 顔 SDF が有効(sdfLit>=0)ならそれを陰の形として使う。無効(-1)は従来の Half-Lambert ランプ。
+    float finalShade;
+    if (sdfLit >= 0.0)
+    {
+        float sdfShade = lerp(sdfLit, 1.0, proceduralMask);
+        // SDF は自己影を内包するのでシャドウマップは顔に使わない＝アクネ無し・Vogel不要。
+        // 髪などの外部落ち影だけ _FaceSDFShadowMix で任意に混ぜる（既定 0 = 完全 SDF）。
+        finalShade = min(sdfShade, lerp(1.0, castShadow, _FaceSDFShadowMix));
+    }
+    else
+    {
+        float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
+        finalShade = min(litMask, castShadow);
+    }
 
     half3 diffuseColor = GetShadedAlbedo(baseColor, _ShadowColor.rgb, finalShade);
     half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
@@ -171,6 +183,10 @@ half4 frag(Varyings input) : SV_Target
     half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, occlusion, _OcclusionStrength);
 
+    // --- Cavity Map: くぼみ（しわ・継ぎ目）を細かく沈める（R チャンネル・既定白で無影響）---
+    half cavity = SAMPLE_TEXTURE2D(_CavityMap, sampler_MainTex, input.uv).r;
+    albedo.rgb *= lerp(1.0, cavity, _CavityStrength);
+
     // --- Geometric Specular AA: 法線分散を frag で1回だけ算出（導関数は均一制御フロー）---
     float specAAVariance = (_SpecularAA > 0.0)
         ? ComputeSpecularAAVariance(detailNormalWS, _SpecularAA, 0.25)
@@ -214,11 +230,45 @@ half4 frag(Varyings input) : SV_Target
         Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
     #endif
 
+    // --- 顔 SDF シャドウ（メインライト専用）---
+    // 水平に投影した光の「前向き度」を SDF マップの閾値と比較して、顔の落ち影を
+    // 左右へ滑らかに動かす。-1 = 無効（従来の Half-Lambert）。追加ライトには適用しない。
+    float sdfLit = -1.0;
+    UNITY_BRANCH
+    if (_UseFaceSDF > 0.5)
+    {
+        float3 faceUp    = normalize(TransformObjectToWorldDir(float3(0, 1, 0)));
+        float3 faceFwd   = normalize(objectForwardWS) * (_FaceSDFFlip > 0.5 ? -1.0 : 1.0);
+        float3 faceRight = normalize(cross(faceUp, faceFwd));
+
+        float3 Lh = mainLight.direction - faceUp * dot(mainLight.direction, faceUp); // 水平成分
+        Lh = normalize(Lh + faceFwd * 1e-4);
+        float frontness = dot(Lh, faceFwd) * 0.5 + 0.5;      // 1=正面 / 0=背面
+        float side      = dot(Lh, faceRight);                // 符号で左右
+
+        // SDF は 2 チャンネル: R=右光用 / G=左光用（ベイカーが両方向で焼く）。
+        // ミラー不要なので左右非対称の顔（傷跡・マーク等）もOK。side で滑らかにブレンドし、
+        // 正面付近は左右を補間＝継ぎ目の不連続ゼロ。
+        half2 sdfRG = SAMPLE_TEXTURE2D(_FaceSDFMap, sampler_MainTex, input.uv).rg;
+        float blend = smoothstep(-_FaceSDFFrontBlend, _FaceSDFFrontBlend, side); // 0=左光 / 1=右光
+        float sdf = lerp(sdfRG.g, sdfRG.r, blend);
+
+        // soft はユーザー指定を下限に、fwidth(sdf) で常に最低限のスクリーン空間 AA を確保。
+        float soft = max(_FaceSDFSoftness, fwidth(sdf));
+        sdfLit = smoothstep(sdf - soft, sdf + soft, frontness);
+
+        // フロントフェード: 正面付近（side≈0 かつ前向き=frontness高）ほど SDF 影を「光」へ
+        // 寄せて弱める。切り替わる影そのものが正面で消えるので左右の受け渡しが見えなくなる。
+        // 背面側(frontness低)では影を維持。0 で無効。
+        float frontFade = (1.0 - smoothstep(0.0, _FaceSDFFrontFade, abs(side))) * saturate(frontness);
+        sdfLit = lerp(sdfLit, 1.0, frontFade);
+    }
+
     finalColor += CalculateSingleLight(
         mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
-        indirectLight, specAAVariance, anisoPrecomp, glitterGeom, glitterActive);
+        indirectLight, specAAVariance, sdfLit, anisoPrecomp, glitterGeom, glitterActive);
 
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
@@ -246,7 +296,7 @@ half4 frag(Varyings input) : SV_Target
                     addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
-                    half3(0,0,0), specAAVariance, anisoPrecomp, glitterGeom, glitterActive); \
+                    half3(0,0,0), specAAVariance, -1.0, anisoPrecomp, glitterGeom, glitterActive); \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \

@@ -59,6 +59,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Light and Shadow)]
         [Enum(Smooth, 0, Toon, 1)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
+        [Toggle] _UseFaceSDF ("Enable Face SDF Shadow", Float) = 0
+        [NoScaleOffset] _FaceSDFMap ("Face SDF Map", 2D) = "white" {}
+        [Toggle] _FaceSDFFlip ("Face SDF Flip Forward", Float) = 0
+        _FaceSDFSoftness ("Face SDF Softness", Range(0.001, 0.5)) = 0.5
+        _FaceSDFShadowMix ("Face SDF External Shadow Mix", Range(0.0, 1.0)) = 0.7
+        _FaceSDFFrontBlend ("Face SDF Front Blend", Range(0.01, 0.5)) = 0.15
+        _FaceSDFFrontFade ("Face SDF Front Fade", Range(0.0, 0.5)) = 0.2
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         [KeywordEnum(Off, Pcf (Tent), Pcf (Vogel), Pcss)] _ShadowMode ("Self Shadow Mode", Float) = 1
         
@@ -147,6 +154,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GrainScale ("Grain UV Scale", Float) = 10.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
         _OcclusionStrength ("Occlusion Strength", Range(0.0, 1.0)) = 1.0
+        [NoScaleOffset] _CavityMap ("Cavity Map (R)", 2D) = "white" {}
+        _CavityStrength ("Cavity Strength", Range(0.0, 1.0)) = 1.0
         [Space(10)]
         [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
