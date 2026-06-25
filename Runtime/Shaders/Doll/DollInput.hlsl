@@ -91,7 +91,6 @@ CBUFFER_START(UnityPerMaterial)
     half _FaceSDFSoftness;
     half _FaceSDFShadowMix;
     half _FaceSDFFrontBlend;
-    half _FaceSDFFrontFade;
     half _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;

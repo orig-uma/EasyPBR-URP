@@ -241,27 +241,36 @@ half4 frag(Varyings input) : SV_Target
         float3 faceFwd   = normalize(objectForwardWS) * (_FaceSDFFlip > 0.5 ? -1.0 : 1.0);
         float3 faceRight = normalize(cross(faceUp, faceFwd));
 
-        float3 Lh = mainLight.direction - faceUp * dot(mainLight.direction, faceUp); // 水平成分
-        Lh = normalize(Lh + faceFwd * 1e-4);
-        float frontness = dot(Lh, faceFwd) * 0.5 + 0.5;      // 1=正面 / 0=背面
-        float side      = dot(Lh, faceRight);                // 符号で左右
+        // ライトベクトルを顔のローカル空間に投影
+        float dirX = dot(mainLight.direction, faceRight); // 右がプラス、左がマイナス
+        float dirY = dot(mainLight.direction, faceUp);    // 上がプラス、下がマイナス
+    
+        float frontness = dot(mainLight.direction, faceFwd);
 
-        // SDF は 2 チャンネル: R=右光用 / G=左光用（ベイカーが両方向で焼く）。
-        // ミラー不要なので左右非対称の顔（傷跡・マーク等）もOK。side で滑らかにブレンドし、
-        // 正面付近は左右を補間＝継ぎ目の不連続ゼロ。
-        half2 sdfRG = SAMPLE_TEXTURE2D(_FaceSDFMap, sampler_MainTex, input.uv).rg;
-        float blend = smoothstep(-_FaceSDFFrontBlend, _FaceSDFFrontBlend, side); // 0=左光 / 1=右光
-        float sdf = lerp(sdfRG.g, sdfRG.r, blend);
+        // テクスチャからRGBAすべてを取得
+        half4 sdfRGBA = SAMPLE_TEXTURE2D(_FaceSDFMap, sampler_MainTex, input.uv);
+
+        // 各方向のウェイト（重み）を計算（0以下は切り捨て）
+        float weightRight = max(0.0, dirX);
+        float weightLeft  = max(0.0, -dirX);
+        float weightUp    = max(0.0, dirY);
+        float weightDown  = max(0.0, -dirY);
+
+        // ウェイトの合計を計算（ゼロ除算防止のための微小値を足す）
+        float weightSum = weightRight + weightLeft + weightUp + weightDown + 0.0001;
+
+        // 4方向のSDFを加重平均して最終的なSDF値を求める
+        float sdf = (sdfRGBA.r * weightRight + 
+                     sdfRGBA.g * weightLeft + 
+                     sdfRGBA.b * weightUp + 
+                     sdfRGBA.a * weightDown) / weightSum;
 
         // soft はユーザー指定を下限に、fwidth(sdf) で常に最低限のスクリーン空間 AA を確保。
         float soft = max(_FaceSDFSoftness, fwidth(sdf));
-        sdfLit = smoothstep(sdf - soft, sdf + soft, frontness);
-
-        // フロントフェード: 正面付近（side≈0 かつ前向き=frontness高）ほど SDF 影を「光」へ
-        // 寄せて弱める。切り替わる影そのものが正面で消えるので左右の受け渡しが見えなくなる。
-        // 背面側(frontness低)では影を維持。0 で無効。
-        float frontFade = (1.0 - smoothstep(0.0, _FaceSDFFrontFade, abs(side))) * saturate(frontness);
-        sdfLit = lerp(sdfLit, 1.0, frontFade);
+    
+        // frontness(-1～1)を0～1にマッピングしてしきい値判定
+        float f = frontness * 0.5 + 0.5;
+        sdfLit = smoothstep(sdf - soft, sdf + soft, f);
     }
 
     finalColor += CalculateSingleLight(

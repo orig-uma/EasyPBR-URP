@@ -2,7 +2,7 @@
 //  DollBakingPanel.cs
 // -----------------------------------------------------------------------------
 //  マテリアル Inspector の「Baking」セクションを描く自己完結パネル。
-//  描画は ShaderGuiKit に、ベイク本体は EasyPbrBaker に委譲する（薄い UI 層）。
+//  描画は ShaderGuiKit に、ベイク本体は各 Baker クラスに委譲する（薄い UI 層）。
 //  運用が楽: 選択キャラから Root を自動補完 → 1 ボタンで焼いて自動アサイン。
 //  Root 配下で同じマテリアルを使う複数メッシュ/サブメッシュを 1 枚に焼く。
 //  マテリアル複数選択時は選択中の全マテリアルに対して実行。
@@ -18,10 +18,10 @@ namespace Origuma.EasyPBR.URP.Editor
         private GameObject _bakeRoot;
         private bool _aoOpen, _sdfOpen, _cavityOpen, _thicknessOpen;
 
-        private EasyPbrBaker.AoSettings        _aoSettings        = EasyPbrBaker.DefaultAo;
-        private EasyPbrBaker.SdfSettings       _sdfSettings       = EasyPbrBaker.DefaultSdf;
-        private EasyPbrBaker.CavitySettings    _cavitySettings    = EasyPbrBaker.DefaultCavity;
-        private EasyPbrBaker.ThicknessSettings _thicknessSettings = EasyPbrBaker.DefaultThickness;
+        private EasyPbrAoBaker.Settings        _aoSettings        = EasyPbrAoBaker.Default;
+        private EasyPbrFaceSdfBaker.Settings   _sdfSettings       = EasyPbrFaceSdfBaker.Default;
+        private EasyPbrCavityBaker.Settings    _cavitySettings    = EasyPbrCavityBaker.Default;
+        private EasyPbrThicknessBaker.Settings _thicknessSettings = EasyPbrThicknessBaker.Default;
 
         private static readonly int[] s_BakeResEn = { 512, 1024, 2048 };
         private static readonly string[] s_BakeResLabels = { "512", "1024", "2048" };
@@ -81,7 +81,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _aoSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _aoSettings.smooth, 0, 8);
                                 _aoSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _aoSettings.blur, 0, 4);
                                 if (BakeButton(jp ? "AO をベイク" : "Bake AO"))
-                                    BakeAllTargets(materialEditor, m => EasyPbrBaker.BakeAmbientOcclusion(_bakeRoot, m, _aoSettings));
+                                    BakeAllTargets(materialEditor, m => EasyPbrAoBaker.Bake(_bakeRoot, m, _aoSettings));
                             }
 
                         // --- Cavity ---
@@ -94,7 +94,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _cavitySettings.smooth     = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _cavitySettings.smooth, 0, 8);
                                 _cavitySettings.blur       = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _cavitySettings.blur, 0, 4);
                                 if (BakeButton(jp ? "Cavity をベイク" : "Bake Cavity"))
-                                    BakeAllTargets(materialEditor, m => EasyPbrBaker.BakeCavity(_bakeRoot, m, _cavitySettings));
+                                    BakeAllTargets(materialEditor, m => EasyPbrCavityBaker.Bake(_bakeRoot, m, _cavitySettings));
                             }
 
                         // --- Thickness (SSS) ---
@@ -109,7 +109,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _thicknessSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _thicknessSettings.smooth, 0, 8);
                                 _thicknessSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _thicknessSettings.blur, 0, 4);
                                 if (BakeButton(jp ? "Thickness をベイク" : "Bake Thickness"))
-                                    BakeAllTargets(materialEditor, m => EasyPbrBaker.BakeThickness(_bakeRoot, m, _thicknessSettings));
+                                    BakeAllTargets(materialEditor, m => EasyPbrThicknessBaker.Bake(_bakeRoot, m, _thicknessSettings));
                             }
 
                         // --- Face SDF Shadow ---
@@ -126,7 +126,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _sdfSettings.smooth = EditorGUILayout.IntSlider(kit.Label("Smooth", "Vertex smoothing", "頂点平滑化"), _sdfSettings.smooth, 0, 6);
                                 _sdfSettings.blur   = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _sdfSettings.blur, 0, 4);
                                 if (BakeButton(jp ? "顔 SDF をベイク" : "Bake Face SDF"))
-                                    BakeAllTargets(materialEditor, m => EasyPbrBaker.BakeFaceSdf(_bakeRoot, m, _sdfSettings));
+                                    BakeAllTargets(materialEditor, m => EasyPbrFaceSdfBaker.Bake(_bakeRoot, m, _sdfSettings));
                                 EditorGUILayout.HelpBox(
                                     jp ? "顔マテリアルで焼き、Light and Shadow の Face SDF Shadow を有効化して使う。R=右光/G=左光の2chで焼くので左右非対称の顔もOK。"
                                        : "Bake on the face material, then enable Face SDF Shadow under Light and Shadow. Bakes 2 channels (R=right, G=left) so asymmetric faces work.",
