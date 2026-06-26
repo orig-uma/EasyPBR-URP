@@ -19,6 +19,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ValueMulti("Value Multiplier", Range(0.0, 2.0)) = 1.0
         _DetailMap("Detail Map", 2D) = "black" {}
         _DetailColor("Detail Color", Color) = (1, 1, 1, 1)
+        [NoScaleOffset][Normal] _DetailNormalMap("Detail Normal Map", 2D) = "bump" {}
+        _DetailNormalScale("Detail Normal Scale", Range(0.0, 2.0)) = 1.0
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("Alpha Clipping", Float) = 0
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         _ShadowCutoffBias ("Shadow Cutoff Bias (fatten)", Range(0.0, 0.5)) = 0.2
@@ -57,6 +59,14 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Light and Shadow)]
         [Enum(Smooth, 0, Toon, 1)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
+        [Toggle] _UseFaceSDF ("Enable Face SDF Shadow", Float) = 0
+        [NoScaleOffset] _FaceSDFMap ("Face SDF Map", 2D) = "white" {}
+        [Toggle] _FaceSDFFlip ("Face SDF Flip Forward", Float) = 0
+        _FaceSDFSoftness ("Face SDF Softness", Range(0.001, 0.5)) = 0.5
+        _FaceSDFShadowMix ("Face SDF External Shadow Mix", Range(0.0, 1.0)) = 0.7
+        _FaceSDFFrontBlend ("Face SDF Front Blend", Range(0.01, 0.5)) = 0.15
+        _FaceSDFBlendNormalMin("SDF Blend Normal Min (SDF無効化のしきい値)", Range(-1.5, 1.0)) = -1.0
+        _FaceSDFBlendNormalMax("SDF Blend Normal Max (SDF有効化のしきい値)", Range(-1.0, 1.5)) = 0.0
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         [KeywordEnum(Off, Pcf (Tent), Pcf (Vogel), Pcss)] _ShadowMode ("Self Shadow Mode", Float) = 1
         
@@ -78,6 +88,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         // --- スペキュラと映り込み --------------------------------------------
         [Header(Specular and Reflection)]
         [Enum(BlinnPhong, 0, Ggx, 1)] _SpecularModel ("Specular Model", Float) = 1
+        _SpecularAA ("Specular Anti-Aliasing", Range(0.0, 1.0)) = 1.0
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
         [Space(10)]
@@ -90,6 +101,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.0
         _SecSpecularLightLimit ("Secondary Light Limit", Range(0.1, 5.0)) = 1.2
+        [Space(10)]
+        _ReflectionStrength ("Environment Reflection", Range(0.0, 1.0)) = 0.0
         [Header(Anisotropic Highlight)]
         [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
         _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
@@ -107,6 +120,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [NoScaleOffset] _MatCapTex ("MatCap Texture (RGB)", 2D) = "black" {}
         _MatCapColor ("MatCap Tint", Color) = (1, 1, 1, 1)
         _MatCapIntensity ("MatCap Intensity", Range(0.0, 5.0)) = 1.0
+        _MatCapLightInfluence ("MatCap Light Influence", Range(0.0, 1.0)) = 0.0
 
         // --- Dissolve (消失エフェクト) --------------------------------
         [Header(Dissolve)]
@@ -139,6 +153,10 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
         _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
         _GrainScale ("Grain UV Scale", Float) = 10.0
+        [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
+        _OcclusionStrength ("Occlusion Strength", Range(0.0, 1.0)) = 1.0
+        [NoScaleOffset] _CavityMap ("Cavity Map (R)", 2D) = "white" {}
+        _CavityStrength ("Cavity Strength", Range(0.0, 1.0)) = 1.0
         [Space(10)]
         [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)

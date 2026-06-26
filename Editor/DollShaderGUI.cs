@@ -8,67 +8,38 @@ namespace Origuma.EasyPBR.URP.Editor
     public class DollShaderGUI : ShaderGUI
     {
         private const string KeyPrefix = "Origuma.EasyPBR.URP.Doll.";
-        private const string LangKey = KeyPrefix + "lang.jp";
-        private const string CustomUIKey = KeyPrefix + "use.custom.ui";
 
         // GitHub 上のドキュメント（GUI からリンクで開く）。
         private const string DocBaseUrl = "https://github.com/orig-uma/EasyPBR-URP/blob/main/Documentation~/";
         private const string ShadowsDocUrl = DocBaseUrl + "SHADOWS.md";
         private const string SrpBatcherDocUrl = DocBaseUrl + "SRP_BATCHER.md";
 
+        // 再利用可能な描画キット（言語・キャッシュ・折りたたみ等の状態を所有）と Baking パネル。
+        private ShaderGuiKit _kit;
+        private DollBakingPanel _baking;
+
+        // OnGUI 中に kit から同期する表示状態（セクション内容が参照する）。
         private bool _jp;
         private bool _useCustomUI = true;
-        private bool _prefsLoaded;
 
-        // Section の折りたたみ状態（初回のみ EditorPrefs から読み込み）
-        private readonly Dictionary<string, bool> _foldCache = new();
-
-        // GUIContent（言語切り替え時に Clear）
-        private readonly Dictionary<string, GUIContent> _labelCache = new();
-
-        // 折り返し対応の miniLabel（凡例用。GUIStyle は OnGUI 内でのみ生成可なので遅延初期化）
-        private GUIStyle _miniWrapStyle;
-        private GUIStyle MiniWrapStyle =>
-            _miniWrapStyle ??= new GUIStyle(EditorStyles.miniLabel) { wordWrap = true };
-
-        // MaterialProperty（properties 配列参照が変わったら再構築）
-        private MaterialProperty[] _cachedPropsRef;
-        private readonly Dictionary<string, MaterialProperty> _propCache = new();
-
-        // シェーダー初期値の取得用（Shader が変わったら破棄）
-        private Shader _cachedShader;
-
-        // ----------------------------------------------------------------
-        //  静的定数（毎フレームの new を排除）
-        // ----------------------------------------------------------------
-        private static readonly Color s_BarPro = new(0.22f, 0.22f, 0.24f);
-        private static readonly Color s_BarPersonal = new(0.78f, 0.78f, 0.80f);
-        private static readonly Color s_BarShadow = new(0f, 0f, 0f, 0.15f);
-        private static readonly Color s_SubHeader = new(0.5f, 0.5f, 0.5f, 0.2f);
-
-        private static readonly string[] s_UIModeEn = { "Custom", "Default" };
-        private static readonly string[] s_UIModeJp = { "カスタム", "デフォルト" };
-        private static readonly string[] s_LangOptions = { "English", "日本語" };
+        // UI 表示名（Render Mode / Self Shadow Mode）。キーワード等のロジックは DollMaterialSetup へ。
         private static readonly string[] s_RenderModeEn = { "Opaque", "Cutout", "Transparent" };
         private static readonly string[] s_RenderModeJp = { "Opaque (不透明)", "Cutout (くり抜き)", "Transparent (半透明)" };
         private static readonly string[] s_ShadowModeEn = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
         private static readonly string[] s_ShadowModeJp = { "Off", "PCF (Tent)", "PCF (Vogel)", "PCSS" };
-        private static readonly string[] s_ShadowModeKeywords =
-            { "_SHADOWMODE_OFF", "_SHADOWMODE_TENTPCF", "_SHADOWMODE_VOGELPCF", "_SHADOWMODE_PCSS" };
-        private static readonly int SurfaceTransparent = Shader.PropertyToID("_SurfaceTransparent");
-        private static readonly int AlphaClip = Shader.PropertyToID("_AlphaClip");
-        private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
-        private static readonly int DstBlend = Shader.PropertyToID("_DstBlend");
-        private static readonly int ZWrite = Shader.PropertyToID("_ZWrite");
 
         // ================================================================
         //  エントリポイント
         // ================================================================
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
-            LoadPrefs();
-            RebuildPropCacheIfNeeded(properties);
-            DrawToolbar();
+            _kit ??= new ShaderGuiKit(KeyPrefix);
+            _baking ??= new DollBakingPanel();
+            _kit.LoadPrefs();
+            _kit.RebuildPropCache(properties);
+            _kit.DrawToolbar("EasyPBR / Doll", _kit.Jp ? "SRP Batcher ガイド" : "SRP Batcher guide", SrpBatcherDocUrl);
+            _jp = _kit.Jp;
+            _useCustomUI = _kit.UseCustomUI;
 
             if (!_useCustomUI)
             {
@@ -133,20 +104,7 @@ namespace Origuma.EasyPBR.URP.Editor
 
                         EditorGUILayout.Space(4);
                         {
-                            bool stencilOpen;
-                            if (!_foldCache.TryGetValue("stencil", out stencilOpen))
-                            {
-                                stencilOpen = EditorPrefs.GetBool(KeyPrefix + "fold.stencil", false);
-                                _foldCache["stencil"] = stencilOpen;
-                            }
-
-                            var newStencilOpen = EditorGUILayout.Foldout(stencilOpen, "Stencil", true,
-                                EditorStyles.foldoutHeader);
-                            if (newStencilOpen != stencilOpen)
-                            {
-                                _foldCache["stencil"] = newStencilOpen;
-                                EditorPrefs.SetBool(KeyPrefix + "fold.stencil", newStencilOpen);
-                            }
+                            var newStencilOpen = Foldout("stencil", false, "Stencil");
 
                             if (newStencilOpen)
                                 using (new EditorGUI.IndentLevelScope())
@@ -234,6 +192,14 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Tangent-space normal map",
                                     "接空間ノーマルマップ"),
                                 normalTex, Prop("_NormalScale"));
+
+                        var detailNormalTex = Prop("_DetailNormalMap");
+                        if (detailNormalTex != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Detail Normal Map",
+                                    "Tiling micro-surface normal (skin pores, fabric weave). Shares the Detail Map tiling. \"bump\" (default) = no effect. Generic/CC0 tiling normals work without per-model authoring",
+                                    "タイリングの微細ノーマル（肌のキメ・布の織り）。Detail Map のタイリングを共有。\"bump\"（既定）で無効。汎用/CC0 のタイリング素材でOK（モデル別オーサリング不要）"),
+                                detailNormalTex, Prop("_DetailNormalScale"));
                     }
             }
 
@@ -253,6 +219,38 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_ShadowColor", "Shadow Color",
                             "Tint multiplied into the base color in shadowed areas",
                             "影部分でベースカラーに乗算する色味");
+
+                        EditorGUILayout.Space(2);
+                        SubHeader("Face SDF Shadow", "顔 SDF シャドウ");
+                        var useSdfProp = Prop("_UseFaceSDF");
+                        P(materialEditor, useSdfProp, "Enable Face SDF Shadow",
+                            "Drives the main-light face shadow from a baked 2-channel SDF map (R=right-lit, G=left-lit) so it sweeps smoothly with the light (no shadow-map jaggies). Bake the map in the Baking section below. Asymmetric faces are supported (no UV mirroring)",
+                            "メインライトの顔影をベイクした2chSDFマップ(R=右光/G=左光)で駆動し、光に合わせて滑らかに動かす（シャドウマップのガタつき無し）。マップは下のBakingセクションで焼く。左右非対称の顔もOK（ミラー不使用）");
+                        if (useSdfProp != null && useSdfProp.floatValue > 0.5f)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                var sdfMap = Prop("_FaceSDFMap");
+                                if (sdfMap != null)
+                                    materialEditor.TexturePropertySingleLine(
+                                        Label("Face SDF Map",
+                                            "Baked face SDF (auto-assigned when you bake). White = always lit",
+                                            "ベイクした顔SDF（焼くと自動アサイン）。白=常に光"), sdfMap);
+                                P(materialEditor, "_FaceSDFFlip", "Flip Forward",
+                                    "Enable if the shadow moves the wrong way (face faces -Z)",
+                                    "陰が逆方向に動くとき ON（顔が -Z 向き）");
+                                P(materialEditor, "_FaceSDFSoftness", "Softness",
+                                    "Width of the shadow transition. Low = crisp anime edge (always at least 1px anti-aliased)",
+                                    "陰の境界のぼかし幅。低いほどパキッとしたアニメ調（最低1pxのAAは常に確保）");
+                                P(materialEditor, "_FaceSDFShadowMix", "External Shadow Mix",
+                                    "SDF replaces the self-shadow map on the face (no acne, no Vogel needed). Raise to mix back EXTERNAL cast shadows (hair on face), at the cost of some shadow-map artifacts. 0 = pure SDF",
+                                    "SDF が顔の自己影マップを置き換える（アクネ無し・Vogel不要）。上げると髪などの外部落ち影を混ぜ戻せるが、シャドウマップのアーティファクトも戻る。0で完全SDF");
+                                P(materialEditor, "_FaceSDFFrontBlend", "Front Blend",
+                                    "Smoothly blends the left/right SDF as the light crosses front, removing the hard left/right pop. Larger = wider, softer crossover",
+                                    "光が正面を横切るとき左右SDFを滑らかに補間し、左右の『パキッ』とした切り替わりを消す。大きいほど広く柔らかいクロスフェード");
+                                P(materialEditor, "_FaceSDFFrontFade", "Front Fade",
+                                    "Fades the SDF shadow toward lit as the light approaches front, hiding the left/right hand-off entirely (front light naturally has little face shadow). Larger = fades over a wider front range. 0 = off",
+                                    "光が正面に近いほどSDF影を『光』へ弱め、左右の受け渡しを完全に隠す（正面光は元々顔影が薄い）。大きいほど広い正面範囲でフェード。0で無効");
+                            }
 
                         var recvMask = Prop("_ReceiveShadowMask");
                         if (recvMask != null)
@@ -278,7 +276,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                 materialEditor.RegisterPropertyChangeUndo("Self Shadow Mode");
                                 shadowModeProp.floatValue = smNew;
                                 foreach (Material mat in materialEditor.targets)
-                                    SetShadowModeKeyword(mat, smNew);
+                                    DollMaterialSetup.SyncShadowMode(mat, smNew);
                             }
 
                             using (new EditorGUILayout.HorizontalScope())
@@ -328,20 +326,8 @@ namespace Origuma.EasyPBR.URP.Editor
 
                         EditorGUILayout.Space(4);
                         {
-                            bool shadowFixOpen;
-                            if (!_foldCache.TryGetValue("auto_shadow_fix", out shadowFixOpen))
-                            {
-                                shadowFixOpen = EditorPrefs.GetBool(KeyPrefix + "fold.auto_shadow_fix", false);
-                                _foldCache["auto_shadow_fix"] = shadowFixOpen;
-                            }
-
-                            var newShadowFixOpen = EditorGUILayout.Foldout(shadowFixOpen,
-                                _jp ? "顔の影補正" : "Auto Face Shadow Fix", true, EditorStyles.foldoutHeader);
-                            if (newShadowFixOpen != shadowFixOpen)
-                            {
-                                _foldCache["auto_shadow_fix"] = newShadowFixOpen;
-                                EditorPrefs.SetBool(KeyPrefix + "fold.auto_shadow_fix", newShadowFixOpen);
-                            }
+                            var newShadowFixOpen = Foldout("auto_shadow_fix", false,
+                                _jp ? "顔の影補正" : "Auto Face Shadow Fix");
 
                             if (newShadowFixOpen)
                                 using (new EditorGUI.IndentLevelScope())
@@ -383,6 +369,9 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, specModelProp, "Specular Model",
                             "BlinnPhong: cheap, legacy-compatible / Ggx: physically based (Fresnel, natural falloff)",
                             "BlinnPhong: 軽量・従来互換 / Ggx: 物理ベース（Fresnel・自然な裾）");
+                        P(materialEditor, "_SpecularAA", "Specular Anti-Aliasing",
+                            "Geometric specular AA. Suppresses highlight shimmer/jaggies under motion on large LED screens by widening roughness where normals vary fast. 0 = off, 1 = full (recommended on)",
+                            "幾何スペキュラAA。法線が急変する箇所でラフネスを広げ、大型LED・激しいモーション時のハイライトのチラつき(ジャギ)を抑える。0でOFF、1で最大（基本ONを推奨）");
                         if (specModelProp != null && specModelProp.floatValue >= 0.5f)
                             using (new EditorGUI.IndentLevelScope())
                                 P(materialEditor, "_SpecularF0", "Fresnel (F0)",
@@ -418,6 +407,11 @@ namespace Origuma.EasyPBR.URP.Editor
                             "Secondary specular strength. 0 = off", "副スペキュラの強度。0でOFF");
                         P(materialEditor, "_SecSpecularLightLimit", "Light Limit",
                             "Luminance cap for the secondary lobe", "副ローブの輝度上限");
+
+                        SubHeader("Environment Reflection", "環境反射（Reflection Probe）");
+                        P(materialEditor, "_ReflectionStrength", "Strength (0 = Off)",
+                            "Reflects the scene Reflection Probe onto the surface (wet eyes, enamel, glossy accessories that react to stage lighting). Uses Primary Smoothness for blur and Fresnel (F0) for edge weighting. Modulated by the Occlusion map and Specular Mask. 0 = off",
+                            "シーンの Reflection Probe を表面に反射させる（濡れた瞳・エナメル・小物がステージ照明に反応）。ぼけは Primary Smoothness、縁の強さは Fresnel(F0) を流用。Occlusion マップと Specular Mask で減衰。0でOFF");
 
                         // --- Anisotropic ---
                         SubHeader("Anisotropic (Hair / Silk)", "異方性ハイライト (髪 / シルク)");
@@ -482,6 +476,9 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "MatCap tint color", "MatCapの色味");
                                 P(materialEditor, "_MatCapIntensity", "Intensity",
                                     "MatCap strength", "MatCapの強度");
+                                P(materialEditor, "_MatCapLightInfluence", "Light Influence",
+                                    "Rotates the MatCap lookup to follow the main light's on-screen direction, so the baked reflection reacts to stage lighting. 0 = classic view-locked",
+                                    "メインライトの画面内方向にMatCapのサンプリングを回転させ、焼かれた映り込みをステージ照明に反応させる。0で従来のビュー固定");
                             }
                     }
             }
@@ -642,6 +639,30 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Blue-noise UV scale",
                                     "ブルーノイズの UV スケール");
                             }
+
+                        SubHeader("Occlusion (AO Map)", "オクルージョン（AOマップ）");
+                        var occMap = Prop("_OcclusionMap");
+                        if (occMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Occlusion Map (R)",
+                                    "Baked ambient occlusion. R channel darkens diffuse in creases. White (default) = no effect",
+                                    "ベイクした AO。Rチャンネルでくぼみの拡散光を沈める。白（既定）で無効"),
+                                occMap);
+                        P(materialEditor, "_OcclusionStrength", "Strength",
+                            "How strongly the occlusion map darkens diffuse",
+                            "AOマップで拡散光を沈める強さ");
+
+                        SubHeader("Cavity (Crease Map)", "キャビティ（くぼみマップ）");
+                        var cavMap = Prop("_CavityMap");
+                        if (cavMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Cavity Map (R)",
+                                    "Fine crease darkening (pores / seams), separate from broad AO. Bake it in the Baking section. White (default) = no effect",
+                                    "細かいくぼみ（しわ・継ぎ目）の暗化。広域AOとは別。Bakingセクションで焼く。白（既定）で無効"),
+                                cavMap);
+                        P(materialEditor, "_CavityStrength", "Strength",
+                            "How strongly the cavity map darkens diffuse",
+                            "キャビティマップで拡散光を沈める強さ");
                     }
             }
 
@@ -746,10 +767,15 @@ namespace Origuma.EasyPBR.URP.Editor
                         materialEditor.DoubleSidedGIField();
                     }
             }
+
+            // -----------------------------------------------------------
+            // 11. Baking（マップ生成ツール）— 実装は DollBakingPanel
+            // -----------------------------------------------------------
+            _baking.Draw(materialEditor, _kit);
         }
 
         // ================================================================
-        //  サブ描画メソッド
+        //  セットアップ系 UI（状態変更ロジックは DollMaterialSetup へ委譲）
         // ================================================================
         private void DrawRenderModeSetup(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
@@ -770,77 +796,7 @@ namespace Origuma.EasyPBR.URP.Editor
             {
                 materialEditor.RegisterPropertyChangeUndo("Render Mode Setup");
                 foreach (Material mat in materialEditor.targets)
-                    SetupRenderMode(mat, newMode);
-            }
-        }
-
-        // KeywordEnum を使わずキーワードを手動同期（表示名を自由にするため）。
-        private static void SetShadowModeKeyword(Material mat, int mode)
-        {
-            mode = Mathf.Clamp(mode, 0, s_ShadowModeKeywords.Length - 1);
-            for (var i = 0; i < s_ShadowModeKeywords.Length; i++)
-            {
-                if (i == mode) mat.EnableKeyword(s_ShadowModeKeywords[i]);
-                else mat.DisableKeyword(s_ShadowModeKeywords[i]);
-            }
-        }
-
-        // 0.3.5 で uniform 動的分岐へ移行し廃止したキーワード。既存マテリアルから掃除する。
-        private static readonly string[] s_DeprecatedKeywords =
-        {
-            "_SURFACE_TRANSPARENT",
-            "_SHADINGSTYLE_TOON",
-            "_SPECULARMODEL_BLINNPHONG",
-            "_SPECULARMODEL_GGX",
-        };
-
-        // マテリアル読み込み/検証時に float からキーワードを復元（stale / リネーム耐性）。
-        public override void ValidateMaterial(Material material)
-        {
-            base.ValidateMaterial(material);
-            if (material.HasProperty("_ShadowMode"))
-                SetShadowModeKeyword(material, (int)material.GetFloat("_ShadowMode"));
-
-            // 廃止キーワードが残っていても無害だが、バリアント表を汚さないよう除去する。
-            foreach (var kw in s_DeprecatedKeywords)
-                if (material.IsKeywordEnabled(kw))
-                    material.DisableKeyword(kw);
-        }
-
-        private void SetupRenderMode(Material mat, int mode)
-        {
-            switch (mode)
-            {
-                case 0: // Opaque
-                    mat.SetFloat(SurfaceTransparent, 0f);
-                    mat.SetFloat(AlphaClip, 0f);
-                    mat.SetFloat(SrcBlend, (float)BlendMode.One);
-                    mat.SetFloat(DstBlend, (float)BlendMode.Zero);
-                    mat.SetFloat(ZWrite, 1f);
-                    mat.renderQueue = 2000;
-                    mat.SetOverrideTag("RenderType", "Opaque");
-                    mat.DisableKeyword("_ALPHATEST_ON");
-                    break;
-                case 1: // Cutout
-                    mat.SetFloat(SurfaceTransparent, 0f);
-                    mat.SetFloat(AlphaClip, 1f);
-                    mat.SetFloat(SrcBlend, (float)BlendMode.One);
-                    mat.SetFloat(DstBlend, (float)BlendMode.Zero);
-                    mat.SetFloat(ZWrite, 1f);
-                    mat.renderQueue = 2450;
-                    mat.SetOverrideTag("RenderType", "TransparentCutout");
-                    mat.EnableKeyword("_ALPHATEST_ON");
-                    break;
-                case 2: // Transparent
-                    mat.SetFloat(SurfaceTransparent, 1f);
-                    mat.SetFloat(AlphaClip, 0f);
-                    mat.SetFloat(SrcBlend, (float)BlendMode.SrcAlpha);
-                    mat.SetFloat(DstBlend, (float)BlendMode.OneMinusSrcAlpha);
-                    mat.SetFloat(ZWrite, 0f);
-                    mat.renderQueue = 3000;
-                    mat.SetOverrideTag("RenderType", "Transparent");
-                    mat.DisableKeyword("_ALPHATEST_ON");
-                    break;
+                    DollMaterialSetup.ApplyRenderMode(mat, newMode);
             }
         }
 
@@ -848,8 +804,6 @@ namespace Origuma.EasyPBR.URP.Editor
         {
             var outlineProp = Prop("_UseOutline");
             if (outlineProp == null) return;
-
-            EditorGUI.BeginChangeCheck();
 
             Pv(materialEditor, outlineProp, "Enable Outline",
                 "Inverted-hull outline pass", "背面法線を押し出す輪郭線パス");
@@ -867,7 +821,6 @@ namespace Origuma.EasyPBR.URP.Editor
                     if (GUILayout.Button(_jp ? "Outline セットアップを開く" : "Open Outline Setup"))
                         DollOutlineSetupWindow.Open();
                     EditorGUILayout.Space(2);
-
 
                     P(materialEditor, "_OutlineColor", "Color",
                         "Outline color", "輪郭線の色");
@@ -900,196 +853,40 @@ namespace Origuma.EasyPBR.URP.Editor
                         "ステンシルテスト成功、かつZテスト失敗時の処理");
                 }
 
-            if (EditorGUI.EndChangeCheck() || !_prefsLoaded)
-                foreach (Material mat in materialEditor.targets)
-                    if (isOutlineOn) mat.EnableKeyword("_OUTLINE_ON");
-                    else mat.DisableKeyword("_OUTLINE_ON");
+            // キーワードは毎フレーム冪等同期（EnableKeyword は冪等）。
+            foreach (Material mat in materialEditor.targets)
+                if (isOutlineOn) mat.EnableKeyword("_OUTLINE_ON");
+                else mat.DisableKeyword("_OUTLINE_ON");
         }
 
-        // ================================================================
-        //  初期化・キャッシュ
-        // ================================================================
-        private void LoadPrefs()
+        // マテリアル読み込み/検証時に float からキーワードを復元（stale / リネーム耐性）。
+        public override void ValidateMaterial(Material material)
         {
-            if (_prefsLoaded) return;
-            _jp = EditorPrefs.GetBool(LangKey, Application.systemLanguage == SystemLanguage.Japanese);
-            _useCustomUI = EditorPrefs.GetBool(CustomUIKey, true);
-            _prefsLoaded = true;
-        }
-
-        // properties 配列の参照が変わった時だけ Dictionary を再構築する
-        private void RebuildPropCacheIfNeeded(MaterialProperty[] properties)
-        {
-            if (ReferenceEquals(properties, _cachedPropsRef)) return;
-            _cachedPropsRef = properties;
-            _propCache.Clear();
-            foreach (var p in properties)
-                _propCache[p.name] = p;
+            base.ValidateMaterial(material);
+            if (material.HasProperty("_ShadowMode"))
+                DollMaterialSetup.SyncShadowMode(material, (int)material.GetFloat("_ShadowMode"));
+            DollMaterialSetup.CleanupDeprecated(material);
         }
 
         // ================================================================
-        //  ツールバー
+        //  描画プリミティブの委譲（実装と状態は ShaderGuiKit が所有）
         // ================================================================
-        private void DrawToolbar()
-        {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
-            {
-                EditorGUILayout.LabelField("EasyPBR / Doll", EditorStyles.boldLabel);
-                GUILayout.FlexibleSpace();
-
-                EditorGUI.BeginChangeCheck();
-                var uiMode = EditorGUILayout.Popup(_useCustomUI ? 0 : 1,
-                    _jp ? s_UIModeJp : s_UIModeEn, GUILayout.Width(90));
-                if (EditorGUI.EndChangeCheck())
-                {
-                    _useCustomUI = uiMode == 0;
-                    EditorPrefs.SetBool(CustomUIKey, _useCustomUI);
-                }
-
-                EditorGUI.BeginChangeCheck();
-                var lang = EditorGUILayout.Popup(_jp ? 1 : 0, s_LangOptions, GUILayout.Width(90));
-                if (EditorGUI.EndChangeCheck())
-                {
-                    _jp = lang == 1;
-                    EditorPrefs.SetBool(LangKey, _jp);
-                    _labelCache.Clear(); // 言語変更時にラベルキャッシュを破棄
-                }
-
-                EditorGUI.BeginChangeCheck();
-            }
-
-            // ⚡ 印の凡例（バリアント生成プロパティであることの説明）＋ドキュメントリンク。
-            var legend = _jp
-                ? "⚡ = シェーダーバリアントを生成（混在するとバッチが分断）"
-                : "⚡ = generates a shader variant (mixing splits batches)";
-            var legendContent = new GUIContent(legend);
-            var legendH = MiniWrapStyle.CalcHeight(legendContent, EditorGUIUtility.currentViewWidth);
-            EditorGUILayout.LabelField(legendContent, MiniWrapStyle, GUILayout.Height(legendH));
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                GUILayout.FlexibleSpace();
-                DocLink(_jp ? "SRP Batcher ガイド" : "SRP Batcher guide", SrpBatcherDocUrl);
-            }
-        }
-
-        // ================================================================
-        //  ユーティリティ
-        // ================================================================
-
-        // Section ヘッダー（折りたたみ状態を _foldCache にキャッシュ）
         private bool Section(string id, bool defaultOpen, string titleEn, string titleJp, string descEn, string descJp)
-        {
-            bool open;
-            if (!_foldCache.TryGetValue(id, out open))
-            {
-                open = EditorPrefs.GetBool(KeyPrefix + "fold." + id, defaultOpen);
-                _foldCache[id] = open;
-            }
-
-            var rect = EditorGUILayout.GetControlRect(false, 24f);
-            var barColor = EditorGUIUtility.isProSkin ? s_BarPro : s_BarPersonal;
-            EditorGUI.DrawRect(rect, barColor);
-            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), s_BarShadow);
-            EditorGUI.LabelField(new Rect(rect.x + 6f, rect.y + 3f, 14f, 18f), open ? "\u25BC" : "\u25B6");
-            EditorGUI.LabelField(new Rect(rect.x + 22f, rect.y + 3f, rect.width - 26f, 18f), _jp ? titleJp : titleEn,
-                EditorStyles.boldLabel);
-
-            var e = Event.current;
-            if (e.type == EventType.MouseDown && rect.Contains(e.mousePosition))
-            {
-                open = !open;
-                _foldCache[id] = open;
-                EditorPrefs.SetBool(KeyPrefix + "fold." + id, open);
-                e.Use();
-            }
-
-            if (open) EditorGUILayout.Space(4);
-            return open;
-        }
-
-        private void SubHeader(string en, string jp)
-        {
-            EditorGUILayout.Space(4);
-            EditorGUI.DrawRect(EditorGUILayout.GetControlRect(false, 1f), s_SubHeader);
-            EditorGUILayout.LabelField(_jp ? jp : en, EditorStyles.miniBoldLabel);
-        }
-
-        // ラベルは英語固定。説明は tooltip に日英で持たせ、言語に応じて切り替える。
-        // キャッシュは「ラベル＋日英ツールチップ」をキーにする（同名ラベルで別ツールチップでも衝突しない）。
-        // 言語変更時は DrawToolbar 内で _labelCache.Clear() している。
-        private GUIContent Label(string label, string tipEn, string tipJp)
-        {
-            var key = label + "\u241F" + tipEn + "\u241F" + tipJp;
-            GUIContent content;
-            if (!_labelCache.TryGetValue(key, out content))
-            {
-                content = new GUIContent(label, _jp ? tipJp : tipEn);
-                _labelCache[key] = content;
-            }
-
-            return content;
-        }
-
-        // キャッシュから MaterialProperty を取得
-        private MaterialProperty Prop(string name)
-        {
-            MaterialProperty p;
-            return _propCache.TryGetValue(name, out p) ? p : null;
-        }
-
-        // MaterialProperty を直接渡すオーバーロード
-        private void P(MaterialEditor editor, MaterialProperty prop, string label, string tipEn, string tipJp)
-        {
-            if (prop == null) return;
-
-            var content = Label(label, tipEn, tipJp);
-            var h = editor.GetPropertyHeight(prop);
-            var row = EditorGUILayout.GetControlRect(true, h);
-
-            editor.ShaderProperty(row, prop, content);
-        }
-
-        // 名前で引いて描画（propCache 経由）
-        private void P(MaterialEditor editor, string name, string label, string tipEn, string tipJp)
-        {
-            P(editor, Prop(name), label, tipEn, tipJp);
-        }
-
-        // ----------------------------------------------------------------
-        //  バリアント生成プロパティの明示
-        //  値がマテリアル間で割れると SRP Batcher のバッチが分断されるプロパティ。
-        //  ラベルに印(⚡)を付け、ツールチップに注記を足して GUI 上で可視化する。
-        //  詳細は Documentation~/SRP_BATCHER.md を参照。
-        // ----------------------------------------------------------------
-        private const string VariantMark = " ⚡"; // ⚡
-        private const string VariantTipEn =
-            "\n\n[⚡ Shader variant] Differing values between materials split SRP Batcher batches. See Documentation~/SRP_BATCHER.md.";
-        private const string VariantTipJp =
-            "\n\n[⚡ シェーダーバリアント] マテリアル間で値が異なると SRP Batcher のバッチが分断されます。詳細は Documentation~/SRP_BATCHER.md。";
-
-        // バリアント生成プロパティを ⚡ 付きで描画（MaterialProperty 版）。
-        private void Pv(MaterialEditor editor, MaterialProperty prop, string label, string tipEn, string tipJp)
-        {
-            P(editor, prop, label + VariantMark, tipEn + VariantTipEn, tipJp + VariantTipJp);
-        }
-
-        // バリアント生成プロパティを ⚡ 付きで描画（名前版）。
-        private void Pv(MaterialEditor editor, string name, string label, string tipEn, string tipJp)
-        {
-            Pv(editor, Prop(name), label, tipEn, tipJp);
-        }
-
-        // バリアント生成 Popup 用のラベル（⚡ 付き）。
+            => _kit.Section(id, defaultOpen, titleEn, titleJp, descEn, descJp);
+        private bool Foldout(string id, bool defaultOpen, string label) => _kit.Foldout(id, defaultOpen, label);
+        private void SubHeader(string en, string jp) => _kit.SubHeader(en, jp);
+        private GUIContent Label(string label, string tipEn, string tipJp) => _kit.Label(label, tipEn, tipJp);
+        private MaterialProperty Prop(string name) => _kit.Prop(name);
+        private void P(MaterialEditor e, MaterialProperty prop, string label, string tipEn, string tipJp)
+            => _kit.P(e, prop, label, tipEn, tipJp);
+        private void P(MaterialEditor e, string name, string label, string tipEn, string tipJp)
+            => _kit.P(e, name, label, tipEn, tipJp);
+        private void Pv(MaterialEditor e, MaterialProperty prop, string label, string tipEn, string tipJp)
+            => _kit.Pv(e, prop, label, tipEn, tipJp);
+        private void Pv(MaterialEditor e, string name, string label, string tipEn, string tipJp)
+            => _kit.Pv(e, name, label, tipEn, tipJp);
         private GUIContent VariantLabel(string label, string tipEn, string tipJp)
-        {
-            return Label(label + VariantMark, tipEn + VariantTipEn, tipJp + VariantTipJp);
-        }
-
-        // GitHub ドキュメントを開くリンクボタン（クリックでブラウザ起動）。
-        private static void DocLink(string label, string url)
-        {
-            if (EditorGUILayout.LinkButton(label))
-                Application.OpenURL(url);
-        }
+            => _kit.VariantLabel(label, tipEn, tipJp);
+        private void DocLink(string label, string url) => _kit.DocLink(label, url);
     }
 }

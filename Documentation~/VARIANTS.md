@@ -12,7 +12,7 @@
 | `_DISSOLVETYPE_NONE` / `_WORLDY` / `_LOCALY` | 3 | `_DissolveType`（Dissolve Axis: None / WorldY / LocalY） | ForwardLit / ShadowCaster / DepthOnly / DepthNormals / Outline |
 | `_OUTLINE_ON` | 2 | `_UseOutline`（Enable Outline） | Outline |
 
-> MatCap / Emission / Color Correction は keyword を廃止し、`_UseMatCap` / `_UseEmission` / `_UseColorCorrection`（Float）による `UNITY_BRANCH` の動的分岐にしている。無効時はテクスチャサンプルごとスキップされ、バリアントは増えない。
+> MatCap / Emission / Color Correction は keyword を廃止し、`_UseMatCap` / `_UseEmission` / `_UseColorCorrection`（Float）による `UNITY_BRANCH` の動的分岐にしている。無効時はテクスチャサンプルごとスキップされ、バリアントは増えない。**環境反射（`_ReflectionStrength`）も同様の uniform 動的分岐**で、0 のとき cube サンプルごとスキップされバリアントを増やさない。Specular AA / Occlusion / Detail Normal は常時計算（または既定テクスチャで無影響）でキーワードを持たない。**顔 SDF シャドウ（`_UseFaceSDF` 他）も uniform 動的分岐**（OFF 時はサンプルごとスキップ）でバリアント非増。ベイカーは Editor 専用ツールでランタイム・バリアントに影響しない。
 >
 > Shading Style（Smooth / Toon）/ Specular Model（BlinnPhong / GGX）/ Alpha Blend（Transparent）も同様に keyword を廃止し、`_ShadingStyle` / `_SpecularModel` の uniform 動的分岐、および Alpha 出力の常時化に移行した（0.3.5）。これらはマテリアル間で値が割れやすく、keyword 分岐のままだと**同時描画時に SRP Batcher のバッチが分断される**ため。分岐自体は軽量（threshold vs ramp / 関数選択 / 1 行）なので、バリアント削減のメリットが上回る。
 

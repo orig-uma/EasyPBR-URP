@@ -21,7 +21,11 @@ TEXTURE2D(_ReceiveShadowMask);
 TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
+TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMask);
+TEXTURE2D(_OcclusionMap);
+TEXTURE2D(_CavityMap);
+TEXTURE2D(_FaceSDFMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -34,6 +38,7 @@ CBUFFER_START(UnityPerMaterial)
     half _ValueMulti;
     float4 _DetailMap_ST; // ScaleとOffset用
     half4 _DetailColor;
+    half _DetailNormalScale;
     half _AlphaClip;
     half _Cutoff;
     half _ShadowCutoffBias;
@@ -73,6 +78,7 @@ CBUFFER_START(UnityPerMaterial)
     half _MatCapBlend;
     half4 _MatCapColor;
     half _MatCapIntensity;
+    half _MatCapLightInfluence;
 
     // [Doll Specific] 顔影・ライティング設定
     half _FrontMaskStrength;
@@ -80,6 +86,13 @@ CBUFFER_START(UnityPerMaterial)
     half _MaskFalloff;
     half _ShadingStyle;
     half4 _ShadowColor;
+    half _UseFaceSDF;
+    half _FaceSDFFlip;
+    half _FaceSDFSoftness;
+    half _FaceSDFShadowMix;
+    half _FaceSDFFrontBlend;
+    half _FaceSDFBlendNormalMin;
+    half _FaceSDFBlendNormalMax;
     half _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;
@@ -93,8 +106,11 @@ CBUFFER_START(UnityPerMaterial)
     // [Doll Specific] 質感・ディテール
     half _GrainIntensity;
     half _GrainScale;
+    half _OcclusionStrength;
+    half _CavityStrength;
 
     half _SpecularModel;
+    half _SpecularAA;
     half4 _SpecularColor;
     half _Smoothness;
     half _SpecularIntensity;
@@ -104,6 +120,8 @@ CBUFFER_START(UnityPerMaterial)
     half _SecSmoothness;
     half _SecSpecularIntensity;
     half _SecSpecularLightLimit;
+
+    half _ReflectionStrength;
 
     half4 _AnisoColor;
     half _AnisoThickness;

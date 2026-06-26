@@ -13,6 +13,7 @@
 #include "../DollEffects.hlsl"
 #include "../DollLighting.hlsl"
 #include "../DollShadows.hlsl"
+#include "../../Common/URP/Reflection_URP.hlsl"
 
 struct Attributes
 {
@@ -57,6 +58,8 @@ half3 CalculateSingleLight(
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
+    float specAAVariance, float sdfLit,
+    half sdfMask,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
     bool glitterActive)
@@ -76,19 +79,37 @@ half3 CalculateSingleLight(
 
     float castShadow = GetCastShadow(light.shadowAttenuation, receiveShadowMask, _ReceiveShadowStrength, ditherValue, _ShadowDither, _ShadowMapSoftness, proceduralMask);
 
+    // 顔 SDF が有効(sdfLit>=0)ならそれを陰の形として使う。無効(-1)は従来の Half-Lambert ランプ。
+    float finalShade;
+    
+    // 本体の陰影マスク（_ShadingStyle で toon / halfLambert 切替）
     float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
-    float finalShade = min(litMask, castShadow);
+    float normalShade = min(litMask, castShadow);
+
+    // 顔 SDF が有効(sdfLit>=0)なら、SDFマスクを使ってフェードブレンドする
+    if (sdfLit >= 0.0)
+    {
+        float sdfShade = lerp(sdfLit, 1.0, proceduralMask);
+        // SDF は自己影を内包するのでシャドウマップは顔に使わない＝アクネ無し・Vogel不要。
+        // 髪などの外部落ち影だけ _FaceSDFShadowMix で任意に混ぜる（既定 0 = 完全 SDF）。
+        float sdfFinal = min(sdfShade, lerp(1.0, castShadow, _FaceSDFShadowMix));
+        
+        finalShade = lerp(normalShade, sdfFinal, sdfMask);
+    }
+    else
+    {
+        finalShade = normalShade;
+    }
 
     half3 diffuseColor = GetShadedAlbedo(baseColor, _ShadowColor.rgb, finalShade);
     half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
-
     float NdotL_Specular = dot(detailNormalWS, light.direction);
     float specularMaskVal;
     half3 finalSpecular = CalculateDualLobeSpecular(
         detailNormalWS, light.direction, viewDirectionWS, NdotL_Specular,
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
-        specMask, castShadow, _SpecularF0, specularMaskVal);
+        specMask, castShadow, _SpecularF0, specAAVariance, specularMaskVal);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
@@ -141,6 +162,12 @@ half4 frag(Varyings input) : SV_Target
 
     half4 normalSample = SAMPLE_TEXTURE2D(_NormalMap, sampler_MainTex, input.uv);
     half3 normalTS = UnpackNormalScale(normalSample, _NormalScale);
+
+    // ディテールノーマル（汎用タイリング）を whiteout ブレンドで重ねる。
+    // 既定の "bump"（平坦 = 0,0,1）なら結果は base のままで無影響。detailUV のタイリングを共有。
+    half3 detailNormalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailNormalMap, sampler_MainTex, detailUV), _DetailNormalScale);
+    normalTS = normalize(half3(normalTS.xy + detailNormalTS.xy, normalTS.z * detailNormalTS.z));
+
     // TBNベクトルを用いてTangent空間の法線をWorld空間へ変換
     half3 cleanNormalWS = normalize(normalTS.x * input.tangentWS + normalTS.y * input.bitangentWS + normalTS.z * input.normalWS);
     half3 dissolveEmission;
@@ -158,6 +185,19 @@ half4 frag(Varyings input) : SV_Target
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
     half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
+
+    // --- Occlusion Map: AO テクスチャがあるときだけ陰影を沈める（R チャンネル）---
+    half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
+    albedo.rgb *= lerp(1.0, occlusion, _OcclusionStrength);
+
+    // --- Cavity Map: くぼみ（しわ・継ぎ目）を細かく沈める（R チャンネル・既定白で無影響）---
+    half cavity = SAMPLE_TEXTURE2D(_CavityMap, sampler_MainTex, input.uv).r;
+    albedo.rgb *= lerp(1.0, cavity, _CavityStrength);
+
+    // --- Geometric Specular AA: 法線分散を frag で1回だけ算出（導関数は均一制御フロー）---
+    float specAAVariance = (_SpecularAA > 0.0)
+        ? ComputeSpecularAAVariance(detailNormalWS, _SpecularAA, 0.25)
+        : 0.0;
 
     // ライトループ外の事前計算
     float baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
@@ -197,12 +237,61 @@ half4 frag(Varyings input) : SV_Target
         Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
     #endif
 
+    // --- 顔 SDF シャドウ（メインライト専用）---
+    float sdfLit = -1.0;
+    half sdfMask = 1.0;
+
+    UNITY_BRANCH
+    if (_UseFaceSDF > 0.5)
+    {
+        float3 normalOS = TransformWorldToObjectDir(input.normalWS);
+        
+        // ローカル法線Yで下向き面のSDFをフェードアウト（しきい値は _FaceSDFBlendNormalMin/Max）
+        sdfMask = smoothstep(_FaceSDFBlendNormalMin, _FaceSDFBlendNormalMax, normalOS.y);
+
+        float3 faceUp    = normalize(TransformObjectToWorldDir(float3(0, 1, 0)));
+        float3 faceFwd   = normalize(objectForwardWS) * (_FaceSDFFlip > 0.5 ? -1.0 : 1.0);
+        float3 faceRight = normalize(cross(faceUp, faceFwd));
+
+        // ライトベクトルを顔のローカル空間に投影
+        float dirX = dot(mainLight.direction, faceRight); // 右がプラス、左がマイナス
+        float dirY = dot(mainLight.direction, faceUp);    // 上がプラス、下がマイナス
+    
+        float frontness = dot(mainLight.direction, faceFwd);
+
+        // テクスチャからRGBAすべてを取得
+        half4 sdfRGBA = SAMPLE_TEXTURE2D(_FaceSDFMap, sampler_MainTex, input.uv);
+
+        // 各方向のウェイト（重み）を計算（0以下は切り捨て）
+        float weightRight = max(0.0, dirX);
+        float weightLeft  = max(0.0, -dirX);
+        float weightUp    = max(0.0, dirY);
+        float weightDown  = max(0.0, -dirY);
+
+        // ウェイトの合計を計算（ゼロ除算防止のための微小値を足す）
+        float weightSum = weightRight + weightLeft + weightUp + weightDown + 0.0001;
+
+        // 4方向のSDFを加重平均して最終的なSDF値を求める
+        float sdf = (sdfRGBA.r * weightRight + 
+                     sdfRGBA.g * weightLeft + 
+                     sdfRGBA.b * weightUp + 
+                     sdfRGBA.a * weightDown) / weightSum;
+
+        float baseSoft = max(_FaceSDFSoftness, fwidth(sdf));
+        float soft = max(baseSoft, _HalfLambertWrap * 0.5);
+        // frontness(-1～1)を0～1にマッピングしてしきい値判定
+        float f = frontness * 0.5 + 0.5;
+        sdfLit = smoothstep(sdf - soft, sdf + soft, f);
+    }
+
     finalColor += CalculateSingleLight(
         mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
-        indirectLight, anisoPrecomp, glitterGeom, glitterActive);
-
+        indirectLight, specAAVariance, sdfLit, 
+        sdfMask,
+        anisoPrecomp, glitterGeom, glitterActive);
+        
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
         #define DOLL_CLUSTER_LIGHT_LOOP USE_CLUSTER_LIGHT_LOOP
@@ -229,7 +318,9 @@ half4 frag(Varyings input) : SV_Target
                     addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
-                    half3(0,0,0), anisoPrecomp, glitterGeom, glitterActive);             \
+                    half3(0,0,0), specAAVariance, -1.0,                                   \
+                    1.0, /* 追加ライトはSDF非対応なのでマスク値1.0を渡す */                      \
+                    anisoPrecomp, glitterGeom, glitterActive);                            \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \
@@ -254,13 +345,25 @@ half4 frag(Varyings input) : SV_Target
     #endif
     #undef DOLL_CLUSTER_LIGHT_LOOP
 
+    // --- 環境反射（Reflection Probe）: ステージ環境の映り込みを汎用PBR反射として加算 ---
+    // ビュー依存・ライト非依存なのでループ外で1回。0で cube サンプルごとスキップ。
+    UNITY_BRANCH
+    if (_ReflectionStrength > 0.0)
+    {
+        half perceptualRoughness = 1.0 - _Smoothness;
+        finalColor += EasyPBR_EnvironmentReflection(
+            detailNormalWS, viewDirectionWS, perceptualRoughness, _SpecularF0,
+            _ReflectionStrength, occlusion * specMask);
+    }
+
     // 追加エフェクト適用
     // keyword (_MATCAP_ON / _EMISSION_ON) を廃止し uniform 動的分岐に変更。
     // 無効時(=0)は UNITY_BRANCH によりテクスチャサンプルごとスキップされる。
     UNITY_BRANCH
     if (_UseMatCap > 0.5)
     {
-        float2 matcapUV = GetMatCapUV(detailNormalWS);
+        // ライト連動: メインライトの画面内方向へ映り込みを回転させる（0で従来どおり）。
+        float2 matcapUV = GetMatCapUVLightAligned(detailNormalWS, mainLight.direction, _MatCapLightInfluence);
         half3 matcapColor = SAMPLE_TEXTURE2D(_MatCapTex, sampler_MainTex, matcapUV).rgb * _MatCapColor.rgb;
         finalColor = ApplyMatCap(finalColor, matcapColor, _MatCapIntensity, _MatCapBlend);
     }
