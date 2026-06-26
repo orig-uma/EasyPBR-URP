@@ -244,12 +244,12 @@ namespace Origuma.EasyPBR.URP.Editor
                                 P(materialEditor, "_FaceSDFShadowMix", "External Shadow Mix",
                                     "SDF replaces the self-shadow map on the face (no acne, no Vogel needed). Raise to mix back EXTERNAL cast shadows (hair on face), at the cost of some shadow-map artifacts. 0 = pure SDF",
                                     "SDF が顔の自己影マップを置き換える（アクネ無し・Vogel不要）。上げると髪などの外部落ち影を混ぜ戻せるが、シャドウマップのアーティファクトも戻る。0で完全SDF");
-                                P(materialEditor, "_FaceSDFFrontBlend", "Front Blend",
-                                    "Smoothly blends the left/right SDF as the light crosses front, removing the hard left/right pop. Larger = wider, softer crossover",
-                                    "光が正面を横切るとき左右SDFを滑らかに補間し、左右の『パキッ』とした切り替わりを消す。大きいほど広く柔らかいクロスフェード");
-                                P(materialEditor, "_FaceSDFFrontFade", "Front Fade",
-                                    "Fades the SDF shadow toward lit as the light approaches front, hiding the left/right hand-off entirely (front light naturally has little face shadow). Larger = fades over a wider front range. 0 = off",
-                                    "光が正面に近いほどSDF影を『光』へ弱め、左右の受け渡しを完全に隠す（正面光は元々顔影が薄い）。大きいほど広い正面範囲でフェード。0で無効");
+                                P(materialEditor, "_FaceSDFBlendNormalMin", "SDF Blend Normal Min",
+                                    "Local Y normal threshold where Face SDF shadow influence reaches zero (fully disabled). Useful for fading out SDFs on downward-facing areas like the neck or under-chin.",
+                                    "顔のSDFシャドウの影響が完全にゼロ（無効化）になるローカルY法線のしきい値。主に顎下や首など、下向きの面でSDFをフェードアウトさせるのに使用します。");
+                                P(materialEditor, "_FaceSDFBlendNormalMax", "SDF Blend Normal Max",
+                                    "Local Y normal threshold where Face SDF shadow influence is fully applied (100% enabled). Normals falling between Min and Max will smoothly fade the SDF effect.",
+                                    "顔のSDFシャドウの影響が100%適用（有効化）されるローカルY法線のしきい値。MinとMaxの間の法線を持つ面では、SDFの効果が滑らかにフェードします。");
                             }
 
                         var recvMask = Prop("_ReceiveShadowMask");
