@@ -153,9 +153,11 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
         _GrainScale ("Grain UV Scale", Float) = 10.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
-        _OcclusionStrength ("Occlusion Strength", Range(0.0, 1.0)) = 1.0
+        _OcclusionStrength ("Occlusion Strength", Range(0.0, 2.0)) = 0.0
         [NoScaleOffset] _CavityMap ("Cavity Map (R)", 2D) = "white" {}
-        _CavityStrength ("Cavity Strength", Range(0.0, 1.0)) = 1.0
+        _CavityStrength ("Cavity Strength", Range(0.0, 2.0)) = 0.0
+        [NoScaleOffset] _CurvatureMap ("Curvature Map", 2D) = "gray" {}
+        _CurvatureStrength ("Curvature Strength", Range(0.0, 2.0)) = 0.0
         [Space(10)]
         [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)

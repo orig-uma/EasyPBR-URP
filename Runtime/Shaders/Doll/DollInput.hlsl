@@ -25,6 +25,7 @@ TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMask);
 TEXTURE2D(_OcclusionMap);
 TEXTURE2D(_CavityMap);
+TEXTURE2D(_CurvatureMap);
 TEXTURE2D(_FaceSDFMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
@@ -107,6 +108,7 @@ CBUFFER_START(UnityPerMaterial)
     half _GrainScale;
     half _OcclusionStrength;
     half _CavityStrength;
+    half _CurvatureStrength;
 
     half _SpecularModel;
     half _SpecularAA;

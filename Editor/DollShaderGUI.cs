@@ -663,6 +663,18 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_CavityStrength", "Strength",
                             "How strongly the cavity map darkens diffuse",
                             "キャビティマップで拡散光を沈める強さ");
+
+                        SubHeader("Curvature Map", "曲率マップ");
+                        var curvMap = Prop("_CurvatureMap");
+                        if (curvMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Curvature Map (R)",
+                                    "Signed curvature: 0.5=flat, bright=convex (ridge), dark=concave. Bake in Baking section",
+                                    "符号付き曲率: 0.5=平坦、明=凸(稜線)、暗=凹(くぼみ)。Bakingセクションで焼く"),
+                                curvMap);
+                        P(materialEditor, "_CurvatureStrength", "Strength",
+                            "0 = off. Baking auto-enables to 1. Ridge specular boost and concave darkening",
+                            "0=無効。ベイクで自動的に1に。稜線スペキュラ強調と凹部暗化の強さ");
                     }
             }
 

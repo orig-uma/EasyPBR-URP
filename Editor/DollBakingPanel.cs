@@ -16,11 +16,12 @@ namespace Origuma.EasyPBR.URP.Editor
     public class DollBakingPanel
     {
         private GameObject _bakeRoot;
-        private bool _aoOpen, _sdfOpen, _cavityOpen, _thicknessOpen;
+        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _thicknessOpen;
 
         private EasyPbrAoBaker.Settings        _aoSettings        = EasyPbrAoBaker.Default;
         private EasyPbrFaceSdfBaker.Settings   _sdfSettings       = EasyPbrFaceSdfBaker.Default;
         private EasyPbrCavityBaker.Settings    _cavitySettings    = EasyPbrCavityBaker.Default;
+        private EasyPbrCurvatureBaker.Settings _curvatureSettings = EasyPbrCurvatureBaker.Default;
         private EasyPbrThicknessBaker.Settings _thicknessSettings = EasyPbrThicknessBaker.Default;
 
         private static readonly int[] s_BakeResEn = { 512, 1024, 2048 };
@@ -95,6 +96,23 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _cavitySettings.blur       = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _cavitySettings.blur, 0, 4);
                                 if (BakeButton(jp ? "Cavity をベイク" : "Bake Cavity"))
                                     BakeAllTargets(materialEditor, m => EasyPbrCavityBaker.Bake(_bakeRoot, m, _cavitySettings));
+                            }
+
+                        // --- Curvature ---
+                        _curvatureOpen = EditorGUILayout.Foldout(_curvatureOpen, jp ? "Curvature（→ Curvature Map）" : "Curvature (→ Curvature Map)", true);
+                        if (_curvatureOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _curvatureSettings.resolution = ResField(_curvatureSettings.resolution);
+                                _curvatureSettings.intensity  = EditorGUILayout.Slider(kit.Label("Intensity", "Convex/concave contrast", "凹凸コントラストの強さ"), _curvatureSettings.intensity, 0.5f, 20.0f);
+                                _curvatureSettings.smooth     = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _curvatureSettings.smooth, 0, 8);
+                                _curvatureSettings.blur       = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _curvatureSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Curvature をベイク" : "Bake Curvature"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrCurvatureBaker.Bake(_bakeRoot, m, _curvatureSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "0.5=平坦 / 明=凸(稜線) / 暗=凹(くぼみ)。1枚で稜線・くぼみ両方のマスクが取れる。Cavity の上位互換だが併用も可。"
+                                       : "0.5=flat / bright=convex (ridge) / dark=concave (cavity). One map gives both masks. Supersedes Cavity but can coexist.",
+                                    MessageType.None);
                             }
 
                         // --- Thickness (SSS) ---

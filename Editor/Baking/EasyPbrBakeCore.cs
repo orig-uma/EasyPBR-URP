@@ -22,7 +22,8 @@ namespace Origuma.EasyPBR.URP.Editor
                                      Func<Renderer, Mesh, float[]> computeR,
                                      Func<Renderer, Mesh, float[]> computeG = null,
                                      Func<Renderer, Mesh, float[]> computeB = null,
-                                     Func<Renderer, Mesh, float[]> computeA = null)
+                                     Func<Renderer, Mesh, float[]> computeA = null,
+                                     float clearValue = 1.0f)
         {
             if (root == null || material == null)
             {
@@ -76,7 +77,9 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
 
                 var px = new Color32[res * res];
-                for (int i = 0; i < px.Length; i++) px[i] = new Color32(255, 255, 255, 255);
+                byte clearByte = (byte)(Mathf.Clamp01(clearValue) * 255f + 0.5f);
+                var clearPx = new Color32(clearByte, clearByte, clearByte, 255);
+                for (int i = 0; i < px.Length; i++) px[i] = clearPx;
                 var covered = new bool[res * res];
 
                 for (int i = 0; i < usable.Count; i++)

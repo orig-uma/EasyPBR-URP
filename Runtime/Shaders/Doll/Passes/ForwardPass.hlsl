@@ -62,7 +62,8 @@ half3 CalculateSingleLight(
     half sdfMask,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
-    bool glitterActive)
+    bool glitterActive,
+    half curvRidge)
 {
     float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
     float3 diffuseLightEnergy = ApplyLightEnergyLimit(rawDiffuseLight, _DiffuseLightLimit);
@@ -110,6 +111,7 @@ half3 CalculateSingleLight(
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
         specMask, castShadow, _SpecularF0, specAAVariance, specularMaskVal);
+    finalSpecular *= (1.0 + curvRidge);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
@@ -193,6 +195,17 @@ half4 frag(Varyings input) : SV_Target
     // --- Cavity Map: くぼみ（しわ・継ぎ目）を細かく沈める（R チャンネル・既定白で無影響）---
     half cavity = SAMPLE_TEXTURE2D(_CavityMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, cavity, _CavityStrength);
+
+    // --- Curvature Map: Strength 0 で無効（ベイク時に 1 へ自動有効化）---
+    half curvRidge = 0.0;
+    UNITY_BRANCH
+    if (_CurvatureStrength > 0.0)
+    {
+        half curv = SAMPLE_TEXTURE2D(_CurvatureMap, sampler_MainTex, input.uv).r;
+        half signedCurv = (curv * 2.0 - 1.0) * _CurvatureStrength;
+        curvRidge  = saturate( signedCurv);
+        albedo.rgb *= 1.0 - saturate(-signedCurv);
+    }
 
     // --- Geometric Specular AA: 法線分散を frag で1回だけ算出（導関数は均一制御フロー）---
     float specAAVariance = (_SpecularAA > 0.0)
@@ -290,7 +303,7 @@ half4 frag(Varyings input) : SV_Target
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, specAAVariance, sdfLit, 
         sdfMask,
-        anisoPrecomp, glitterGeom, glitterActive);
+        anisoPrecomp, glitterGeom, glitterActive, curvRidge);
         
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
@@ -320,7 +333,7 @@ half4 frag(Varyings input) : SV_Target
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
                     half3(0,0,0), specAAVariance, -1.0,                                   \
                     1.0, /* 追加ライトはSDF非対応なのでマスク値1.0を渡す */                      \
-                    anisoPrecomp, glitterGeom, glitterActive);                            \
+                    anisoPrecomp, glitterGeom, glitterActive, curvRidge);                            \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \
