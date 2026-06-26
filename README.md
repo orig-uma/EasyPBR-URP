@@ -57,6 +57,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.5
 | Outline | 背面法線拡張。Alpha Clip / Dissolve 同期。Outline 専用 Stencil。描画には `DollOutlineFeature` が必要（→ [OUTLINE](Documentation~/OUTLINE.md)） |
 | Black Out | 最終色の暗転 |
 | Optional | SSS / Rim Light / Peach Fuzz / Grain（既定 OFF、Intensity 0 で計算スキップ） |
+| Map Generator（Editor） | DCC 不要のマップベイク（AO / Cavity / Thickness / Face SDF 4ch）。詳細 → [ARCHITECTURE](Documentation~/ARCHITECTURE.md) |
 | Emission | Emission Map、HDR Color、Intensity |
 | Anti-Blowout | Diffuse / Specular の輝度上限、追加ライト合成（Add / Max） |
 | Stencil | ForwardLit / Outline それぞれ独立設定 |
@@ -70,7 +71,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.3.5
 
 - **セルフシャドウ**のモード選択と推奨設定 → [SHADOWS](Documentation~/SHADOWS.md)
 - **アウトライン**を使うには `DollOutlineFeature` を Renderer に追加 → [OUTLINE](Documentation~/OUTLINE.md)
-- **インスペクター構成・全パラメータ** → [USAGE](Documentation~/USAGE.md)
+- **インスペクター構成・全パラメータ・マップベイク** → [USAGE](Documentation~/USAGE.md)
 
 ## ドキュメント
 

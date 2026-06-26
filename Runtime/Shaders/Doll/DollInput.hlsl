@@ -24,6 +24,8 @@ TEXTURE2D(_DetailMap);
 TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMask);
 TEXTURE2D(_OcclusionMap);
+TEXTURE2D(_CavityMap);
+TEXTURE2D(_FaceSDFMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -84,6 +86,13 @@ CBUFFER_START(UnityPerMaterial)
     half _MaskFalloff;
     half _ShadingStyle;
     half4 _ShadowColor;
+    half _UseFaceSDF;
+    half _FaceSDFFlip;
+    half _FaceSDFSoftness;
+    half _FaceSDFShadowMix;
+    half _FaceSDFFrontBlend;
+    half _FaceSDFBlendNormalMin;
+    half _FaceSDFBlendNormalMax;
     half _ReceiverNormalBias;
     half _ReceiveShadowStrength;
     half _ShadowMapSoftness;
@@ -98,6 +107,7 @@ CBUFFER_START(UnityPerMaterial)
     half _GrainIntensity;
     half _GrainScale;
     half _OcclusionStrength;
+    half _CavityStrength;
 
     half _SpecularModel;
     half _SpecularAA;
