@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-06-26
+
+### Added
+- GUIに未実装だった`_FaceSDFBlendNormalMin` と `_FaceSDFShadowMax` を追加
+
+### Changed
+- `_FaceSDFShadowMix` のデフォルト値を調整
+
+### Removed
+- 使用していないプロパティの削除
+
 ## [0.3.6] - 2026-06-26
 
 ### Added
