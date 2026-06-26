@@ -25,7 +25,7 @@ namespace Origuma.EasyPBR.URP.Editor
         public static Settings Default => new Settings
         {
             resolution = 1024, angleSteps = 90, ndotlThreshold = 0.0f,
-            useCastShadow = true, castDistance = 0.15f, flipForward = false,
+            useCastShadow = false, castDistance = 0.15f, flipForward = false,
             smooth = 1, blur = 1, dilate = 4
         };
 

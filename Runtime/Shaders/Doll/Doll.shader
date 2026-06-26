@@ -65,6 +65,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _FaceSDFSoftness ("Face SDF Softness", Range(0.001, 0.5)) = 0.5
         _FaceSDFShadowMix ("Face SDF External Shadow Mix", Range(0.0, 1.0)) = 0.7
         _FaceSDFFrontBlend ("Face SDF Front Blend", Range(0.01, 0.5)) = 0.15
+        _FaceSDFBlendNormalMin("SDF Blend Normal Min (SDF無効化のしきい値)", Range(-1.5, 1.0)) = -1.0
+        _FaceSDFBlendNormalMax("SDF Blend Normal Max (SDF有効化のしきい値)", Range(-1.0, 1.5)) = 0.0
         _ReceiveShadowMask ("Receive Shadow Mask (R=Shadow)", 2D) = "white" {}
         [KeywordEnum(Off, Pcf (Tent), Pcf (Vogel), Pcss)] _ShadowMode ("Self Shadow Mode", Float) = 1
         

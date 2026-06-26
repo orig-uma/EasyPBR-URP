@@ -59,6 +59,7 @@ half3 CalculateSingleLight(
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
     float specAAVariance, float sdfLit,
+    half sdfMask,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
     bool glitterActive)
@@ -80,22 +81,28 @@ half3 CalculateSingleLight(
 
     // 顔 SDF が有効(sdfLit>=0)ならそれを陰の形として使う。無効(-1)は従来の Half-Lambert ランプ。
     float finalShade;
+    
+    // 本体の陰影マスク（_ShadingStyle で toon / halfLambert 切替）
+    float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
+    float normalShade = min(litMask, castShadow);
+
+    // 顔 SDF が有効(sdfLit>=0)なら、SDFマスクを使ってフェードブレンドする
     if (sdfLit >= 0.0)
     {
         float sdfShade = lerp(sdfLit, 1.0, proceduralMask);
         // SDF は自己影を内包するのでシャドウマップは顔に使わない＝アクネ無し・Vogel不要。
         // 髪などの外部落ち影だけ _FaceSDFShadowMix で任意に混ぜる（既定 0 = 完全 SDF）。
-        finalShade = min(sdfShade, lerp(1.0, castShadow, _FaceSDFShadowMix));
+        float sdfFinal = min(sdfShade, lerp(1.0, castShadow, _FaceSDFShadowMix));
+        
+        finalShade = lerp(normalShade, sdfFinal, sdfMask);
     }
     else
     {
-        float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
-        finalShade = min(litMask, castShadow);
+        finalShade = normalShade;
     }
 
     half3 diffuseColor = GetShadedAlbedo(baseColor, _ShadowColor.rgb, finalShade);
     half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
-
     float NdotL_Specular = dot(detailNormalWS, light.direction);
     float specularMaskVal;
     half3 finalSpecular = CalculateDualLobeSpecular(
@@ -231,12 +238,17 @@ half4 frag(Varyings input) : SV_Target
     #endif
 
     // --- 顔 SDF シャドウ（メインライト専用）---
-    // 水平に投影した光の「前向き度」を SDF マップの閾値と比較して、顔の落ち影を
-    // 左右へ滑らかに動かす。-1 = 無効（従来の Half-Lambert）。追加ライトには適用しない。
     float sdfLit = -1.0;
+    half sdfMask = 1.0;
+
     UNITY_BRANCH
     if (_UseFaceSDF > 0.5)
     {
+        float3 normalOS = TransformWorldToObjectDir(input.normalWS);
+        
+        // ローカル法線Yで下向き面のSDFをフェードアウト（しきい値は _FaceSDFBlendNormalMin/Max）
+        sdfMask = smoothstep(_FaceSDFBlendNormalMin, _FaceSDFBlendNormalMax, normalOS.y);
+
         float3 faceUp    = normalize(TransformObjectToWorldDir(float3(0, 1, 0)));
         float3 faceFwd   = normalize(objectForwardWS) * (_FaceSDFFlip > 0.5 ? -1.0 : 1.0);
         float3 faceRight = normalize(cross(faceUp, faceFwd));
@@ -265,9 +277,8 @@ half4 frag(Varyings input) : SV_Target
                      sdfRGBA.b * weightUp + 
                      sdfRGBA.a * weightDown) / weightSum;
 
-        // soft はユーザー指定を下限に、fwidth(sdf) で常に最低限のスクリーン空間 AA を確保。
-        float soft = max(_FaceSDFSoftness, fwidth(sdf));
-    
+        float baseSoft = max(_FaceSDFSoftness, fwidth(sdf));
+        float soft = max(baseSoft, _HalfLambertWrap * 0.5);
         // frontness(-1～1)を0～1にマッピングしてしきい値判定
         float f = frontness * 0.5 + 0.5;
         sdfLit = smoothstep(sdf - soft, sdf + soft, f);
@@ -277,8 +288,10 @@ half4 frag(Varyings input) : SV_Target
         mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
-        indirectLight, specAAVariance, sdfLit, anisoPrecomp, glitterGeom, glitterActive);
-
+        indirectLight, specAAVariance, sdfLit, 
+        sdfMask,
+        anisoPrecomp, glitterGeom, glitterActive);
+        
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
         #define DOLL_CLUSTER_LIGHT_LOOP USE_CLUSTER_LIGHT_LOOP
@@ -305,7 +318,9 @@ half4 frag(Varyings input) : SV_Target
                     addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
-                    half3(0,0,0), specAAVariance, -1.0, anisoPrecomp, glitterGeom, glitterActive); \
+                    half3(0,0,0), specAAVariance, -1.0,                                   \
+                    1.0, /* 追加ライトはSDF非対応なのでマスク値1.0を渡す */                      \
+                    anisoPrecomp, glitterGeom, glitterActive);                            \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \

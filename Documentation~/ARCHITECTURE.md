@@ -53,7 +53,14 @@ Runtime/
   Textures/                     BlueNoise / Ramp / Dissolve ノイズ
 Editor/
   DollShaderGUI.cs              カスタムインスペクター
+  DollBakingPanel.cs            マップベイク UI（Baking セクション）
   DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
+  Baking/
+    EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch）
+    EasyPbrAoBaker.cs           AO ベイク
+    EasyPbrCavityBaker.cs       Cavity ベイク
+    EasyPbrThicknessBaker.cs    Thickness (SSS) ベイク
+    EasyPbrFaceSdfBaker.cs      Face SDF ベイク（RGBA 4ch）
 ```
 
 ## ファイル構成
@@ -75,6 +82,66 @@ Editor/
 | `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
 | `Runtime/Textures/DissolveNoise.png` | Dissolve ノイズ |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
+| `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
+| `Editor/Baking/EasyPbrBakeCore.cs` | ベイク共通パイプライン `RunBake` |
+| `Editor/Baking/EasyPbrAoBaker.cs` | Ambient Occlusion → `_OcclusionMap` |
+| `Editor/Baking/EasyPbrCavityBaker.cs` | Cavity → `_CavityMap` |
+| `Editor/Baking/EasyPbrThicknessBaker.cs` | Thickness → `_SSSMask` |
+| `Editor/Baking/EasyPbrFaceSdfBaker.cs` | Face SDF → `_FaceSDFMap`（RGBA 4ch） |
+
+## ベイク（Editor / Map Generator）
+
+DCC 不要でメッシュからデータマップを生成する **Editor 専用**ツール。ランタイムアセンブリ・シェーダーバリアントには影響しない。UI は `DollBakingPanel`、計算本体は `Editor/Baking/` 配下の Baker 群。
+
+### クラス構成
+
+```mermaid
+flowchart LR
+    Panel[DollBakingPanel]
+    Core[EasyPbrBakeCore]
+    Ao[EasyPbrAoBaker]
+    Cav[EasyPbrCavityBaker]
+    Thick[EasyPbrThicknessBaker]
+    Sdf[EasyPbrFaceSdfBaker]
+    Panel --> Ao & Cav & Thick & Sdf
+    Ao & Cav & Thick & Sdf --> Core
+```
+
+各 Baker は `Settings` / `Default` / `Bake(root, material, settings)` の同一 API。マップ固有の頂点計算だけを Baker 内に閉じ、保存・ラスタライズ・後処理は `EasyPbrBakeCore.RunBake` に委譲する。
+
+### 共通パイプライン（RunBake）
+
+1. **Root 配下**で編集中マテリアルを使う `MeshRenderer` / `SkinnedMeshRenderer` を収集
+2. SkinnedMesh は現在ポーズを `BakeMesh` で一時メッシュ化（Read/Write 必須）
+3. レイ遮蔽が必要な Baker（AO / Face SDF / Thickness）は全パーツに一時 `MeshCollider` を立て、遮蔽源とする（レイヤ 31 で隔離）
+4. Renderer ごとに頂点スカラを計算 → 頂点平滑化 → **対象サブメッシュのみ** UV 空間へ CPU ラスタライズ（複数メッシュを 1 枚に累積）
+5. Dilate → Blur → PNG 保存（Linear・無圧縮）→ マテリアル隣 `Baked/` へ出力し該当スロットへ自動アサイン
+
+1 マテリアルを複数メッシュで共有していても 1 テクスチャに焼ける。Strength / Intensity 等が 0 のときはベイク成功時に 1 へ自動有効化する。
+
+`RunBake` は最大 **RGBA 4 チャンネル**のデリゲート（`computeR` / `computeG` / `computeB` / `computeA`）を受け取る。未指定チャンネルは白（1.0）のまま。
+
+### マップ別 Baker
+
+| Baker | 出力 suffix | マテリアルスロット | Collider | 概要 |
+| :--- | :--- | :--- | :---: | :--- |
+| `EasyPbrAoBaker` | AO | `_OcclusionMap` | 要 | 半球レイ遮蔽率 |
+| `EasyPbrCavityBaker` | Cavity | `_CavityMap` | 不要 | 隣接頂点の凹み（レイ不要） |
+| `EasyPbrThicknessBaker` | Thickness | `_SSSMask` | 要 | 内向きレイで厚み（薄い＝白） |
+| `EasyPbrFaceSdfBaker` | FaceSDF | `_FaceSDFMap` | 要 | 顔 SDF（下記 4ch） |
+
+### Face SDF（RGBA 4 チャンネル）
+
+ベイク（`EasyPbrFaceSdfBaker`）: 各頂点で **正面（`transform.forward`、Flip Forward で反転可）** から指定ローカル軸方向へ 180° スイープし、光が当たる→影に入る境界角度を 0..1 で記録。Cast Shadow ON 時は鼻・眉などの落ち影をレイで考慮。
+
+| チャンネル | スイープ軸（ローカル） | 意味 |
+| :--- | :--- | :--- |
+| **R** | +X（右） | 右側からの光 |
+| **G** | -X（左） | 左側からの光 |
+| **B** | +Y（上） | 上からの光 |
+| **A** | -Y（下） | 下からの光 |
+
+ランタイム（`ForwardPass.hlsl`）: メインライト方向を顔ローカル（Forward / Up / Right）へ投影し、右・左・上・下各方向の **ウェイト付き平均**で 4 チャンネルを合成した SDF 値を得る。`frontness`（正面成分）と比較して顔影を生成。UV ミラー不要で **左右非対称の顔**（傷・マーク等）にも対応。詳細は [SHADOWS](SHADOWS.md) の Face SDF 節。
 
 ## Pass / LightMode
 
