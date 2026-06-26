@@ -24,8 +24,6 @@
 ### Changed
 - `_SpecularAA` の既定値を **1.0（ON）** とした。スペキュラ AA は静止時の見た目をほぼ変えずモーション時のチラつきのみを抑えるため既定で有効化。既存マテリアルにも適用される（チラつき低減方向の変化）。OFF にするには 0 に設定。
 - `CalculateSingleLight` / `CalculateDualLobeSpecular`（`DualLobeSpecularGGX` / `DualLobeSpecularBlinn`）にスペキュラ AA 分散を渡す引数を追加。フラグメント側以外の呼び出しは無し。
-- **ベイカー実装**を `Editor/Baking/EasyPbrBaker.cs`（単一クラス）から **`EasyPbrBakeCore` + マップ別 4 Baker**（`EasyPbrAoBaker` / `EasyPbrCavityBaker` / `EasyPbrThicknessBaker` / `EasyPbrFaceSdfBaker`）へ分割。Inspector UI は `DollBakingPanel.cs` に集約（`DollShaderGUI` から委譲）。公開 API は各 Baker の `Settings` / `Default` / `Bake(root, material, settings)` に統一。
-- **顔 SDF**を水平 2 チャンネル（R=右光 / G=左光）から **RGBA 4 方向**（右 / 左 / 上 / 下）へ拡張。ベイク・ランタイム双方を更新。**既存の 2ch ベイク PNG は再ベイクを推奨**（B/A が白のままだと上下光の影が従来より弱く出る場合あり）。
 
 ## [0.3.5] - 2026-06-24
 
