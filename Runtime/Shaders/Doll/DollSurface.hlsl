@@ -9,7 +9,6 @@
 #if defined(DOLL_SURFACE_IMPL) && !defined(DOLL_SURFACE_IMPL_INCLUDED)
 #define DOLL_SURFACE_IMPL_INCLUDED
 
-// DollSurfaceData は DollLighting 経由で DollSurfaceTypes.hlsl が既に include 済み
 #include "../Common/URP/Reflection_URP.hlsl"
 
 DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 objectForwardWS, out half alpha)

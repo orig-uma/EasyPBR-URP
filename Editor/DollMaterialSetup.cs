@@ -24,7 +24,6 @@ namespace Origuma.EasyPBR.URP.Editor
         public static readonly string[] ShadowModeKeywords =
             { "_SHADOWMODE_OFF", "_SHADOWMODE_TENTPCF", "_SHADOWMODE_VOGELPCF", "_SHADOWMODE_PCSS" };
 
-        // 0.3.5 で uniform 動的分岐へ移行し廃止したキーワード。
         private static readonly string[] s_DeprecatedKeywords =
         {
             "_SURFACE_TRANSPARENT",

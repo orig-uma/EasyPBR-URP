@@ -29,12 +29,10 @@ namespace Origuma.EasyPBR.URP.Editor
             smooth = 1, blur = 1, dilate = 4
         };
 
-        // 顔SDFは2チャンネルで焼く: R=右光用 / G=左光用。ランタイムはミラー不要＝
+        // 顔SDFは4チャンネルで焼く: R=右 / G=左 / B=上 / A=下。ランタイムはミラー不要＝
         // 左右非対称の顔（傷跡・マーク等）にも対応。
         public static bool Bake(GameObject root, Material material, Settings s)
         {
-            // ※注意: EasyPbrBakeCore.RunBake 側が4つのデリゲートを受け取り、
-            // RGBA32などの4チャンネルテクスチャに書き出せるよう拡張されている必要があります。
             return EasyPbrBakeCore.RunBake(root, material, s.resolution, s.smooth, s.dilate, s.blur,
                 "FaceSDF", "_FaceSDFMap", "_UseFaceSDF", needsCollider: true,
                 (r, m) => SdfSweepAxis(r, m, s, Vector3.right), // R: 右
