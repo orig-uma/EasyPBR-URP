@@ -23,7 +23,9 @@ namespace Origuma.EasyPBR.URP.Editor
                                      Func<Renderer, Mesh, float[]> computeG = null,
                                      Func<Renderer, Mesh, float[]> computeB = null,
                                      Func<Renderer, Mesh, float[]> computeA = null,
-                                     float clearValue = 1.0f)
+                                     float clearValue = 1.0f,
+                                     float clearValueG = -1f,
+                                     float clearValueB = -1f)
         {
             if (root == null || material == null)
             {
@@ -77,8 +79,10 @@ namespace Origuma.EasyPBR.URP.Editor
                 }
 
                 var px = new Color32[res * res];
-                byte clearByte = (byte)(Mathf.Clamp01(clearValue) * 255f + 0.5f);
-                var clearPx = new Color32(clearByte, clearByte, clearByte, 255);
+                byte clearR = ToClearByte(clearValue);
+                byte clearG = ToClearByte(clearValueG < 0f ? clearValue : clearValueG);
+                byte clearB = ToClearByte(clearValueB < 0f ? clearValue : clearValueB);
+                var clearPx = new Color32(clearR, clearG, clearB, 255);
                 for (int i = 0; i < px.Length; i++) px[i] = clearPx;
                 var covered = new bool[res * res];
 
@@ -349,6 +353,9 @@ namespace Origuma.EasyPBR.URP.Editor
             tex.Apply(false, false);
             _coverage = null;
         }
+
+        private static byte ToClearByte(float v)
+            => (byte)(Mathf.Clamp01(v) * 255f + 0.5f);
 
         private static string Sanitize(string name)
         {

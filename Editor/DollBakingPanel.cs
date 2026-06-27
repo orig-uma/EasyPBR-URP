@@ -16,12 +16,13 @@ namespace Origuma.EasyPBR.URP.Editor
     public class DollBakingPanel
     {
         private GameObject _bakeRoot;
-        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _thicknessOpen;
+        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _bentOpen, _thicknessOpen;
 
         private EasyPbrAoBaker.Settings        _aoSettings        = EasyPbrAoBaker.Default;
         private EasyPbrFaceSdfBaker.Settings   _sdfSettings       = EasyPbrFaceSdfBaker.Default;
         private EasyPbrCavityBaker.Settings    _cavitySettings    = EasyPbrCavityBaker.Default;
         private EasyPbrCurvatureBaker.Settings _curvatureSettings = EasyPbrCurvatureBaker.Default;
+        private EasyPbrBentNormalBaker.Settings _bentSettings      = EasyPbrBentNormalBaker.Default;
         private EasyPbrThicknessBaker.Settings _thicknessSettings = EasyPbrThicknessBaker.Default;
 
         private static readonly int[] s_BakeResEn = { 512, 1024, 2048 };
@@ -83,6 +84,25 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _aoSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _aoSettings.blur, 0, 4);
                                 if (BakeButton(jp ? "AO をベイク" : "Bake AO"))
                                     BakeAllTargets(materialEditor, m => EasyPbrAoBaker.Bake(_bakeRoot, m, _aoSettings));
+                            }
+
+                        // --- Bent Normal ---
+                        _bentOpen = EditorGUILayout.Foldout(_bentOpen, jp ? "Bent Normal（→ Bent Normal Map）" : "Bent Normal (→ Bent Normal Map)", true);
+                        if (_bentOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _bentSettings.resolution  = ResField(_bentSettings.resolution);
+                                _bentSettings.rayCount    = EditorGUILayout.IntSlider(kit.Label("Samples", "Rays per vertex", "頂点あたりのレイ数"), _bentSettings.rayCount, 16, 256);
+                                _bentSettings.maxDistance = EditorGUILayout.Slider(kit.Label("Max Distance", "Occlusion reach (m)", "遮蔽の届く距離(m)"), _bentSettings.maxDistance, 0.02f, 3.0f);
+                                _bentSettings.strength    = EditorGUILayout.Slider(kit.Label("Strength", "0=geometric normal, 1=fully open", "0=幾何法線 / 1=開いた方向へ"), _bentSettings.strength, 0.0f, 1.0f);
+                                _bentSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _bentSettings.smooth, 0, 8);
+                                _bentSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _bentSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Bent Normal をベイク" : "Bake Bent Normal"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrBentNormalBaker.Bake(_bakeRoot, m, _bentSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "接線空間で焼く(スキン追従)。アンビエント/SH を幾何法線の代わりにこの方向で評価すると、くぼみの陰が方向まで正しくなる。AO(強度)と併用。タンジェント必須。"
+                                       : "Tangent space (follows skinning). Evaluate ambient/SH along this instead of the geometric normal. Pairs with AO. Requires tangents.",
+                                    MessageType.None);
                             }
 
                         // --- Cavity ---

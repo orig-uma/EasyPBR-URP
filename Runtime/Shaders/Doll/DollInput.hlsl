@@ -24,6 +24,8 @@ TEXTURE2D(_DetailMap);
 TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMask);
 TEXTURE2D(_OcclusionMap);
+TEXTURE2D(_BentNormalMap);
+SAMPLER(sampler_BentNormalMap);
 TEXTURE2D(_CavityMap);
 TEXTURE2D(_CurvatureMap);
 TEXTURE2D(_FaceSDFMap);
@@ -107,6 +109,7 @@ CBUFFER_START(UnityPerMaterial)
     half _GrainIntensity;
     half _GrainScale;
     half _OcclusionStrength;
+    half _BentNormalStrength;
     half _CavityStrength;
     half _CurvatureStrength;
 

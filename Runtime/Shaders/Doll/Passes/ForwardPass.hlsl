@@ -192,6 +192,20 @@ half4 frag(Varyings input) : SV_Target
     half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, occlusion, _OcclusionStrength);
 
+    // --- Bent Normal Map: SH/アンビエントの評価方向（Strength 0 で無効・ベイク時に 1 へ）---
+    half3 bentNormalWS = detailNormalWS;
+    half bentOpenness = 1.0;
+    UNITY_BRANCH
+    if (_BentNormalStrength > 0.0)
+    {
+        half4 bentSample = SAMPLE_TEXTURE2D(_BentNormalMap, sampler_BentNormalMap, input.uv);
+        half3 bentTS = bentSample.xyz * 2.0 - 1.0;
+        bentTS = normalize(bentTS);
+        half3 bentWS = normalize(bentTS.x * input.tangentWS + bentTS.y * input.bitangentWS + bentTS.z * detailNormalWS);
+        bentNormalWS = normalize(lerp(detailNormalWS, bentWS, _BentNormalStrength));
+        bentOpenness = bentSample.a; // 未ベイク(A=1)なら方向版SOは解析版へ縮退
+    }
+
     // --- Cavity Map: くぼみ（しわ・継ぎ目）を細かく沈める（R チャンネル・既定白で無影響）---
     half cavity = SAMPLE_TEXTURE2D(_CavityMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, cavity, _CavityStrength);
@@ -234,7 +248,7 @@ half4 frag(Varyings input) : SV_Target
         glitterGeom);
 
     // メインライト計算
-    half3 indirectLight = SampleSH(cleanNormalWS);
+    half3 indirectLight = SampleSH(bentNormalWS);
 
     #if defined(_SHADOWMODE_TENTPCF) || defined(_SHADOWMODE_VOGELPCF) || defined(_SHADOWMODE_PCSS)
         Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
@@ -364,9 +378,17 @@ half4 frag(Varyings input) : SV_Target
     if (_ReflectionStrength > 0.0)
     {
         half perceptualRoughness = 1.0 - _Smoothness;
+        float specOcclusion = SpecularOcclusion(NdotV, occlusion, perceptualRoughness);
+        UNITY_BRANCH
+        if (_BentNormalStrength > 0.0)
+        {
+            float3 R = normalize(reflect(-viewDirectionWS, detailNormalWS));
+            float align = dot(R, bentNormalWS) * 0.5 + 0.5;
+            specOcclusion *= lerp(bentOpenness, 1.0, align);
+        }
         finalColor += EasyPBR_EnvironmentReflection(
             detailNormalWS, viewDirectionWS, perceptualRoughness, _SpecularF0,
-            _ReflectionStrength, occlusion * specMask);
+            _ReflectionStrength, specOcclusion * specMask);
     }
 
     // 追加エフェクト適用

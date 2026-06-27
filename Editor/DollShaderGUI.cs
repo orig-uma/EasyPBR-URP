@@ -652,6 +652,18 @@ namespace Origuma.EasyPBR.URP.Editor
                             "How strongly the occlusion map darkens diffuse",
                             "AOマップで拡散光を沈める強さ");
 
+                        SubHeader("Bent Normal Map", "ベント法線マップ");
+                        var bentMap = Prop("_BentNormalMap");
+                        if (bentMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Bent Normal Map (RGB)",
+                                    "Tangent-space open direction for ambient/SH. Bake in Baking section. Pairs with AO (direction vs strength). bump (default) = off",
+                                    "接線空間の開いた方向。SH/アンビエントの評価方向に使う。Bakingセクションで焼く。AO(強度)と併用。bump（既定）=無効"),
+                                bentMap);
+                        P(materialEditor, "_BentNormalStrength", "Strength",
+                            "0 = off. Baking auto-enables to 1. Blends bent normal toward geometric normal",
+                            "0=無効。ベイクで自動的に1に。幾何法線とのブレンド");
+
                         SubHeader("Cavity (Crease Map)", "キャビティ（くぼみマップ）");
                         var cavMap = Prop("_CavityMap");
                         if (cavMap != null)

@@ -154,6 +154,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GrainScale ("Grain UV Scale", Float) = 10.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
         _OcclusionStrength ("Occlusion Strength", Range(0.0, 2.0)) = 0.0
+        [NoScaleOffset] _BentNormalMap ("Bent Normal", 2D) = "bump" {}
+        _BentNormalStrength ("Bent Normal Strength", Range(0.0, 1.0)) = 0.0
         [NoScaleOffset] _CavityMap ("Cavity Map (R)", 2D) = "white" {}
         _CavityStrength ("Cavity Strength", Range(0.0, 2.0)) = 0.0
         [NoScaleOffset] _CurvatureMap ("Curvature Map", 2D) = "gray" {}
