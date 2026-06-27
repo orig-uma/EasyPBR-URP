@@ -184,8 +184,8 @@ namespace Origuma.EasyPBR.URP.Editor
                                 if (BakeButton(jp ? "顔 SDF をベイク" : "Bake Face SDF"))
                                     BakeAllTargets(materialEditor, m => EasyPbrFaceSdfBaker.Bake(_bakeRoot, m, _sdfSettings));
                                 EditorGUILayout.HelpBox(
-                                    jp ? "顔マテリアルで焼き、Light and Shadow の Face SDF Shadow を有効化して使う。R=右光/G=左光の2chで焼くので左右非対称の顔もOK。"
-                                       : "Bake on the face material, then enable Face SDF Shadow under Light and Shadow. Bakes 2 channels (R=right, G=left) so asymmetric faces work.",
+                                    jp ? "顔マテリアルで焼き、Light and Shadow の Face SDF Shadow を有効化して使う。R/G/B/A=右/左/上/下の4chで焼くので左右非対称の顔もOK。"
+                                       : "Bake on the face material, then enable Face SDF Shadow under Light and Shadow. Bakes 4 channels (R/G/B/A = right/left/up/down) so asymmetric faces work.",
                                     MessageType.None);
                             }
                     }

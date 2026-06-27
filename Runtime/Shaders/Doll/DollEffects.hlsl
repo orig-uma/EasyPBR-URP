@@ -7,7 +7,6 @@
 //
 //  前提: マテリアルプロパティ宣言 (_DissolveTex, sampler_MainTex, _Dissolve* 等)
 //        が本ファイルより前に見えていること。
-//  ※ Common フォルダの配置に合わせて include パスを調整すること。
 // =============================================================================
 #ifndef EASYPBR_EFFECTS_INCLUDED
 #define EASYPBR_EFFECTS_INCLUDED

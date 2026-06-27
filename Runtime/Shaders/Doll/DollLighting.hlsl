@@ -184,8 +184,4 @@ half3 CalculateSingleLight(
     return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso + finalGlitter;
 }
 
-// CalculateSSS / CalculateRimLight / CalculatePeachFuzz / GetFresnelTerms /
-// GetGrainNormal / AnisoPrecomp 系 / Glitter 系 は Common 側で同名提供される
-// （include 済みのためここで再定義不要）。
-
 #endif // DOLL_LIGHTING_INCLUDED

@@ -7,7 +7,6 @@
 //    - _ReceiverNormalBias マテリアルプロパティ → 引数
 //
 //  前提: URP Core.hlsl を本ファイルより前に include しておくこと。
-//  ※ Common フォルダの配置に合わせて include パスを調整すること。
 // =============================================================================
 #ifndef DOLL_SHADOWS_INCLUDED
 #define DOLL_SHADOWS_INCLUDED

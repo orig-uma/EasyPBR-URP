@@ -12,13 +12,15 @@
   「正しいが描きたくない」落ち影・陰を、マスクテクスチャ無しのプロシージャルマスクで正面/上向きの面に限って明るく戻す（逆光時は陰を維持）。アクネを消す Receiver Normal Bias とは目的が逆（誤った影 vs 正しい影）の別軸。Quality: Off 時の主要な調整手段となる。
 * **スペキュラとマテリアルモデル**
   Dual-Lobe を基本とし、Specular Model で軽量な Blinn-Phong と物理ベースの GGX（Schlick Fresnel・Smith 可視性込みの Cook-Torrance）をパス内で切り替える。
+* **ベイク済みコントロールマップ**
+  DCC 不要の Editor ベイクで、陰影・反射・質感を補強するマップを焼く（AO / Cavity / 曲率 / ベント法線 / SSS / ヘアフロー / 顔 SDF）。いずれもランタイムは uniform 動的分岐で、未ベイク時はスキップ＝バリアント非増。
 * **ブルーノイズの共通化**
   1 枚のテクスチャを、影エッジのディザリング（Self Shadow Mode: Off）とグレイン（法線の微細揺らぎ）で共通サンプルし、テクスチャフェッチを節約する。
 * **SRP Batcher を意識した設計（基本思想）**
   3D ライブのように同種マテリアルを大量に同時描画する用途を前提に、**動的分岐にすると不利な処理だけをバリアントに残し、それ以外はバリアント化を避けてバッチ分断を最小化する**ことを設計方針としている。具体的には (1) 全マテリアルプロパティを単一 CBUFFER にまとめて SRP Batcher 互換を保つ、(2) マテリアル間で値が割れやすく動的化のデメリットが小さいスイッチ（Shading Style / Specular Model / Alpha Blend / MatCap / Emission / Color Correction）は keyword をやめて uniform 動的分岐にする、(3) **動的分岐にすると損するスイッチだけ** keyword として残す（Self Shadow Mode＝全経路コンパイルで occupancy 低下、Alpha Clip / Dissolve＝早期Z喪失や常時サンプル化）。Inspector では **⚡ マーク**で「バリアントを生む＝混在でバッチが切れる」ことを可視化する、(4) アウトラインは独自 LightMode（`DollOutline`）＋ RendererFeature に逃がし、ForwardLit と交互描画させない。詳細は [SRP_BATCHER](SRP_BATCHER.md) / [VARIANTS](VARIANTS.md)。
 
 ## ライブラリの分離方針
-a
+
 切り分けの軸は **機能ではなく依存の方向**である。汎用ライブラリ（計算本体）を `Common/` に純粋関数として切り出し、`Doll` 固有の方針はポリシー層に集約することで、他シェーダーへの流用を容易にする。
 
 ### ディレクトリ構成
@@ -30,11 +32,13 @@ Runtime/
     Doll/                       Doll シェーダー（流用しない固有実装）
       Doll.shader               Properties、Pass 定義
       DollInput.hlsl            共通変数・テクスチャ（CBUFFER）
-      DollEffects.hlsl          Dissolve / MatCap / Emission のポリシー層
-      DollLighting.hlsl         ライティング統合のポリシー層
+      DollSurfaceTypes.hlsl     DollSurfaceData 構造体のみ（型定義）
+      DollSurface.hlsl          サーフェス収集・後処理関数（実装。Varyings 定義後に include）
+      DollEffects.hlsl          Dissolve / MatCap / Emission / SpecularOcclusion のポリシー層
+      DollLighting.hlsl         ライティング統合のポリシー層（CalculateSingleLight を集約）
       DollShadows.hlsl          メインライト高品質セルフシャドウのラッパー
       Passes/
-        ForwardPass.hlsl        ForwardLit パス
+        ForwardPass.hlsl        ForwardLit パス（薄い骨組み）
         ShadowPass.hlsl         ShadowCaster パス
         DepthOnlyPass.hlsl      DepthOnly パス
         DepthNormalsPass.hlsl   DepthNormals パス
@@ -56,10 +60,13 @@ Editor/
   DollBakingPanel.cs            マップベイク UI（Baking セクション）
   DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
   Baking/
-    EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch）
+    EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch・チャンネル別 clearValue）
     EasyPbrAoBaker.cs           AO ベイク
     EasyPbrCavityBaker.cs       Cavity ベイク
-    EasyPbrThicknessBaker.cs    Thickness (SSS) ベイク
+    EasyPbrCurvatureBaker.cs    Curvature ベイク（符号付き曲率）
+    EasyPbrBentNormalBaker.cs   Bent Normal ベイク（RGBA: 方向＋開き具合）
+    EasyPbrSssBaker.cs          SSS ベイク（RGBA: 透過方向＋厚み）
+    EasyPbrHairFlowBaker.cs     Hair Flow ベイク（倍角エンコード＋信頼度）
     EasyPbrFaceSdfBaker.cs      Face SDF ベイク（RGBA 4ch）
 ```
 
@@ -69,25 +76,47 @@ Editor/
 | :--- | :--- |
 | `Runtime/Shaders/Doll/Doll.shader` | Properties、Pass 定義 |
 | `Runtime/Shaders/Doll/DollInput.hlsl` | 共通変数・テクスチャ（CBUFFER） |
-| `Runtime/Shaders/Doll/DollEffects.hlsl` | Dissolve / MatCap / Emission のポリシー層（薄いラッパー）。計算本体は `Common/` へ委譲 |
-| `Runtime/Shaders/Doll/DollLighting.hlsl` | ライティング統合のポリシー層（顔影、Toon / Specular / Shadow のキーワード解決、互換ラッパー）。計算本体は `Common/` へ委譲 |
+| `Runtime/Shaders/Doll/DollSurfaceTypes.hlsl` | `DollSurfaceData` 構造体のみ。URP `Lighting.hlsl` の `SurfaceData` と衝突しないよう独自名。`DollLighting` はこの型定義のみを include |
+| `Runtime/Shaders/Doll/DollSurface.hlsl` | サーフェス収集・後処理関数の実装（`DOLL_SURFACE_IMPL` ガード）。`Varyings` 定義後に include する |
+| `Runtime/Shaders/Doll/DollEffects.hlsl` | Dissolve / MatCap / Emission / `SpecularOcclusion`（Lagarde/Frostbite）のポリシー層。計算本体は `Common/` へ委譲 |
+| `Runtime/Shaders/Doll/DollLighting.hlsl` | ライティング統合のポリシー層。`CalculateSingleLight`（1 灯ぶんの陰影・スペキュラ・SSS・リム・ファズ・異方性・グリッター・コート直接光）を集約。計算本体は `Common/` へ委譲 |
 | `Runtime/Shaders/Doll/DollShadows.hlsl` | メインライト高品質セルフシャドウのラッパー（PCF / PCSS）。実装は `Common/URP/Shadow_HQ_URP.hlsl` |
-| `Runtime/Shaders/Doll/Passes/ForwardPass.hlsl` | ForwardLit パス |
+| `Runtime/Shaders/Doll/Passes/ForwardPass.hlsl` | ForwardLit パス（骨組み。下記参照） |
 | `Runtime/Shaders/Doll/Passes/ShadowPass.hlsl` | ShadowCaster パス |
 | `Runtime/Shaders/Doll/Passes/DepthOnlyPass.hlsl` | DepthOnly パス |
 | `Runtime/Shaders/Doll/Passes/DepthNormalsPass.hlsl` | DepthNormals パス |
 | `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス（LightMode = `DollOutline`） |
 | `Runtime/DollOutlineFeature.cs` | `DollOutline` パスを後段でまとめて描く RendererFeature（ForwardLit のバッチング維持） |
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
-| `Runtime/Textures/BlueNoise_RGB_256.png` | Grain / Shadow Dither 用 |
-| `Runtime/Textures/DissolveNoise.png` | Dissolve ノイズ |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 | `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
 | `Editor/Baking/EasyPbrBakeCore.cs` | ベイク共通パイプライン `RunBake` |
 | `Editor/Baking/EasyPbrAoBaker.cs` | Ambient Occlusion → `_OcclusionMap` |
 | `Editor/Baking/EasyPbrCavityBaker.cs` | Cavity → `_CavityMap` |
-| `Editor/Baking/EasyPbrThicknessBaker.cs` | Thickness → `_SSSMask` |
+| `Editor/Baking/EasyPbrCurvatureBaker.cs` | Curvature → `_CurvatureMap` |
+| `Editor/Baking/EasyPbrBentNormalBaker.cs` | Bent Normal → `_BentNormalMap`（RGBA） |
+| `Editor/Baking/EasyPbrSssBaker.cs` | SSS → `_SSSMap`（RGBA） |
+| `Editor/Baking/EasyPbrHairFlowBaker.cs` | Hair Flow → `_HairFlowMap` |
 | `Editor/Baking/EasyPbrFaceSdfBaker.cs` | Face SDF → `_FaceSDFMap`（RGBA 4ch） |
+
+## ForwardLit パスの構成（サーフェス層）
+
+`ForwardPass.hlsl` の frag は責務分割され、薄い骨組みになっている（処理本体は `DollSurface.hlsl` / `DollLighting.hlsl`）。挙動は分割前と不変。
+
+```text
+GatherSurface()           ← テクスチャサンプル・デコード一式（ビュー/ライト非依存）
+  → メインライト取得・シャドウ
+  → ComputeFaceSDF()      ← 顔 SDF シャドウ
+  → CalculateSingleLight()＋クリアコート直接光（メインライト）
+  → 追加ライトループ（CalculateSingleLight）
+  → ApplyEnvironmentAndCoat()  ← 環境反射＋クリアコート反射（cube フェッチ 1 回共有）
+  → ApplyPostEffects()         ← MatCap / Emission / Dissolve / BlackOut
+```
+
+* **`DollSurfaceData`**（`DollSurfaceTypes.hlsl`）: アルベド・各種法線（clean / detail / bent / coat）・各マスク（receiveShadow / spec / occlusion / cavity / curvRidge / clearcoat）・SSS（透過方向 / 厚み）・bent openness・ビュー依存の前計算（NdotV / fresnel / AnisoPrecomp / GlitterGeom）・`indirectLight`（`SampleSH(bentNormalWS)`）等をまとめた構造体。型名を `DollSurfaceData` としているのは URP `Lighting.hlsl` の `SurfaceData` との衝突回避のため。
+* **`CalculateSingleLight`**（`DollLighting.hlsl`）: 引数を `DollSurfaceData` で受ける形に集約（旧来の 20 引数超を解消）。追加ライトは `indirectLight=0, sdfLit=-1, sdfMask=1` を渡す。
+* **環境反射の 1 フェッチ共有**: `ApplyEnvironmentAndCoat` は `EasyPBR_SampleEnvironment` を **1 回**だけ呼び、下地反射（`_SpecularF0` のフレネル＋スペキュラ遮蔽）とクリアコート反射（F0=0.04 のフレネル＋イリデッセンス＋マスク）で重みだけ別々に適用する。下地反射の挙動は分割前と同一。コート反射は同一の反射ベクトル・mip を共有する（コート専用に別 mip を引かない軽量化）。
+* **include 設計**: `DollLighting` は `DollSurfaceTypes.hlsl`（型のみ）を include。`DollSurface.hlsl`（実装）は `Varyings` 定義後に `#define DOLL_SURFACE_IMPL` してから include する。Unity は include パス文字列でファイルを識別するため、`DollSurfaceTypes` は 1 箇所からのみ include して二重定義を避ける。
 
 ## ベイク（Editor / Map Generator）
 
@@ -101,25 +130,28 @@ flowchart LR
     Core[EasyPbrBakeCore]
     Ao[EasyPbrAoBaker]
     Cav[EasyPbrCavityBaker]
-    Thick[EasyPbrThicknessBaker]
+    Curv[EasyPbrCurvatureBaker]
+    Bent[EasyPbrBentNormalBaker]
+    Sss[EasyPbrSssBaker]
+    Hair[EasyPbrHairFlowBaker]
     Sdf[EasyPbrFaceSdfBaker]
-    Panel --> Ao & Cav & Thick & Sdf
-    Ao & Cav & Thick & Sdf --> Core
+    Panel --> Ao & Cav & Curv & Bent & Sss & Hair & Sdf
+    Ao & Cav & Curv & Bent & Sss & Hair & Sdf --> Core
 ```
 
-各 Baker は `Settings` / `Default` / `Bake(root, material, settings)` の同一 API。マップ固有の頂点計算だけを Baker 内に閉じ、保存・ラスタライズ・後処理は `EasyPbrBakeCore.RunBake` に委譲する。
+各 Baker は `Settings` / `Default` / `Bake(...)` の同一 API。マップ固有の頂点計算だけを Baker 内に閉じ、保存・ラスタライズ・後処理は `EasyPbrBakeCore.RunBake` に委譲する。
 
 ### 共通パイプライン（RunBake）
 
 1. **Root 配下**で編集中マテリアルを使う `MeshRenderer` / `SkinnedMeshRenderer` を収集
 2. SkinnedMesh は現在ポーズを `BakeMesh` で一時メッシュ化（Read/Write 必須）
-3. レイ遮蔽が必要な Baker（AO / Face SDF / Thickness）は全パーツに一時 `MeshCollider` を立て、遮蔽源とする（レイヤ 31 で隔離）
-4. Renderer ごとに頂点スカラを計算 → 頂点平滑化 → **対象サブメッシュのみ** UV 空間へ CPU ラスタライズ（複数メッシュを 1 枚に累積）
+3. レイ遮蔽が必要な Baker（AO / Bent Normal / SSS / Face SDF）は全パーツに一時 `MeshCollider` を立て、遮蔽源とする（レイヤ 31 で隔離）
+4. Renderer ごとに頂点値を計算 → 頂点平滑化 → **対象サブメッシュのみ** UV 空間へ CPU ラスタライズ（複数メッシュを 1 枚に累積）
 5. Dilate → Blur → PNG 保存（Linear・無圧縮）→ マテリアル隣 `Baked/` へ出力し該当スロットへ自動アサイン
 
 1 マテリアルを複数メッシュで共有していても 1 テクスチャに焼ける。Strength / Intensity 等が 0 のときはベイク成功時に 1 へ自動有効化する。
 
-`RunBake` は最大 **RGBA 4 チャンネル**のデリゲート（`computeR` / `computeG` / `computeB` / `computeA`）を受け取る。未指定チャンネルは白（1.0）のまま。
+`RunBake` は最大 **RGBA 4 チャンネル**のデリゲート（`computeR` / `computeG` / `computeB` / `computeA`）を受け取る。未指定チャンネルの背景は既定で白（1.0）だが、**チャンネル別クリア値**（`clearValueG` / `clearValueB` / `clearValueA`）を指定でき、接線空間マップ等で背景を neutral（例: RGB=(0.5,0.5,1)=幾何法線、A=0）にできる。
 
 ### マップ別 Baker
 
@@ -127,8 +159,15 @@ flowchart LR
 | :--- | :--- | :--- | :---: | :--- |
 | `EasyPbrAoBaker` | AO | `_OcclusionMap` | 要 | 半球レイ遮蔽率 |
 | `EasyPbrCavityBaker` | Cavity | `_CavityMap` | 不要 | 隣接頂点の凹み（レイ不要） |
-| `EasyPbrThicknessBaker` | Thickness | `_SSSMask` | 要 | 内向きレイで厚み（薄い＝白） |
-| `EasyPbrFaceSdfBaker` | FaceSDF | `_FaceSDFMap` | 要 | 顔 SDF（下記 4ch） |
+| `EasyPbrCurvatureBaker` | Curvature | `_CurvatureMap` | 不要 | 符号付き曲率（0.5=平坦/明=凸/暗=凹、レイ不要） |
+| `EasyPbrBentNormalBaker` | BentNormal | `_BentNormalMap` | 要 | RGB=接線空間ベント法線 / A=開き具合 |
+| `EasyPbrSssBaker` | SSS | `_SSSMap` | 要 | RGB=接線空間透過方向 / A=厚み |
+| `EasyPbrHairFlowBaker` | HairFlow | `_HairFlowMap` | 不要 | RG=毛流れ軸（倍角）/ B=信頼度 |
+| `EasyPbrFaceSdfBaker` | FaceSDF | `_FaceSDFMap` | 要 | 顔 SDF（4ch・下記） |
+
+### 方向系マップの符号化（共通方針）
+
+ベント法線・SSS 透過方向は**接線空間**で焼く。ランタイムの TBN で再解釈されるためスキン変形に追従し、UV 接線が目的方向とずれていても「そのフレーム内での補正」を復元できる。ヘアフローは向きの無い軸（180°対称）なので、補間・ブラー・ミラーで打ち消し合わないよう**倍角（cos2θ, sin2θ）**で焼き、信頼度の低い箇所はランタイムで UV 接線へフォールバックする。
 
 ### Face SDF（RGBA 4 チャンネル）
 
@@ -141,7 +180,7 @@ flowchart LR
 | **B** | +Y（上） | 上からの光 |
 | **A** | -Y（下） | 下からの光 |
 
-ランタイム（`ForwardPass.hlsl`）: メインライト方向を顔ローカル（Forward / Up / Right）へ投影し、右・左・上・下各方向の **ウェイト付き平均**で 4 チャンネルを合成した SDF 値を得る。`frontness`（正面成分）と比較して顔影を生成。UV ミラー不要で **左右非対称の顔**（傷・マーク等）にも対応。詳細は [SHADOWS](SHADOWS.md) の Face SDF 節。
+ランタイム（`ForwardPass.hlsl` → `ComputeFaceSDF`）: メインライト方向を顔ローカル（Forward / Up / Right）へ投影し、右・左・上・下各方向の **ウェイト付き平均**で 4 チャンネルを合成した SDF 値を得る。`frontness`（正面成分）と比較して顔影を生成。UV ミラー不要で **左右非対称の顔**（傷・マーク等）にも対応。詳細は [SHADOWS](SHADOWS.md) の Face SDF 節。
 
 ## Pass / LightMode
 
@@ -158,21 +197,18 @@ flowchart LR
 ## 汎用ライブラリ構成（Common）
 
 `Runtime/Shaders/Common/` に、計算本体を純粋関数として切り出している。
-`Doll` 固有の方針はポリシー層（`DollEffects` / `DollLighting` / `DollShadows`）に集約する。
+`Doll` 固有の方針はポリシー層（`DollEffects` / `DollLighting` / `DollShadows` / `DollSurface`）に集約する。
 
 * **層の分離**
 
   | 層 | 役割 | 含むもの |
   | :--- | :--- | :--- |
   | Common（純粋） | 外部依存なし。入力 → 出力のみ | 数学・色・BRDF・エフェクトの計算本体 |
-  | URP（結合） | URP のシャドウグローバルに依存 | 高品質セルフシャドウサンプラ |
-  | ポリシー（薄い） | キーワード / プロパティ / キャラ方針 | 顔マスク、キーワード分岐、互換ラッパー |
+  | URP（結合） | URP のシャドウ／プローブグローバルに依存 | 高品質セルフシャドウサンプラ、環境反射サンプラ |
+  | ポリシー（薄い） | キーワード / プロパティ / キャラ方針 | サーフェス収集、顔マスク、キーワード分岐、互換ラッパー |
 
-* **汎用化方針**
-  キーワード（`_SHADOWMODE_*` 等）は `bool` 引数化、マテリアルプロパティ（`_ReceiverNormalBias` / `_Dissolve*` 等）と Dissolve のテクスチャサンプリングは呼び出し側へ外出しする。`Doll_` 接頭辞は除去する。
-  なお Shading Style / Specular Model は keyword を持たず、`_ShadingStyle` / `_SpecularModel`（uniform）の `UNITY_BRANCH` 動的分岐で解決する（混在マテリアルの SRP Batcher バッチング維持のため。0.3.5）。
 * **互換性**
-  公開関数名（`GetCastShadow` / `GetLitMask` / `CalculateDualLobeSpecular` / `SampleMainShadowHQ` / `ApplyDissolveClip` 等）と挙動は維持する。各パスのフラグメント側は無改修で動作する。
+  公開関数名（`GetCastShadow` / `GetLitMask` / `CalculateDualLobeSpecular` / `SampleMainShadowHQ` / `ApplyDissolveClip` / `CalculateSSS` 等）と挙動は維持する。
 
 ### Common のファイル
 
@@ -182,27 +218,31 @@ flowchart LR
 | `Common/Common_Math.hlsl` | `Hash21`、`IGN`、`EasyPBR_Remap`、`Luminance601`、`ApplyLuminanceClamp` |
 | `Common/Common_Color.hlsl` | `RgbToHsv`、`HsvToRgb`、`HueToRGB`、`ApplyColorCorrection` |
 | `Common/Common_Sampling.hlsl` | `VogelDisk` |
-| `Common/BRDF/BRDF_GGX.hlsl` | `D_GGX`、`V_SmithGGX`、`F_Schlick`、`GGXLobe`、`BlinnPhongLobe`、`ComputeSpecularAAVariance` / `ApplySpecularAA`（Geometric Specular AA） |
+| `Common/BRDF/BRDF_GGX.hlsl` | `D_GGX`、`V_SmithGGX`、`F_Schlick`、`GGXLobe`、`BlinnPhongLobe`、`ComputeSpecularAAVariance` / `ApplySpecularAA` |
 | `Common/BRDF/BRDF_Specular.hlsl` | `DualLobeSpecularGGX` / `DualLobeSpecularBlinn` |
 | `Common/BRDF/BRDF_Diffuse.hlsl` | `HalfLambert`、`ToonRamp`、`ShadeRamp`、`ShadedAlbedo`、`ResolveCastShadow` |
 | `Common/BRDF/BRDF_RimFuzz.hlsl` | `GetFresnelTerms`、`CalculateRimLight`、`CalculatePeachFuzz` |
-| `Common/BRDF/BRDF_Translucency.hlsl` | `CalculateSSS` |
-| `Common/BRDF/BRDF_Anisotropic.hlsl` | `AnisoPrecomp`、`PrecomputeAnisoTangent`、`CalculateAnisotropicSpecular` |
+| `Common/BRDF/BRDF_Translucency.hlsl` | `CalculateSSS`（透過方向 `sssTransWS` で歪み軸を駆動） |
+| `Common/BRDF/BRDF_Anisotropic.hlsl` | `AnisoPrecomp`、`PrecomputeAnisoTangent`（ヘアフロー倍角を統合）、`CalculateAnisotropicSpecular` |
+| `Common/BRDF/BRDF_Clearcoat.hlsl` | `IridescenceTint`、`ClearcoatIridescence`、`CalculateClearcoat`（加算専用のコート＋薄膜虹色） |
 | `Common/BRDF/BRDF_Glitter.hlsl` | `GlitterGeom`、`PrepareGlitter`、`ApplyGlitterLight` |
 | `Common/BRDF/BRDF_Detail.hlsl` | `GetGrainNormal` |
 | `Common/Effects/Fx_MatCap.hlsl` | `GetMatCapUV`、`GetMatCapUVLightAligned`（ライト連動）、`ApplyMatCap` |
 | `Common/Effects/Fx_Emission.hlsl` | `CalculateEmission` |
 | `Common/Effects/Fx_Dissolve.hlsl` | `ResolveDissolve`（`DissolveInput` 構造体・サンプリングは外部） |
 | `Common/URP/Shadow_HQ_URP.hlsl` | `EasyPBR_SampleMainShadowHQ`、`EasyPBR_FindBlocker` |
-| `Common/URP/Reflection_URP.hlsl` | `EasyPBR_SampleEnvironment`、`EasyPBR_EnvironmentReflection`（Reflection Probe 反射） |
+| `Common/URP/Reflection_URP.hlsl` | `EasyPBR_SampleEnvironment`（生フェッチ）、`EasyPBR_EnvironmentReflection`（フレネル適用）。1 フェッチを下地・コートで共有する基盤 |
 
 ### include 順
 
 ```
 URP Core.hlsl          ← 必ず最初（PI / TWO_PI / SafeNormalize / UNITY_* を供給）
   └─ Common.hlsl       （Common_* → BRDF_* → Effects_* を依存順に内包）
-  └─ DollLighting.hlsl      （Common.hlsl を内部 include）
+  └─ DollSurfaceTypes.hlsl  （DollSurfaceData 型のみ）
+  └─ DollLighting.hlsl      （Common.hlsl + DollSurfaceTypes を内部 include）
   └─ DollEffects.hlsl       （Common_Color + Effects を内部 include）
 URP Shadows.hlsl
   └─ DollShadows.hlsl       （Common/URP/Shadow_HQ_URP.hlsl を内部 include）
-````
+（各 Pass）
+  └─ Varyings 定義後に #define DOLL_SURFACE_IMPL → DollSurface.hlsl
+```
