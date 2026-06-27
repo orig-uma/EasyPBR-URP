@@ -113,6 +113,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [HDR] _AnisoSecColor ("Aniso 2nd Color (A=Enable)", Color) = (0,0,0,0)
         _AnisoSecThickness ("Aniso 2nd Thickness", Range(0.0, 1.0)) = 0.7
         _AnisoSecOffset ("Aniso 2nd Offset", Range(-1.0, 1.0)) = -0.15
+        [NoScaleOffset] _HairFlowMap ("Hair Flow Map", 2D) = "white" {}
+        _HairFlowStrength ("Hair Flow Strength", Range(0.0, 1.0)) = 0.0
         [Space(10)]
         [Toggle] _UseMatCap ("Enable MatCap", Float) = 0
         [Enum(Add, 0, Multiply, 1)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
@@ -161,7 +163,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [NoScaleOffset] _CurvatureMap ("Curvature Map", 2D) = "gray" {}
         _CurvatureStrength ("Curvature Strength", Range(0.0, 2.0)) = 0.0
         [Space(10)]
-        [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
+        [NoScaleOffset] _SSSMap ("SSS Map (RGB=trans dir, A=thickness)", 2D) = "bump" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0

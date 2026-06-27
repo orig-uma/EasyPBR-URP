@@ -438,6 +438,17 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Rotates the UV direction the strands flow along",
                                     "繊維（ノイズ）が流れるUVの方向を回転させます");
 
+                                var hairFlowMap = Prop("_HairFlowMap");
+                                if (hairFlowMap != null)
+                                    materialEditor.TexturePropertySingleLine(
+                                        Label("Hair Flow Map (RGB)",
+                                            "R/G=double-angle flow, B=confidence. Bake in Baking section. 0 strength = off",
+                                            "R/G=倍角毛流れ、B=信頼度。Bakingセクションで焼く。Strength 0=無効"),
+                                        hairFlowMap);
+                                P(materialEditor, "_HairFlowStrength", "Flow Strength",
+                                    "0 = off (UV tangent only). Baking auto-enables to 1",
+                                    "0=無効（UV接線のみ）。ベイクで自動的に1に");
+
                                 // 2nd Lobe（主ハイライトが有効なときのみ意味を持つ）
                                 EditorGUILayout.Space(2);
                                 SubHeader("Sub Highlight (2nd Lobe)", "サブハイライト (2nd Lobe)");
@@ -580,13 +591,13 @@ namespace Origuma.EasyPBR.URP.Editor
                             }
 
                         SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
-                        var sssMask = Prop("_SSSMask");
-                        if (sssMask != null)
+                        var sssMap = Prop("_SSSMap");
+                        if (sssMap != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("SSS Mask (R)",
-                                    "R channel masks subsurface intensity",
-                                    "Rチャンネルで表面下散乱の強度をマスク"),
-                                sssMask);
+                                Label("SSS Map (RGBA)",
+                                    "RGB=transmission direction (tangent space), A=thickness. Bake in Baking section",
+                                    "RGB=透過方向（接線空間）、A=厚み。Bakingセクションで焼く"),
+                                sssMap);
                         P(materialEditor, "_SSSColor", "Color",
                             "Subsurface tint (backlit glow)", "表面下散乱の色味（逆光の透け）");
                         var sssIntProp = Prop("_SSSIntensity");

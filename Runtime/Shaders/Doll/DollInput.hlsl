@@ -22,12 +22,13 @@ TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
 TEXTURE2D(_DetailNormalMap);
-TEXTURE2D(_SSSMask);
+TEXTURE2D(_SSSMap);
 TEXTURE2D(_OcclusionMap);
 TEXTURE2D(_BentNormalMap);
 SAMPLER(sampler_BentNormalMap);
 TEXTURE2D(_CavityMap);
 TEXTURE2D(_CurvatureMap);
+TEXTURE2D(_HairFlowMap);
 TEXTURE2D(_FaceSDFMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
@@ -134,6 +135,7 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
     half _AnisoStrandDir;
+    half _HairFlowStrength;
     half _SpecularF0;
     half4 _AnisoSecColor;
     half _AnisoSecThickness;

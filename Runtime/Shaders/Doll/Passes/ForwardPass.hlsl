@@ -54,7 +54,7 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS,
+    Light light, half3 detailNormalWS, half3 sssTransWS,
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
@@ -116,7 +116,7 @@ half3 CalculateSingleLight(
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
 
-    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalSSS  = CalculateSSS(sssTransWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
     half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
@@ -186,7 +186,13 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
-    half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
+
+    half4 sssSample  = SAMPLE_TEXTURE2D(_SSSMap, sampler_MainTex, input.uv);
+    half  sssMask    = sssSample.a;
+    half3 sssTransTS = sssSample.rgb * 2.0 - 1.0;
+    half3 sssTransWS = normalize(sssTransTS.x * input.tangentWS
+                           + sssTransTS.y * input.bitangentWS
+                           + sssTransTS.z * input.normalWS);
 
     // --- Occlusion Map: AO テクスチャがあるときだけ陰影を沈める（R チャンネル）---
     half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
@@ -231,11 +237,23 @@ half4 frag(Varyings input) : SV_Target
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
     float rimFresnel, fuzzFresnel;
     GetFresnelTerms(NdotV, _RimIntensity, _RimThickness, _FuzzIntensity, _FuzzPower, rimFresnel, fuzzFresnel);
-    
+
+    // 毛流れマップ（接線平面内の毛流れを倍角で焼いたもの。Strength 0 で無効）
+    float hairFlowC2 = 1.0, hairFlowS2 = 0.0, hairFlowConf = 0.0;
+    UNITY_BRANCH
+    if (_HairFlowStrength > 0.0)
+    {
+        half3 hf = SAMPLE_TEXTURE2D(_HairFlowMap, sampler_MainTex, input.uv).rgb;
+        hairFlowC2   = hf.r * 2.0 - 1.0;
+        hairFlowS2   = hf.g * 2.0 - 1.0;
+        hairFlowConf = hf.b;
+    }
+
     AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
         input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
         _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength,
-        _AnisoOffset, _AnisoSecOffset);
+        _AnisoOffset, _AnisoSecOffset,
+        hairFlowC2, hairFlowS2, hairFlowConf, _HairFlowStrength);
     
     half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
 
@@ -312,7 +330,7 @@ half4 frag(Varyings input) : SV_Target
     }
 
     finalColor += CalculateSingleLight(
-        mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+        mainLight, detailNormalWS, sssTransWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, specAAVariance, sdfLit, 
@@ -342,7 +360,7 @@ half4 frag(Varyings input) : SV_Target
             {                                                                             \
                 Light addLight = GetAdditionalLight(index, input.positionWS, half4(1,1,1,1)); \
                 half3 addContrib = CalculateSingleLight(                                  \
-                    addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
+                    addLight, detailNormalWS, sssTransWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
                     half3(0,0,0), specAAVariance, -1.0,                                   \
