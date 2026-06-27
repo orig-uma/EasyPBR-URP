@@ -15,6 +15,7 @@ TEXTURE2D(_DissolveTex);
 TEXTURE2D(_MatCapTex);
 TEXTURE2D(_BlueNoiseTex);
 TEXTURE2D(_GlitterMask);
+TEXTURE2D(_ClearcoatMask);
 
 // 特化用テクスチャ（Doll等で使用）
 TEXTURE2D(_ReceiveShadowMask);
@@ -151,6 +152,13 @@ CBUFFER_START(UnityPerMaterial)
     half _GlitterIridescence;
     half _GlitterIridescenceShift;
     half _GlitterBaseReflection;
+
+    half _ClearcoatStrength;
+    half _ClearcoatSmoothness;
+    half _ClearcoatReflStrength;
+    half _IridescenceIntensity;
+    half _IridescenceThickness;
+    half _IridescenceShift;
 
     half4 _SSSColor;
     half _SSSIntensity;

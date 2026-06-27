@@ -27,6 +27,7 @@
 #include "BRDF/BRDF_Anisotropic.hlsl"
 #include "BRDF/BRDF_Glitter.hlsl"
 #include "BRDF/BRDF_Detail.hlsl"
+#include "BRDF/BRDF_Clearcoat.hlsl"
 
 // --- Layer 2: エフェクト ----------------------------------------------------
 #include "Effects/Fx_MatCap.hlsl"

@@ -177,6 +177,10 @@ half4 frag(Varyings input) : SV_Target
 
     half3 viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
     float3 objectForwardWS = input.forwardWS;
+
+    // クリアコート: 法線は幾何法線(平滑)を使い、艶をクリーンに走らせる（ディテール/グレイン非依存）。
+    half3 coatNormalWS  = normalize(input.normalWS);
+    half  clearcoatMask = SAMPLE_TEXTURE2D(_ClearcoatMask, sampler_MainTex, input.uv).r;
     
     half4 blueNoiseSample = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale);
     half3 noiseVec   = blueNoiseSample.rgb * 2.0 - 1.0;
@@ -336,6 +340,17 @@ half4 frag(Varyings input) : SV_Target
         indirectLight, specAAVariance, sdfLit, 
         sdfMask,
         anisoPrecomp, glitterGeom, glitterActive, curvRidge);
+
+    // クリアコート直接ハイライト（メインライトのみ・加算専用）
+    UNITY_BRANCH
+    if (_ClearcoatStrength > 0.0)
+    {
+        finalColor += CalculateClearcoat(
+            coatNormalWS, mainLight.direction, viewDirectionWS,
+            _ClearcoatSmoothness, _ClearcoatStrength, clearcoatMask,
+            mainLight.color * mainLight.distanceAttenuation, mainLight.shadowAttenuation,
+            _IridescenceIntensity, _IridescenceThickness, _IridescenceShift);
+    }
         
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
@@ -390,23 +405,41 @@ half4 frag(Varyings input) : SV_Target
     #endif
     #undef DOLL_CLUSTER_LIGHT_LOOP
 
-    // --- 環境反射（Reflection Probe）: ステージ環境の映り込みを汎用PBR反射として加算 ---
-    // ビュー依存・ライト非依存なのでループ外で1回。0で cube サンプルごとスキップ。
+    // --- 環境反射（下地＋クリアコートで cube フェッチを1回に共有）---
     UNITY_BRANCH
-    if (_ReflectionStrength > 0.0)
+    if (_ReflectionStrength > 0.0 || _ClearcoatStrength > 0.0)
     {
-        half perceptualRoughness = 1.0 - _Smoothness;
-        float specOcclusion = SpecularOcclusion(NdotV, occlusion, perceptualRoughness);
+        half  perceptualRoughness = 1.0 - _Smoothness;
+        half3 reflectVector = reflect(-viewDirectionWS, detailNormalWS);
+        half3 env = EasyPBR_SampleEnvironment(reflectVector, perceptualRoughness);
+
+        half horizon = saturate(1.0 + dot(reflectVector, detailNormalWS));
+        horizon *= horizon;
+
+        // 下地反射（従来と完全に同一）
         UNITY_BRANCH
-        if (_BentNormalStrength > 0.0)
+        if (_ReflectionStrength > 0.0)
         {
-            float3 R = normalize(reflect(-viewDirectionWS, detailNormalWS));
-            float align = dot(R, bentNormalWS) * 0.5 + 0.5;
-            specOcclusion *= lerp(bentOpenness, 1.0, align);
+            float specOcclusion = SpecularOcclusion(NdotV, occlusion, perceptualRoughness);
+            UNITY_BRANCH
+            if (_BentNormalStrength > 0.0)
+            {
+                float align = dot(reflectVector, bentNormalWS) * 0.5 + 0.5;
+                specOcclusion *= lerp(bentOpenness, 1.0, align);
+            }
+            half baseFresnel = _SpecularF0 + (1.0 - _SpecularF0) * pow(1.0 - NdotV, 5.0);
+            finalColor += env * baseFresnel * horizon * _ReflectionStrength * (specOcclusion * specMask);
         }
-        finalColor += EasyPBR_EnvironmentReflection(
-            detailNormalWS, viewDirectionWS, perceptualRoughness, _SpecularF0,
-            _ReflectionStrength, specOcclusion * specMask);
+
+        // クリアコート反射（同じ env を再利用＝フェッチ追加なし）
+        UNITY_BRANCH
+        if (_ClearcoatStrength > 0.0)
+        {
+            half  ndvC        = saturate(dot(coatNormalWS, viewDirectionWS));
+            half  coatFresnel = 0.04 + 0.96 * pow(1.0 - ndvC, 5.0);
+            half3 coatIrid    = ClearcoatIridescence(ndvC, _IridescenceIntensity, _IridescenceThickness, _IridescenceShift);
+            finalColor += env * coatFresnel * horizon * coatIrid * (_ClearcoatStrength * _ClearcoatReflStrength * clearcoatMask);
+        }
     }
 
     // 追加エフェクト適用

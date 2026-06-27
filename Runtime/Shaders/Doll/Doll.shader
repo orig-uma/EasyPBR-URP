@@ -152,6 +152,13 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
         _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
+        [NoScaleOffset] _ClearcoatMask ("Clearcoat Mask (R)", 2D) = "white" {}
+        _ClearcoatStrength ("Clearcoat Strength", Range(0.0, 1.0)) = 0.0
+        _ClearcoatSmoothness ("Clearcoat Smoothness", Range(0.0, 1.0)) = 0.9
+        _ClearcoatReflStrength ("Clearcoat Refl Strength", Range(0.0, 2.0)) = 1.0
+        _IridescenceIntensity ("Iridescence Intensity", Range(0.0, 1.0)) = 0.0
+        _IridescenceThickness ("Iridescence Thickness", Range(0.0, 8.0)) = 3.0
+        _IridescenceShift ("Iridescence Shift", Range(0.0, 1.0)) = 0.0
         _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
         _GrainScale ("Grain UV Scale", Float) = 10.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}

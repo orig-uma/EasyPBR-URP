@@ -550,6 +550,43 @@ namespace Origuma.EasyPBR.URP.Editor
                 if (Section("optional", false, "Optional Effects", "追加質感エフェクト", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
+                        SubHeader("Clearcoat + Iridescence", "クリアコート＋イリデッセンス");
+                        var clearcoatMask = Prop("_ClearcoatMask");
+                        if (clearcoatMask != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Clearcoat Mask (R)",
+                                    "Where to place gloss (additive only). Cavity/curvature maps work as masks without darkening",
+                                    "艶の置き場（加算のみ）。キャビティ/曲率マップを流用可（陰影は増えない）"),
+                                clearcoatMask);
+                        var coatStrProp = Prop("_ClearcoatStrength");
+                        P(materialEditor, coatStrProp, "Strength (0 = Off)",
+                            "Additive clearcoat layer. Does not darken base shading",
+                            "加算クリアコート。下地の陰影には干渉しない");
+                        if (coatStrProp != null && coatStrProp.floatValue > 0f)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, "_ClearcoatSmoothness", "Smoothness",
+                                    "Higher = sharper, tighter gloss",
+                                    "高いほどシャープなテカリ");
+                                P(materialEditor, "_ClearcoatReflStrength", "Env Refl Strength",
+                                    "Environment reflection on the coat layer (view-dependent, AR-friendly)",
+                                    "コート層の環境反射（視点依存・AR映え）");
+                                P(materialEditor, "_IridescenceIntensity", "Iridescence",
+                                    "0 = colorless coat. Higher = thin-film rainbow",
+                                    "0=無色。上げると薄膜の虹色");
+                                var iridProp = Prop("_IridescenceIntensity");
+                                if (iridProp != null && iridProp.floatValue > 0f)
+                                    using (new EditorGUI.IndentLevelScope())
+                                    {
+                                        P(materialEditor, "_IridescenceThickness", "Iridescence Thickness",
+                                            "Color cycle frequency (higher = finer bands)",
+                                            "色相の周期（高いほど細かく回る）");
+                                        P(materialEditor, "_IridescenceShift", "Iridescence Shift",
+                                            "Hue offset of the iridescence",
+                                            "虹色の色相起点");
+                                    }
+                            }
+
                         SubHeader("Glitter", "グリッター");
                         var glitterMask = Prop("_GlitterMask");
                         if (glitterMask != null)
