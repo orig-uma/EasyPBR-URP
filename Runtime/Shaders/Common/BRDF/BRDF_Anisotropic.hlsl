@@ -18,9 +18,14 @@ struct AnisoPrecomp
 AnisoPrecomp PrecomputeAnisoTangent(
     float3 tangentWS, float3 bitangentWS, half3 normalWS, float2 uv,
     float angle, float strandDir, float strandScale, float strandStrength,
-    float offset, float offset2)
+    float offset, float offset2,
+    float flowC2, float flowS2, float flowConf, float flowStrength)
 {
-    float rad = radians(angle + 90.0);
+    // 焼いた毛流れ(倍角)を信頼度×強度で識別(1,0)へブレンド。strength 0 で完全に従来挙動。
+    float2 fv = lerp(float2(1.0, 0.0), float2(flowC2, flowS2), saturate(flowConf * flowStrength));
+    float theta = 0.5 * atan2(fv.y, fv.x);
+
+    float rad = theta + radians(angle + 90.0);
     float s, c; sincos(rad, s, c);
     float3 tBase = normalize(tangentWS * c + bitangentWS * s);
 

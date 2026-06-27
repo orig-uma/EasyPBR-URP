@@ -438,6 +438,17 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Rotates the UV direction the strands flow along",
                                     "繊維（ノイズ）が流れるUVの方向を回転させます");
 
+                                var hairFlowMap = Prop("_HairFlowMap");
+                                if (hairFlowMap != null)
+                                    materialEditor.TexturePropertySingleLine(
+                                        Label("Hair Flow Map (RGB)",
+                                            "R/G=double-angle flow, B=confidence. Bake in Baking section. 0 strength = off",
+                                            "R/G=倍角毛流れ、B=信頼度。Bakingセクションで焼く。Strength 0=無効"),
+                                        hairFlowMap);
+                                P(materialEditor, "_HairFlowStrength", "Flow Strength",
+                                    "0 = off (UV tangent only). Baking auto-enables to 1",
+                                    "0=無効（UV接線のみ）。ベイクで自動的に1に");
+
                                 // 2nd Lobe（主ハイライトが有効なときのみ意味を持つ）
                                 EditorGUILayout.Space(2);
                                 SubHeader("Sub Highlight (2nd Lobe)", "サブハイライト (2nd Lobe)");
@@ -539,6 +550,43 @@ namespace Origuma.EasyPBR.URP.Editor
                 if (Section("optional", false, "Optional Effects", "追加質感エフェクト", "", ""))
                     using (new EditorGUI.IndentLevelScope())
                     {
+                        SubHeader("Clearcoat + Iridescence", "クリアコート＋イリデッセンス");
+                        var clearcoatMask = Prop("_ClearcoatMask");
+                        if (clearcoatMask != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Clearcoat Mask (R)",
+                                    "Where to place gloss (additive only). Cavity/curvature maps work as masks without darkening",
+                                    "艶の置き場（加算のみ）。キャビティ/曲率マップを流用可（陰影は増えない）"),
+                                clearcoatMask);
+                        var coatStrProp = Prop("_ClearcoatStrength");
+                        P(materialEditor, coatStrProp, "Strength (0 = Off)",
+                            "Additive clearcoat layer. Does not darken base shading",
+                            "加算クリアコート。下地の陰影には干渉しない");
+                        if (coatStrProp != null && coatStrProp.floatValue > 0f)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                P(materialEditor, "_ClearcoatSmoothness", "Smoothness",
+                                    "Higher = sharper, tighter gloss",
+                                    "高いほどシャープなテカリ");
+                                P(materialEditor, "_ClearcoatReflStrength", "Env Refl Strength",
+                                    "Environment reflection on the coat layer (view-dependent, AR-friendly)",
+                                    "コート層の環境反射（視点依存・AR映え）");
+                                P(materialEditor, "_IridescenceIntensity", "Iridescence",
+                                    "0 = colorless coat. Higher = thin-film rainbow",
+                                    "0=無色。上げると薄膜の虹色");
+                                var iridProp = Prop("_IridescenceIntensity");
+                                if (iridProp != null && iridProp.floatValue > 0f)
+                                    using (new EditorGUI.IndentLevelScope())
+                                    {
+                                        P(materialEditor, "_IridescenceThickness", "Iridescence Thickness",
+                                            "Color cycle frequency (higher = finer bands)",
+                                            "色相の周期（高いほど細かく回る）");
+                                        P(materialEditor, "_IridescenceShift", "Iridescence Shift",
+                                            "Hue offset of the iridescence",
+                                            "虹色の色相起点");
+                                    }
+                            }
+
                         SubHeader("Glitter", "グリッター");
                         var glitterMask = Prop("_GlitterMask");
                         if (glitterMask != null)
@@ -580,13 +628,13 @@ namespace Origuma.EasyPBR.URP.Editor
                             }
 
                         SubHeader("SSS (Subsurface)", "SSS（表面下散乱）");
-                        var sssMask = Prop("_SSSMask");
-                        if (sssMask != null)
+                        var sssMap = Prop("_SSSMap");
+                        if (sssMap != null)
                             materialEditor.TexturePropertySingleLine(
-                                Label("SSS Mask (R)",
-                                    "R channel masks subsurface intensity",
-                                    "Rチャンネルで表面下散乱の強度をマスク"),
-                                sssMask);
+                                Label("SSS Map (RGBA)",
+                                    "RGB=transmission direction (tangent space), A=thickness. Bake in Baking section",
+                                    "RGB=透過方向（接線空間）、A=厚み。Bakingセクションで焼く"),
+                                sssMap);
                         P(materialEditor, "_SSSColor", "Color",
                             "Subsurface tint (backlit glow)", "表面下散乱の色味（逆光の透け）");
                         var sssIntProp = Prop("_SSSIntensity");
@@ -652,6 +700,18 @@ namespace Origuma.EasyPBR.URP.Editor
                             "How strongly the occlusion map darkens diffuse",
                             "AOマップで拡散光を沈める強さ");
 
+                        SubHeader("Bent Normal Map", "ベント法線マップ");
+                        var bentMap = Prop("_BentNormalMap");
+                        if (bentMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Bent Normal Map (RGB)",
+                                    "Tangent-space open direction for ambient/SH. Bake in Baking section. Pairs with AO (direction vs strength). bump (default) = off",
+                                    "接線空間の開いた方向。SH/アンビエントの評価方向に使う。Bakingセクションで焼く。AO(強度)と併用。bump（既定）=無効"),
+                                bentMap);
+                        P(materialEditor, "_BentNormalStrength", "Strength",
+                            "0 = off. Baking auto-enables to 1. Blends bent normal toward geometric normal",
+                            "0=無効。ベイクで自動的に1に。幾何法線とのブレンド");
+
                         SubHeader("Cavity (Crease Map)", "キャビティ（くぼみマップ）");
                         var cavMap = Prop("_CavityMap");
                         if (cavMap != null)
@@ -663,6 +723,18 @@ namespace Origuma.EasyPBR.URP.Editor
                         P(materialEditor, "_CavityStrength", "Strength",
                             "How strongly the cavity map darkens diffuse",
                             "キャビティマップで拡散光を沈める強さ");
+
+                        SubHeader("Curvature Map", "曲率マップ");
+                        var curvMap = Prop("_CurvatureMap");
+                        if (curvMap != null)
+                            materialEditor.TexturePropertySingleLine(
+                                Label("Curvature Map (R)",
+                                    "Signed curvature: 0.5=flat, bright=convex (ridge), dark=concave. Bake in Baking section",
+                                    "符号付き曲率: 0.5=平坦、明=凸(稜線)、暗=凹(くぼみ)。Bakingセクションで焼く"),
+                                curvMap);
+                        P(materialEditor, "_CurvatureStrength", "Strength",
+                            "0 = off. Baking auto-enables to 1. Ridge specular boost and concave darkening",
+                            "0=無効。ベイクで自動的に1に。稜線スペキュラ強調と凹部暗化の強さ");
                     }
             }
 

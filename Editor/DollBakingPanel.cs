@@ -16,12 +16,15 @@ namespace Origuma.EasyPBR.URP.Editor
     public class DollBakingPanel
     {
         private GameObject _bakeRoot;
-        private bool _aoOpen, _sdfOpen, _cavityOpen, _thicknessOpen;
+        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _bentOpen, _hairFlowOpen, _sssOpen;
 
         private EasyPbrAoBaker.Settings        _aoSettings        = EasyPbrAoBaker.Default;
         private EasyPbrFaceSdfBaker.Settings   _sdfSettings       = EasyPbrFaceSdfBaker.Default;
         private EasyPbrCavityBaker.Settings    _cavitySettings    = EasyPbrCavityBaker.Default;
-        private EasyPbrThicknessBaker.Settings _thicknessSettings = EasyPbrThicknessBaker.Default;
+        private EasyPbrCurvatureBaker.Settings _curvatureSettings = EasyPbrCurvatureBaker.Default;
+        private EasyPbrBentNormalBaker.Settings _bentSettings      = EasyPbrBentNormalBaker.Default;
+        private EasyPbrHairFlowBaker.Settings  _hairFlowSettings   = EasyPbrHairFlowBaker.Default;
+        private EasyPbrSssBaker.Settings      _sssSettings       = EasyPbrSssBaker.Default;
 
         private static readonly int[] s_BakeResEn = { 512, 1024, 2048 };
         private static readonly string[] s_BakeResLabels = { "512", "1024", "2048" };
@@ -84,6 +87,25 @@ namespace Origuma.EasyPBR.URP.Editor
                                     BakeAllTargets(materialEditor, m => EasyPbrAoBaker.Bake(_bakeRoot, m, _aoSettings));
                             }
 
+                        // --- Bent Normal ---
+                        _bentOpen = EditorGUILayout.Foldout(_bentOpen, jp ? "Bent Normal（→ Bent Normal Map）" : "Bent Normal (→ Bent Normal Map)", true);
+                        if (_bentOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _bentSettings.resolution  = ResField(_bentSettings.resolution);
+                                _bentSettings.rayCount    = EditorGUILayout.IntSlider(kit.Label("Samples", "Rays per vertex", "頂点あたりのレイ数"), _bentSettings.rayCount, 16, 256);
+                                _bentSettings.maxDistance = EditorGUILayout.Slider(kit.Label("Max Distance", "Occlusion reach (m)", "遮蔽の届く距離(m)"), _bentSettings.maxDistance, 0.02f, 3.0f);
+                                _bentSettings.strength    = EditorGUILayout.Slider(kit.Label("Strength", "0=geometric normal, 1=fully open", "0=幾何法線 / 1=開いた方向へ"), _bentSettings.strength, 0.0f, 1.0f);
+                                _bentSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _bentSettings.smooth, 0, 8);
+                                _bentSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _bentSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Bent Normal をベイク" : "Bake Bent Normal"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrBentNormalBaker.Bake(_bakeRoot, m, _bentSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "接線空間で焼く(スキン追従)。アンビエント/SH を幾何法線の代わりにこの方向で評価すると、くぼみの陰が方向まで正しくなる。AO(強度)と併用。タンジェント必須。"
+                                       : "Tangent space (follows skinning). Evaluate ambient/SH along this instead of the geometric normal. Pairs with AO. Requires tangents.",
+                                    MessageType.None);
+                            }
+
                         // --- Cavity ---
                         _cavityOpen = EditorGUILayout.Foldout(_cavityOpen, jp ? "Cavity（→ Cavity Map）" : "Cavity (→ Cavity Map)", true);
                         if (_cavityOpen)
@@ -97,19 +119,53 @@ namespace Origuma.EasyPBR.URP.Editor
                                     BakeAllTargets(materialEditor, m => EasyPbrCavityBaker.Bake(_bakeRoot, m, _cavitySettings));
                             }
 
-                        // --- Thickness (SSS) ---
-                        _thicknessOpen = EditorGUILayout.Foldout(_thicknessOpen, jp ? "Thickness（SSS）（→ SSS Mask）" : "Thickness (SSS) (→ SSS Mask)", true);
-                        if (_thicknessOpen)
+                        // --- Curvature ---
+                        _curvatureOpen = EditorGUILayout.Foldout(_curvatureOpen, jp ? "Curvature（→ Curvature Map）" : "Curvature (→ Curvature Map)", true);
+                        if (_curvatureOpen)
                             using (new EditorGUI.IndentLevelScope())
                             {
-                                _thicknessSettings.resolution = ResField(_thicknessSettings.resolution);
-                                _thicknessSettings.rayCount    = EditorGUILayout.IntSlider(kit.Label("Samples", "Inward rays per vertex", "内向きレイ数"), _thicknessSettings.rayCount, 16, 128);
-                                _thicknessSettings.maxDistance = EditorGUILayout.Slider(kit.Label("Max Distance", "Thickness considered fully opaque at this depth (m)", "この深さで完全に厚い扱い(m)"), _thicknessSettings.maxDistance, 0.02f, 1.0f);
-                                _thicknessSettings.intensity   = EditorGUILayout.Slider(kit.Label("Intensity", "Thin-area boost", "薄い部分の強調"), _thicknessSettings.intensity, 0.5f, 3.0f);
-                                _thicknessSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _thicknessSettings.smooth, 0, 8);
-                                _thicknessSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _thicknessSettings.blur, 0, 4);
-                                if (BakeButton(jp ? "Thickness をベイク" : "Bake Thickness"))
-                                    BakeAllTargets(materialEditor, m => EasyPbrThicknessBaker.Bake(_bakeRoot, m, _thicknessSettings));
+                                _curvatureSettings.resolution = ResField(_curvatureSettings.resolution);
+                                _curvatureSettings.intensity  = EditorGUILayout.Slider(kit.Label("Intensity", "Convex/concave contrast", "凹凸コントラストの強さ"), _curvatureSettings.intensity, 0.5f, 20.0f);
+                                _curvatureSettings.smooth     = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _curvatureSettings.smooth, 0, 8);
+                                _curvatureSettings.blur       = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _curvatureSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Curvature をベイク" : "Bake Curvature"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrCurvatureBaker.Bake(_bakeRoot, m, _curvatureSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "0.5=平坦 / 明=凸(稜線) / 暗=凹(くぼみ)。1枚で稜線・くぼみ両方のマスクが取れる。Cavity の上位互換だが併用も可。"
+                                       : "0.5=flat / bright=convex (ridge) / dark=concave (cavity). One map gives both masks. Supersedes Cavity but can coexist.",
+                                    MessageType.None);
+                            }
+
+                        // --- SSS ---
+                        _sssOpen = EditorGUILayout.Foldout(_sssOpen, jp ? "SSS（→ SSS Map）" : "SSS (→ SSS Map)", true);
+                        if (_sssOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _sssSettings.resolution   = ResField(_sssSettings.resolution);
+                                _sssSettings.rayCount    = EditorGUILayout.IntSlider(kit.Label("Samples", "Inward rays per vertex", "内向きレイ数"), _sssSettings.rayCount, 16, 128);
+                                _sssSettings.maxDistance = EditorGUILayout.Slider(kit.Label("Max Distance", "Thickness considered fully opaque at this depth (m)", "この深さで完全に厚い扱い(m)"), _sssSettings.maxDistance, 0.02f, 1.0f);
+                                _sssSettings.intensity   = EditorGUILayout.Slider(kit.Label("Intensity", "Thin-area boost", "薄い部分の強調"), _sssSettings.intensity, 0.5f, 3.0f);
+                                _sssSettings.smooth      = EditorGUILayout.IntSlider(kit.Label("Smooth", "Reduce facets", "ファセット低減"), _sssSettings.smooth, 0, 8);
+                                _sssSettings.blur        = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _sssSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "SSS をベイク" : "Bake SSS"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrSssBaker.Bake(_bakeRoot, m, _sssSettings));
+                            }
+
+                        // --- Hair Flow ---
+                        _hairFlowOpen = EditorGUILayout.Foldout(_hairFlowOpen, jp ? "Hair Flow（→ Hair Flow Map・髪マテリアル）" : "Hair Flow (→ Hair Flow Map, hair material)", true);
+                        if (_hairFlowOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _hairFlowSettings.resolution   = ResField(_hairFlowSettings.resolution);
+                                _hairFlowSettings.useCurvature = EditorGUILayout.Toggle(kit.Label("Curvature Mode", "Use min-normal-change dir (sculpted hair). Off=longest-edge (hair cards)", "最小法線変化方向（彫刻髪）。OFF=最長エッジ（カード髪）"), _hairFlowSettings.useCurvature);
+                                _hairFlowSettings.smooth       = EditorGUILayout.IntSlider(kit.Label("Smooth", "Orientation smoothing", "毛流れ平滑化"), _hairFlowSettings.smooth, 0, 8);
+                                _hairFlowSettings.blur         = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _hairFlowSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Hair Flow をベイク" : "Bake Hair Flow"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrHairFlowBaker.Bake(_bakeRoot, m, _hairFlowSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "髪マテリアルで焼く。形状から毛流れを推定し、毛束ごと・ミラーUV・流れに沿わないUVでも天使の輪を安定させる。倍角エンコードなのでミラー継ぎ目で割れない。_AnisoAngle は全体オフセットとして併用可。"
+                                       : "Bake on hair material. Shape-based flow stabilizes the highlight across chunks/mirrored/packed UVs. Double-angle encoded (no mirror-seam break). _AnisoAngle still works as a global offset.",
+                                    MessageType.None);
                             }
 
                         // --- Face SDF Shadow ---

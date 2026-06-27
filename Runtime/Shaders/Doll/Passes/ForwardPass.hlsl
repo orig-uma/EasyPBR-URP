@@ -54,7 +54,7 @@ Varyings vert(Attributes input)
 }
 
 half3 CalculateSingleLight(
-    Light light, half3 detailNormalWS,
+    Light light, half3 detailNormalWS, half3 sssTransWS,
     half3 viewDirectionWS, float3 objectForwardWS,
     half3 baseColor, half receiveShadowMask, half specMask, half sssMask, half ditherValue,
     float baseProceduralMask, float rimFresnel, float fuzzFresnel, half3 indirectLight,
@@ -62,7 +62,8 @@ half3 CalculateSingleLight(
     half sdfMask,
     AnisoPrecomp anisoPrecomp,
     GlitterGeom glitterGeom,
-    bool glitterActive)
+    bool glitterActive,
+    half curvRidge)
 {
     float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
     float3 diffuseLightEnergy = ApplyLightEnergyLimit(rawDiffuseLight, _DiffuseLightLimit);
@@ -110,11 +111,12 @@ half3 CalculateSingleLight(
         priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
         secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
         specMask, castShadow, _SpecularF0, specAAVariance, specularMaskVal);
+    finalSpecular *= (1.0 + curvRidge);
 
     float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
     finalDiffuse *= (1.0 - specLuminance);
 
-    half3 finalSSS  = CalculateSSS(detailNormalWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalSSS  = CalculateSSS(sssTransWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
     half3 finalRim  = CalculateRimLight(_RimColor.rgb, rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
     half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
 
@@ -175,6 +177,10 @@ half4 frag(Varyings input) : SV_Target
 
     half3 viewDirectionWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
     float3 objectForwardWS = input.forwardWS;
+
+    // クリアコート: 法線は幾何法線(平滑)を使い、艶をクリーンに走らせる（ディテール/グレイン非依存）。
+    half3 coatNormalWS  = normalize(input.normalWS);
+    half  clearcoatMask = SAMPLE_TEXTURE2D(_ClearcoatMask, sampler_MainTex, input.uv).r;
     
     half4 blueNoiseSample = SAMPLE_TEXTURE2D(_BlueNoiseTex, sampler_MainTex, input.uv * _GrainScale);
     half3 noiseVec   = blueNoiseSample.rgb * 2.0 - 1.0;
@@ -184,15 +190,46 @@ half4 frag(Varyings input) : SV_Target
 
     half receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     half specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
-    half sssMask  = SAMPLE_TEXTURE2D(_SSSMask, sampler_MainTex, input.uv).r;
+
+    half4 sssSample  = SAMPLE_TEXTURE2D(_SSSMap, sampler_MainTex, input.uv);
+    half  sssMask    = sssSample.a;
+    half3 sssTransTS = sssSample.rgb * 2.0 - 1.0;
+    half3 sssTransWS = normalize(sssTransTS.x * input.tangentWS
+                           + sssTransTS.y * input.bitangentWS
+                           + sssTransTS.z * input.normalWS);
 
     // --- Occlusion Map: AO テクスチャがあるときだけ陰影を沈める（R チャンネル）---
     half occlusion = SAMPLE_TEXTURE2D(_OcclusionMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, occlusion, _OcclusionStrength);
 
+    // --- Bent Normal Map: SH/アンビエントの評価方向（Strength 0 で無効・ベイク時に 1 へ）---
+    half3 bentNormalWS = detailNormalWS;
+    half bentOpenness = 1.0;
+    UNITY_BRANCH
+    if (_BentNormalStrength > 0.0)
+    {
+        half4 bentSample = SAMPLE_TEXTURE2D(_BentNormalMap, sampler_BentNormalMap, input.uv);
+        half3 bentTS = bentSample.xyz * 2.0 - 1.0;
+        bentTS = normalize(bentTS);
+        half3 bentWS = normalize(bentTS.x * input.tangentWS + bentTS.y * input.bitangentWS + bentTS.z * detailNormalWS);
+        bentNormalWS = normalize(lerp(detailNormalWS, bentWS, _BentNormalStrength));
+        bentOpenness = bentSample.a; // 未ベイク(A=1)なら方向版SOは解析版へ縮退
+    }
+
     // --- Cavity Map: くぼみ（しわ・継ぎ目）を細かく沈める（R チャンネル・既定白で無影響）---
     half cavity = SAMPLE_TEXTURE2D(_CavityMap, sampler_MainTex, input.uv).r;
     albedo.rgb *= lerp(1.0, cavity, _CavityStrength);
+
+    // --- Curvature Map: Strength 0 で無効（ベイク時に 1 へ自動有効化）---
+    half curvRidge = 0.0;
+    UNITY_BRANCH
+    if (_CurvatureStrength > 0.0)
+    {
+        half curv = SAMPLE_TEXTURE2D(_CurvatureMap, sampler_MainTex, input.uv).r;
+        half signedCurv = (curv * 2.0 - 1.0) * _CurvatureStrength;
+        curvRidge  = saturate( signedCurv);
+        albedo.rgb *= 1.0 - saturate(-signedCurv);
+    }
 
     // --- Geometric Specular AA: 法線分散を frag で1回だけ算出（導関数は均一制御フロー）---
     float specAAVariance = (_SpecularAA > 0.0)
@@ -204,11 +241,23 @@ half4 frag(Varyings input) : SV_Target
     float NdotV = saturate(dot(detailNormalWS, viewDirectionWS));
     float rimFresnel, fuzzFresnel;
     GetFresnelTerms(NdotV, _RimIntensity, _RimThickness, _FuzzIntensity, _FuzzPower, rimFresnel, fuzzFresnel);
-    
+
+    // 毛流れマップ（接線平面内の毛流れを倍角で焼いたもの。Strength 0 で無効）
+    float hairFlowC2 = 1.0, hairFlowS2 = 0.0, hairFlowConf = 0.0;
+    UNITY_BRANCH
+    if (_HairFlowStrength > 0.0)
+    {
+        half3 hf = SAMPLE_TEXTURE2D(_HairFlowMap, sampler_MainTex, input.uv).rgb;
+        hairFlowC2   = hf.r * 2.0 - 1.0;
+        hairFlowS2   = hf.g * 2.0 - 1.0;
+        hairFlowConf = hf.b;
+    }
+
     AnisoPrecomp anisoPrecomp = PrecomputeAnisoTangent(
         input.tangentWS, input.bitangentWS, detailNormalWS, input.uv,
         _AnisoAngle, _AnisoStrandDir, _AnisoStrandScale, _AnisoStrandStrength,
-        _AnisoOffset, _AnisoSecOffset);
+        _AnisoOffset, _AnisoSecOffset,
+        hairFlowC2, hairFlowS2, hairFlowConf, _HairFlowStrength);
     
     half glitterMask = SAMPLE_TEXTURE2D(_GlitterMask, sampler_MainTex, input.uv).r;
 
@@ -221,7 +270,7 @@ half4 frag(Varyings input) : SV_Target
         glitterGeom);
 
     // メインライト計算
-    half3 indirectLight = SampleSH(cleanNormalWS);
+    half3 indirectLight = SampleSH(bentNormalWS);
 
     #if defined(_SHADOWMODE_TENTPCF) || defined(_SHADOWMODE_VOGELPCF) || defined(_SHADOWMODE_PCSS)
         Light mainLight = GetMainLight();              // URP内部シャドウサンプルをスキップ
@@ -285,12 +334,23 @@ half4 frag(Varyings input) : SV_Target
     }
 
     finalColor += CalculateSingleLight(
-        mainLight, detailNormalWS, viewDirectionWS, objectForwardWS,
+        mainLight, detailNormalWS, sssTransWS, viewDirectionWS, objectForwardWS,
         albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,
         baseProceduralMask, rimFresnel, fuzzFresnel,
         indirectLight, specAAVariance, sdfLit, 
         sdfMask,
-        anisoPrecomp, glitterGeom, glitterActive);
+        anisoPrecomp, glitterGeom, glitterActive, curvRidge);
+
+    // クリアコート直接ハイライト（メインライトのみ・加算専用）
+    UNITY_BRANCH
+    if (_ClearcoatStrength > 0.0)
+    {
+        finalColor += CalculateClearcoat(
+            coatNormalWS, mainLight.direction, viewDirectionWS,
+            _ClearcoatSmoothness, _ClearcoatStrength, clearcoatMask,
+            mainLight.color * mainLight.distanceAttenuation, mainLight.shadowAttenuation,
+            _IridescenceIntensity, _IridescenceThickness, _IridescenceShift);
+    }
         
     // Forward+ の有効判定。6.1+ は USE_CLUSTER_LIGHT_LOOP、6.0 は USE_FORWARD_PLUS。
     #if defined(USE_CLUSTER_LIGHT_LOOP)
@@ -315,12 +375,12 @@ half4 frag(Varyings input) : SV_Target
             {                                                                             \
                 Light addLight = GetAdditionalLight(index, input.positionWS, half4(1,1,1,1)); \
                 half3 addContrib = CalculateSingleLight(                                  \
-                    addLight, detailNormalWS, viewDirectionWS, objectForwardWS,           \
+                    addLight, detailNormalWS, sssTransWS, viewDirectionWS, objectForwardWS,           \
                     albedo.rgb, receiveShadowMask, specMask, sssMask, ditherValue,        \
                     baseProceduralMask, rimFresnel, fuzzFresnel,                          \
                     half3(0,0,0), specAAVariance, -1.0,                                   \
                     1.0, /* 追加ライトはSDF非対応なのでマスク値1.0を渡す */                      \
-                    anisoPrecomp, glitterGeom, glitterActive);                            \
+                    anisoPrecomp, glitterGeom, glitterActive, curvRidge);                            \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \
@@ -345,15 +405,41 @@ half4 frag(Varyings input) : SV_Target
     #endif
     #undef DOLL_CLUSTER_LIGHT_LOOP
 
-    // --- 環境反射（Reflection Probe）: ステージ環境の映り込みを汎用PBR反射として加算 ---
-    // ビュー依存・ライト非依存なのでループ外で1回。0で cube サンプルごとスキップ。
+    // --- 環境反射（下地＋クリアコートで cube フェッチを1回に共有）---
     UNITY_BRANCH
-    if (_ReflectionStrength > 0.0)
+    if (_ReflectionStrength > 0.0 || _ClearcoatStrength > 0.0)
     {
-        half perceptualRoughness = 1.0 - _Smoothness;
-        finalColor += EasyPBR_EnvironmentReflection(
-            detailNormalWS, viewDirectionWS, perceptualRoughness, _SpecularF0,
-            _ReflectionStrength, occlusion * specMask);
+        half  perceptualRoughness = 1.0 - _Smoothness;
+        half3 reflectVector = reflect(-viewDirectionWS, detailNormalWS);
+        half3 env = EasyPBR_SampleEnvironment(reflectVector, perceptualRoughness);
+
+        half horizon = saturate(1.0 + dot(reflectVector, detailNormalWS));
+        horizon *= horizon;
+
+        // 下地反射（従来と完全に同一）
+        UNITY_BRANCH
+        if (_ReflectionStrength > 0.0)
+        {
+            float specOcclusion = SpecularOcclusion(NdotV, occlusion, perceptualRoughness);
+            UNITY_BRANCH
+            if (_BentNormalStrength > 0.0)
+            {
+                float align = dot(reflectVector, bentNormalWS) * 0.5 + 0.5;
+                specOcclusion *= lerp(bentOpenness, 1.0, align);
+            }
+            half baseFresnel = _SpecularF0 + (1.0 - _SpecularF0) * pow(1.0 - NdotV, 5.0);
+            finalColor += env * baseFresnel * horizon * _ReflectionStrength * (specOcclusion * specMask);
+        }
+
+        // クリアコート反射（同じ env を再利用＝フェッチ追加なし）
+        UNITY_BRANCH
+        if (_ClearcoatStrength > 0.0)
+        {
+            half  ndvC        = saturate(dot(coatNormalWS, viewDirectionWS));
+            half  coatFresnel = 0.04 + 0.96 * pow(1.0 - ndvC, 5.0);
+            half3 coatIrid    = ClearcoatIridescence(ndvC, _IridescenceIntensity, _IridescenceThickness, _IridescenceShift);
+            finalColor += env * coatFresnel * horizon * coatIrid * (_ClearcoatStrength * _ClearcoatReflStrength * clearcoatMask);
+        }
     }
 
     // 追加エフェクト適用
