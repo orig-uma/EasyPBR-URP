@@ -159,8 +159,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _IridescenceIntensity ("Iridescence Intensity", Range(0.0, 1.0)) = 0.0
         _IridescenceThickness ("Iridescence Thickness", Range(0.0, 8.0)) = 3.0
         _IridescenceShift ("Iridescence Shift", Range(0.0, 1.0)) = 0.0
-        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
-        _GrainScale ("Grain UV Scale", Float) = 10.0
+        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.1
+        _GrainScale ("Grain UV Scale", Float) = 30.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
         _OcclusionStrength ("Occlusion Strength", Range(0.0, 2.0)) = 0.0
         [NoScaleOffset] _BentNormalMap ("Bent Normal", 2D) = "bump" {}
