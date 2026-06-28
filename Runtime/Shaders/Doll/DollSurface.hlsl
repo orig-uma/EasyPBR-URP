@@ -69,7 +69,7 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
     UNITY_BRANCH
     if (_BentNormalStrength > 0.0)
     {
-        half4 bentSample = SAMPLE_TEXTURE2D(_BentNormalMap, sampler_BentNormalMap, input.uv);
+        half4 bentSample = SAMPLE_TEXTURE2D(_BentNormalMap, sampler_MainTex, input.uv);
         half3 bentTS = bentSample.xyz * 2.0 - 1.0;
         bentTS = normalize(bentTS);
         half3 bentWS = normalize(bentTS.x * input.tangentWS + bentTS.y * input.bitangentWS + bentTS.z * s.detailNormalWS);

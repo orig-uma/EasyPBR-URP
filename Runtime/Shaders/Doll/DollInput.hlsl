@@ -26,7 +26,6 @@ TEXTURE2D(_DetailNormalMap);
 TEXTURE2D(_SSSMap);
 TEXTURE2D(_OcclusionMap);
 TEXTURE2D(_BentNormalMap);
-SAMPLER(sampler_BentNormalMap);
 TEXTURE2D(_CavityMap);
 TEXTURE2D(_CurvatureMap);
 TEXTURE2D(_HairFlowMap);
