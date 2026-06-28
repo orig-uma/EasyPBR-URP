@@ -5,16 +5,16 @@
 //  汎用計算は Common ライブラリへ委譲し、ここでは
 //   (1) 顔の手続き的マスク（自己陰消し）
 //   (2) キーワード分岐（toon / specular model / shadow quality）の解決
-//   (3) 旧公開関数名の互換ラッパー
-//  のみを担う。既存フラグメントの呼び出しはこのファイルで従来通り通る。
+//   (3) CalculateSingleLight（DollSurfaceData 経由）
+//  のみを担う。
 //
 //  前提: URP Core.hlsl を本ファイルより前に include しておくこと。
-//  ※ Common フォルダの配置に合わせて下の include パスを調整すること。
 // =============================================================================
 #ifndef DOLL_LIGHTING_INCLUDED
 #define DOLL_LIGHTING_INCLUDED
 
 #include "../Common/Common.hlsl"
+#include "DollSurfaceTypes.hlsl"
 
 // 旧 Hash2DTo1D を直接呼んでいた箇所のための後方互換エイリアス。
 #define Hash2DTo1D Hash21
@@ -105,8 +105,83 @@ half3 CalculateDualLobeSpecular(
         specMask, castShadow, aaVariance, specularMaskVal);
 }
 
-// CalculateSSS / CalculateRimLight / CalculatePeachFuzz / GetFresnelTerms /
-// GetGrainNormal / AnisoPrecomp 系 / Glitter 系 は Common 側で同名提供される
-// （include 済みのためここで再定義不要）。
+// =============================================================================
+//  ライト1灯ぶんの寄与（DollSurfaceData 経由）
+// =============================================================================
+
+half3 CalculateSingleLight(
+    Light light, DollSurfaceData s, half3 viewDirectionWS, float3 objectForwardWS,
+    half3 indirectLight, float sdfLit, half sdfMask)
+{
+    float3 rawDiffuseLight = (light.color * light.distanceAttenuation) + indirectLight;
+    float3 diffuseLightEnergy = ApplyLightEnergyLimit(rawDiffuseLight, _DiffuseLightLimit);
+
+    float3 rawSpecLight = light.color * light.distanceAttenuation;
+    float3 priSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _PriSpecularLightLimit);
+    float3 secSpecLightEnergy = ApplyLightEnergyLimit(rawSpecLight, _SecSpecularLightLimit);
+
+    float proceduralMask = GetProceduralMask(s.baseProceduralMask, objectForwardWS, light.direction);
+    half3 diffuseNormalWS = s.detailNormalWS;
+
+    float diffuseNdotL = dot(diffuseNormalWS, light.direction);
+    float halfLambert = GetHalfLambert(diffuseNdotL, _HalfLambertWrap);
+
+    float castShadow = GetCastShadow(light.shadowAttenuation, s.receiveShadowMask, _ReceiveShadowStrength, s.ditherValue, _ShadowDither, _ShadowMapSoftness, proceduralMask);
+
+    float finalShade;
+
+    float litMask = GetLitMask(halfLambert, proceduralMask, _ToonStep, _ToonFeather);
+    float normalShade = min(litMask, castShadow);
+
+    if (sdfLit >= 0.0)
+    {
+        float sdfShade = lerp(sdfLit, 1.0, proceduralMask);
+        float sdfFinal = min(sdfShade, lerp(1.0, castShadow, _FaceSDFShadowMix));
+
+        finalShade = lerp(normalShade, sdfFinal, sdfMask);
+    }
+    else
+    {
+        finalShade = normalShade;
+    }
+
+    half3 diffuseColor = GetShadedAlbedo(s.albedo, _ShadowColor.rgb, finalShade);
+    half3 finalDiffuse = diffuseColor * diffuseLightEnergy;
+    float NdotL_Specular = dot(s.detailNormalWS, light.direction);
+    float specularMaskVal;
+    half3 finalSpecular = CalculateDualLobeSpecular(
+        s.detailNormalWS, light.direction, viewDirectionWS, NdotL_Specular,
+        priSpecLightEnergy, _SpecularColor, _Smoothness, _SpecularIntensity,
+        secSpecLightEnergy, _SecSpecularColor, _SecSmoothness, _SecSpecularIntensity,
+        s.specMask, castShadow, _SpecularF0, s.specAAVariance, specularMaskVal);
+    finalSpecular *= (1.0 + s.curvRidge);
+
+    float specLuminance = saturate(dot(finalSpecular, half3(0.299, 0.587, 0.114)));
+    finalDiffuse *= (1.0 - specLuminance);
+
+    half3 finalSSS  = CalculateSSS(s.sssTransWS, light.direction, viewDirectionWS, _SSSColor.rgb, _SSSIntensity * s.sssMask, _SSSPower, _SSSDistortion, diffuseLightEnergy, castShadow);
+    half3 finalRim  = CalculateRimLight(_RimColor.rgb, s.rimFresnel, _RimIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
+    half3 finalFuzz = CalculatePeachFuzz(_FuzzColor.rgb, s.fuzzFresnel, _FuzzIntensity, diffuseLightEnergy, NdotL_Specular, castShadow);
+
+    half3 finalAniso = CalculateAnisotropicSpecular(
+        s.anisoPrecomp,
+        s.detailNormalWS, light.direction, viewDirectionWS,
+        _AnisoColor, _AnisoThickness,
+        _AnisoSecColor, _AnisoSecThickness,
+        diffuseLightEnergy, castShadow);
+
+    half3 finalGlitter = half3(0, 0, 0);
+    if (s.glitterActive)
+    {
+        finalGlitter = ApplyGlitterLight(
+            s.glitterGeom,
+            light.direction, viewDirectionWS,
+            _GlitterColor.rgb, _GlitterIntensity,
+            _GlitterIridescence, _GlitterIridescenceShift,
+            _GlitterBaseReflection, diffuseLightEnergy);
+    }
+
+    return finalDiffuse + finalSpecular + finalSSS + finalRim + finalFuzz + finalAniso + finalGlitter;
+}
 
 #endif // DOLL_LIGHTING_INCLUDED

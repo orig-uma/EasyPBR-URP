@@ -113,6 +113,8 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [HDR] _AnisoSecColor ("Aniso 2nd Color (A=Enable)", Color) = (0,0,0,0)
         _AnisoSecThickness ("Aniso 2nd Thickness", Range(0.0, 1.0)) = 0.7
         _AnisoSecOffset ("Aniso 2nd Offset", Range(-1.0, 1.0)) = -0.15
+        [NoScaleOffset] _HairFlowMap ("Hair Flow Map", 2D) = "white" {}
+        _HairFlowStrength ("Hair Flow Strength", Range(0.0, 1.0)) = 0.0
         [Space(10)]
         [Toggle] _UseMatCap ("Enable MatCap", Float) = 0
         [Enum(Add, 0, Multiply, 1)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
@@ -150,14 +152,25 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _GlitterIridescence ("Iridescence Amount (虹色強度)", Range(0.0, 1.0)) = 0.5
         _GlitterIridescenceShift ("Iridescence Shift (虹色移動)", Range(0, 1)) = 0.5
         _GlitterBaseReflection ("Base Reflection (暗い反射)", Range(0.0, 0.5)) = 0.05
-        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.2
-        _GrainScale ("Grain UV Scale", Float) = 10.0
+        [NoScaleOffset] _ClearcoatMask ("Clearcoat Mask (R)", 2D) = "white" {}
+        _ClearcoatStrength ("Clearcoat Strength", Range(0.0, 1.0)) = 0.0
+        _ClearcoatSmoothness ("Clearcoat Smoothness", Range(0.0, 1.0)) = 0.9
+        _ClearcoatReflStrength ("Clearcoat Refl Strength", Range(0.0, 2.0)) = 1.0
+        _IridescenceIntensity ("Iridescence Intensity", Range(0.0, 1.0)) = 0.0
+        _IridescenceThickness ("Iridescence Thickness", Range(0.0, 8.0)) = 3.0
+        _IridescenceShift ("Iridescence Shift", Range(0.0, 1.0)) = 0.0
+        _GrainIntensity ("Grain Intensity", Range(0.0, 1.0)) = 0.1
+        _GrainScale ("Grain UV Scale", Float) = 30.0
         [NoScaleOffset] _OcclusionMap ("Occlusion Map (R)", 2D) = "white" {}
-        _OcclusionStrength ("Occlusion Strength", Range(0.0, 1.0)) = 1.0
+        _OcclusionStrength ("Occlusion Strength", Range(0.0, 2.0)) = 0.0
+        [NoScaleOffset] _BentNormalMap ("Bent Normal", 2D) = "bump" {}
+        _BentNormalStrength ("Bent Normal Strength", Range(0.0, 1.0)) = 0.0
         [NoScaleOffset] _CavityMap ("Cavity Map (R)", 2D) = "white" {}
-        _CavityStrength ("Cavity Strength", Range(0.0, 1.0)) = 1.0
+        _CavityStrength ("Cavity Strength", Range(0.0, 2.0)) = 0.0
+        [NoScaleOffset] _CurvatureMap ("Curvature Map", 2D) = "gray" {}
+        _CurvatureStrength ("Curvature Strength", Range(0.0, 2.0)) = 0.0
         [Space(10)]
-        [NoScaleOffset] _SSSMask ("SSS Mask (R)", 2D) = "white" {}
+        [NoScaleOffset] _SSSMap ("SSS Map (RGB=trans dir, A=thickness)", 2D) = "bump" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0

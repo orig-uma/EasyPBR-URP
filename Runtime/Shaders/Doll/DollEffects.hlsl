@@ -7,7 +7,6 @@
 //
 //  前提: マテリアルプロパティ宣言 (_DissolveTex, sampler_MainTex, _Dissolve* 等)
 //        が本ファイルより前に見えていること。
-//  ※ Common フォルダの配置に合わせて include パスを調整すること。
 // =============================================================================
 #ifndef EASYPBR_EFFECTS_INCLUDED
 #define EASYPBR_EFFECTS_INCLUDED
@@ -71,6 +70,13 @@ void ApplyDissolveClip(float2 uv, float3 positionWS, float3 positionOS, float3 n
 
     ResolveDissolve(di, albedo, dissolveEmission);
 #endif
+}
+
+// AO・ラフネス・NoV からスペキュラ遮蔽（Lagarde/Frostbite 近似）。
+// 反射が荒いほど遮蔽が効き、鋭いほど抜ける。
+float SpecularOcclusion(float NoV, float ao, float perceptualRoughness)
+{
+    return saturate(pow(abs(NoV + ao), exp2(-16.0 * perceptualRoughness - 1.0)) - 1.0 + ao);
 }
 
 #endif // EASYPBR_EFFECTS_INCLUDED

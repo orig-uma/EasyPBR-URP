@@ -55,14 +55,12 @@ half4 frag_outline(Varyings input) : SV_Target
 {
     #if defined(_OUTLINE_ON)
     
-        // 1. アルファクリップの完全同期（_BaseColorを掛けるように修正）
         half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * _BaseColor;
         #if defined(_ALPHATEST_ON)
             float outlineCutoff = clamp(_Cutoff + _OutlineCutoffShift, 0.0, 0.99);
             clip(albedo.a - outlineCutoff);
         #endif
 
-        // 2. ディゾルブの完全同期（本体が消えたら輪郭も消える）
         #if defined(_DISSOLVE_ON)
             half3 dummyEmission;
             half3 cleanNormalWS = normalize(input.normalWS);

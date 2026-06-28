@@ -15,6 +15,7 @@ TEXTURE2D(_DissolveTex);
 TEXTURE2D(_MatCapTex);
 TEXTURE2D(_BlueNoiseTex);
 TEXTURE2D(_GlitterMask);
+TEXTURE2D(_ClearcoatMask);
 
 // 特化用テクスチャ（Doll等で使用）
 TEXTURE2D(_ReceiveShadowMask);
@@ -22,9 +23,12 @@ TEXTURE2D(_SpecularMask);
 TEXTURE2D(_NormalMap);
 TEXTURE2D(_DetailMap);
 TEXTURE2D(_DetailNormalMap);
-TEXTURE2D(_SSSMask);
+TEXTURE2D(_SSSMap);
 TEXTURE2D(_OcclusionMap);
+TEXTURE2D(_BentNormalMap);
 TEXTURE2D(_CavityMap);
+TEXTURE2D(_CurvatureMap);
+TEXTURE2D(_HairFlowMap);
 TEXTURE2D(_FaceSDFMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
@@ -106,7 +110,9 @@ CBUFFER_START(UnityPerMaterial)
     half _GrainIntensity;
     half _GrainScale;
     half _OcclusionStrength;
+    half _BentNormalStrength;
     half _CavityStrength;
+    half _CurvatureStrength;
 
     half _SpecularModel;
     half _SpecularAA;
@@ -129,6 +135,7 @@ CBUFFER_START(UnityPerMaterial)
     half _AnisoStrandScale;
     half _AnisoStrandStrength;
     half _AnisoStrandDir;
+    half _HairFlowStrength;
     half _SpecularF0;
     half4 _AnisoSecColor;
     half _AnisoSecThickness;
@@ -144,6 +151,13 @@ CBUFFER_START(UnityPerMaterial)
     half _GlitterIridescence;
     half _GlitterIridescenceShift;
     half _GlitterBaseReflection;
+
+    half _ClearcoatStrength;
+    half _ClearcoatSmoothness;
+    half _ClearcoatReflStrength;
+    half _IridescenceIntensity;
+    half _IridescenceThickness;
+    half _IridescenceShift;
 
     half4 _SSSColor;
     half _SSSIntensity;

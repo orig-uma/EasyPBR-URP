@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-28
+
+> **破壊的変更を含む**（`_SSSMask` → `_SSSMap` のプロパティ名・チャンネル構成変更）。移行は [MIGRATION](MIGRATION.md) を参照。
+> 公開 API のうち見た目に影響するのは SSS のみ。ForwardPass の内部リファクタはマテリアルプロパティ・描画結果ともに不変。新規シェーダーキーワードは追加していない（すべて uniform 動的分岐）。
+
+### Added
+- **曲率マップ（Curvature Map）**（`EasyPbrCurvatureBaker` → `_CurvatureMap` / `_CurvatureStrength`）。隣接頂点の法線関係から**符号付き**曲率を算出（レイ不要）。0.5=平坦 / 明=凸（稜線）/ 暗=凹（くぼみ）。1 枚で稜線・くぼみ両マスクが取れる Cavity の上位互換。凸で `finalSpecular *= (1 + curvRidge)`、凹で albedo を暗化。ベイク時 `clearValue: 0.5`、Strength 自動 1。**新規キーワードなし。**
+- **ベント法線マップ（Bent Normal Map）**（`EasyPbrBentNormalBaker` → `_BentNormalMap` / `_BentNormalStrength`、**RGBA**）。AO と同じ半球レイで「開いている平均方向」を求め接線空間に焼く。RGB=接線空間ベント法線、A=開き具合（可視率）。`SampleSH(bentNormalWS)` で間接光の評価方向を補正し、くぼみのアンビエントを方向まで正しくする。環境反射には**解析スペキュラ遮蔽**（`SpecularOcclusion`＝Lagarde/Frostbite 近似、`DollEffects.hlsl`）＋ A チャンネルによる**方向スペキュラ遮蔽**を適用。接線空間ゆえスキン変形に追従。**新規キーワードなし。**
+- **ヘアフローマップ（Hair Flow Map）**（`EasyPbrHairFlowBaker` → `_HairFlowMap` / `_HairFlowStrength`）。形状（構造テンソル＝最長エッジ／曲率トグル）から毛流れ軸を推定。向きの無い軸を**倍角エンコード**（RG=cos2θ/sin2θ）し、B に信頼度を焼く。`PrecomputeAnisoTangent` に統合し、信頼度の高い箇所では単一グローバル角の代わりに**ピクセルごとの焼き角**で接線を駆動。ミラーUV・流れに沿わないUVでの天使の輪の破綻を解消。**新規キーワードなし。**
+- **クリアコート＋イリデッセンス**（`Common/BRDF/BRDF_Clearcoat.hlsl`: `CalculateClearcoat` / `ClearcoatIridescence` / `IridescenceTint`）。**加算専用**（下地の陰影・アルベドに非干渉＝黒ずませない）。コート法線は幾何法線（平滑）で艶をクリーンに走らせ、視点依存のフレネルで斜めほど強まる。薄膜の虹色は視点角で位相が動く（ARでカメラを振ると色が回る）。瞳・唇・爪のツヤ向け。プロパティ: `_ClearcoatMask` / `_ClearcoatStrength` / `_ClearcoatSmoothness` / `_ClearcoatReflStrength` / `_IridescenceIntensity` / `_IridescenceThickness` / `_IridescenceShift`。**新規キーワードなし。**
+- `EasyPbrBakeCore`: チャンネル別クリア値（`clearValueG` / `clearValueB` / `clearValueA`）に対応（接線空間マップ等で背景を neutral にできる）。
+
+### Changed
+- **SSS マップ刷新（破壊的変更）**: `_SSSMask`（R のみ・厚み）→ `_SSSMap`（**RGBA**: RGB=接線空間の透過方向、A=厚み）。ベイカーを `EasyPbrThicknessBaker` → `EasyPbrSssBaker` に置換。`CalculateSSS` の歪み軸を `detailNormalWS` から焼いた透過方向 `sssTransWS` に変更し、耳の縁・小鼻・指など「薄さの抜ける向きが法線とずれる」箇所で透過グローが正しい向きに出る。詳細は [MIGRATION](MIGRATION.md)。
+- **既定値変更**: `_OcclusionStrength` / `_CavityStrength` を 1.0 → **0.0**（新規マテリアルは既定 OFF。既存マテリアルは保存値を維持）。
+- **環境反射の cube フェッチ共有**: 下地反射とクリアコート反射が **1 回の cube サンプル**を共有（`EasyPBR_SampleEnvironment` を 1 回呼び、下地・コートで重みだけ別適用）。下地反射の挙動は従来と同一。
+- **ForwardPass リファクタ（挙動不変）**: frag を責務分割し、`CalculateSingleLight` の引数肥大を解消。新規 `DollSurfaceTypes.hlsl`（`DollSurfaceData` 構造体）／ `DollSurface.hlsl`（`GatherSurface` / `ComputeFaceSDF` / `ApplyEnvironmentAndCoat` / `ApplyPostEffects`）を追加し、`CalculateSingleLight` を `DollLighting.hlsl` へ移動して `DollSurfaceData` を受け取る形に集約。frag は約 474 行 → 約 145 行。計算式・分岐条件・見た目は不変。詳細は [ARCHITECTURE](ARCHITECTURE.md)。
+- **Baking パネル順**: AO → Bent Normal → Cavity → Curvature → SSS → Hair Flow → Face SDF。
+
+### Removed
+- `EasyPbrThicknessBaker.cs` を削除（`EasyPbrSssBaker` に置換）。
+- `_SSSMask` プロパティを削除（`_SSSMap` にリネーム）。
+
 ## [0.3.7] - 2026-06-26
 
 ### Added
