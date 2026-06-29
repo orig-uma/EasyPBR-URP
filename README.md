@@ -1,5 +1,13 @@
 # EasyPBR for URP
 
+[![EasyPBR/Doll Demo](Documentation~/EasyPBR_Doll_Sample.png)](https://www.youtube.com/watch?v=o3b8NkF3lj4)
+
+*▶ 画像をクリックするとYouTubeでデモ動画（Showcase）をご覧いただけます*
+
+> **Demo Video Credits**
+> Model: ユニティちゃん Sunny Side Up (URP版) / Music: UNITE IN THE SKY
+> © Unity Technologies Japan/UCL
+
 シェーダー名: `Origuma/EasyPBR_URP/Doll`
 
 複雑な照明環境でもキャラクターが自然に馴染む、PBRベースのURP向けキャラクターシェーダーです。
