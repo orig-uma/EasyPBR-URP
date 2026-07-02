@@ -1,10 +1,21 @@
-# EasyPBR for URP — マイグレーション（v0.3.7 → v0.4.0）
+# EasyPBR for URP — マイグレーション
+
+## v0.4.0 → v0.5.0
+
+**破壊的変更なし・移行作業不要**。プロパティの削除・リネーム・既定値変更は無い。新機能（2nd Shadow / Cast Shadow Color / Shadow Hue Shift / Skin Scatter / Fill Light / Light Conditioning / Indirect Light / Shade Normal / Toon Specular / Outline Albedo Blend）はすべて既定で素通し（OFF）で、既存マテリアルの見た目を変えない。新規シェーダーキーワードも無い（すべて uniform 動的分岐 → [VARIANTS](VARIANTS.md)）。
+
+挙動が変わるのは以下の 2 点のみ:
+
+- **間接光がわずかに明るくなる場合がある**: 従来は「直接光＋間接光」の合算に Diffuse Light Limit のクランプが掛かっており、直接光が上限（既定 1.0）に達すると間接光の寄与が丸ごと消えていた不具合を修正した。直接光が上限に達していて、かつシーンに環境光があるマテリアルでは、環境光のぶんだけ明るくなる。従来の見た目へ寄せるには Indirect Intensity（Light and Shadow > Indirect Light）を下げる。
+- **スライダー上限の拡張（保存値は不変・UI のみ）**: `_ReflectionStrength` 1.0 → 2.0。あわせて Specular（Primary / Secondary）/ Rim / Peach Fuzz / MatCap のカラーが HDR 対応になった（既存の保存値はそのまま）。
+
+## v0.3.7 → v0.4.0
 
 v0.4.0 は機能追加（曲率 / ベント法線 / ヘアフロー / クリアコート）と ForwardPass の内部リファクタを含む。**破壊的変更は SSS マップのみ**。それ以外の新機能はすべて既定 OFF で、既存マテリアルの見た目を変えない（一部の既定値変更を除く）。
 
-## 破壊的変更
+### 破壊的変更
 
-### `_SSSMask` → `_SSSMap`（プロパティ名・チャンネル構成の変更）
+#### `_SSSMask` → `_SSSMap`（プロパティ名・チャンネル構成の変更）
 
 SSS を「厚みスカラ 1 枚」から「厚み＋透過方向の RGBA 1 枚」に統合した。
 
@@ -22,7 +33,7 @@ SSS を「厚みスカラ 1 枚」から「厚み＋透過方向の RGBA 1 枚�
 
 > 透過方向は接線空間なのでスキン変形に追従する。タンジェントの無いメッシュは方向が幾何法線へフォールバック（厚み A は有効）。
 
-## 既定値の変更（新規マテリアルのみ影響）
+### 既定値の変更（新規マテリアルのみ影響）
 
 | プロパティ | 旧既定 | 新既定 | 備考 |
 | :--- | :---: | :---: | :--- |
@@ -31,7 +42,7 @@ SSS を「厚みスカラ 1 枚」から「厚み＋透過方向の RGBA 1 枚�
 
 既存マテリアルは**保存値を維持**するため見た目は変わらない。新規マテリアルでは、AO / Cavity をベイクすると自動で Strength が 1 に立つ（焼かない限り OFF）。
 
-## 追加された新機能（すべて既定 OFF・非破壊）
+### 追加された新機能（すべて既定 OFF・非破壊）
 
 焼く／有効化しない限り既存マテリアルに影響しない。
 
@@ -44,10 +55,10 @@ SSS を「厚みスカラ 1 枚」から「厚み＋透過方向の RGBA 1 枚�
 
 新規シェーダーキーワードは追加していない（すべて uniform 動的分岐）。よって**バリアント数は不変**で、SRP Batcher のバッチングに新たな分断要因は増えない（→ [VARIANTS](VARIANTS.md) / [SRP_BATCHER](SRP_BATCHER.md)）。
 
-## ForwardPass リファクタ（公開 API 不変）
+### ForwardPass リファクタ（公開 API 不変）
 
 frag の責務分割と `CalculateSingleLight` の引数整理を行ったが、**マテリアルプロパティ・描画結果は不変**。利用者側の対応は不要。シェーダーを改造・流用している場合のみ、内部構成の変更（`DollSurfaceTypes.hlsl` / `DollSurface.hlsl` の追加、`CalculateSingleLight` の `DollLighting.hlsl` への移動とシグネチャ変更）に注意する（→ [ARCHITECTURE](ARCHITECTURE.md)）。
 
-## バージョン表記
+### バージョン表記
 
 `_SSSMask` リネーム（破壊的）と内部アーキテクチャ変更を含むため **0.4.0** を推奨。0.3.x 系に留める場合は、本ページの破壊的変更（SSS の再ベイク要）を必ず明記すること。

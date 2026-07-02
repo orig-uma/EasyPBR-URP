@@ -10,8 +10,12 @@
 struct DollSurfaceData
 {
     half3 albedo;
+    half3 shadowAlbedo;   // 1影の最終色（Shadow Color + Hue Shift/Saturation 適用済み）
+    half3 shadow2Albedo;  // 2影の最終色（同上ベースに 2nd Shadow Color を乗算）
+    half3 castShadowAlbedo; // 落ち影の最終色（同上ベースに Cast Shadow Color を乗算）
     half3 cleanNormalWS;
     half3 detailNormalWS;
+    half3 shadeNormalWS;  // 拡散の陰専用の平滑化法線（未ベイク時は detailNormalWS と同一）
     half3 bentNormalWS;
     half  bentOpenness;
     half3 sssTransWS;
@@ -23,6 +27,7 @@ struct DollSurfaceData
     half  occlusion;
     half  cavity;
     half  curvRidge;
+    half  scatterCurvMask;  // スキンスキャッタの曲率マスク（曲率未使用時は 1）
     half  ditherValue;
     half  baseProceduralMask;
     half  NdotV;

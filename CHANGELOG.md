@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-02
+
+> **破壊的変更なし・移行作業不要**（→ [MIGRATION](MIGRATION.md)）。新機能はすべて既定で素通し（OFF）、新規シェーダーキーワードなし（すべて uniform 動的分岐・バリアント数不変）。挙動変化は「間接光がクランプに食われる不具合の修正（環境光のあるシーンでわずかに明るくなる）」と「一部スライダー上限の拡張・カラーの HDR 化（保存値不変）」のみ。
+> テーマは**ライティングコアの強化と運用支援**: 陰の階調（2影・落ち影色分離・色相制御・散乱）、照明環境からの防御（ライト整形・間接光整形）、陰の形の整形（シェーディング法線）、陰への加光（フィルライト）、ライブ演出のランタイム制御。
+
+### Added
+- **ライブ演出コンポーネント（DollLiveDirector）**（`Runtime/Scripts/DollLiveDirector.cs`、Add Component > EasyPBR > Doll Live Director）。配下の Doll マテリアルの演出系プロパティ（Black Out / Dissolve Amount / Fill Light の色・強度）をキャラ単位で一括制御する。各グループは Override トグルが ON のあいだだけ上書きし、OFF でマテリアルの元値へ復元。Timeline / Animation からはフィールド直キーで駆動でき（専用トラック・追加依存なし）、スクリプト API（`SetBlackOut` / `SetDissolve` / `SetFill` / `ClearOverrides`）も持つ。**SRP Batcher 維持の設計**: Play 中はマテリアルインスタンス経由で値を書き（MPB はレンダラーをバッチから外すため不使用）、Edit モードのプレビューのみ非破壊の MaterialPropertyBlock を使用（→ SRP_BATCHER.md に指針を追記）。
+- **マテリアル一括置換ユーティリティ（Material Replacer）**（`Editor/MaterialReplacerWindow.cs`、`Window > EasyPBR > Material Replacer`）。対象オブジェクト配下の全 Renderer のマテリアルを、指定フォルダ内の同名マテリアルへ一括で差し替える（Undo 可・`sharedMaterials` のスロット参照のみ変更＝アセット非破壊・置換済みスロットはスキップ）。元モデルのマテリアルと同名で EasyPBR 版を用意しておくことで、モデル一式の移行をワンクリック化する導線。
+- **Bake All（共通マップの一括ベイク）**（Baking パネル先頭）。AO / Bent Normal / Shade Normal / Cavity / Curvature / SSS の 6 種を、各 Foldout の現在の設定のまま順に実行。Hair Flow / Face SDF は対象マテリアルが限られるため対象外（個別に焼く）。
+- **GPU Instancing の注意表示**（Advanced Options）。Enable Instancing が ON のとき「SkinnedMeshRenderer には効かず、SRP Batcher から外れる」警告を表示（キャラ用途では通常 OFF を推奨）。
+- **影色の色相・彩度制御（Shadow Hue Shift / Saturation）**（`_ShadowHueShift` / `_ShadowSaturation`）。陰側のベースカラーを HSV 補正してから Shadow Color を乗算し、「ただ暗い影」を色相が転がり彩度が残る影にする。マスク不要のプロシージャル制御。既定値（0 / 1）のとき HSV 変換ごとスキップ。**新規キーワードなし（uniform 動的分岐）。**
+- **アウトラインのアルベド連動色（Outline Albedo Blend）**（`_OutlineAlbedoBlend`）。輪郭線の色を「その場のアルベド × Outline Color」側へブレンドする。髪には髪系統・肌には肌系統の線が自動で付き、固定単色より馴染む（Outline Color は乗算色として働くため暗めを推奨）。アルベドは Outline パスで既にサンプル済みのため追加コストは lerp 1 回。0（既定）で従来の固定色。
+- **落ち影の色分離（Cast Shadow Color）**（`_CastShadowColor`（A=Enable））。落ち影（shadow map）を角度の陰とは独立した色で塗る（落ち影だけ寒色へ振る等の映像的な塗り分け）。色は Hue Shift / Saturation 補正を陰と共有した上で乗算（`DollSurfaceData.castShadowAlbedo` として事前計算）。有効時は角度の陰（litMask / SDF）と落ち影（castShadow / External Shadow Mix）を分離して合成し、A=0（既定）では従来の合成式をそのまま使用（見た目完全互換）。**新規キーワードなし（uniform 動的分岐）。**
+- **フィルライト（Fill Light / 照り返し）**（`_FillColor`（HDR）/ `_FillIntensity` / `_FillPitch` / `_FillYaw` / `_FillShadeOnly`）。指定方向（ワールド空間の Pitch / Yaw）からのバウンス光を陰側に注ぐプロシージャルなフィルライト。Half-Lambert（wrap 0.5）で柔らかく回り込み、Shade Side Only で主光の陰側に限定（既定 1）。メインライトの寄与から独立した加算光（`CalculateSingleLight` に `fillIntensity` 引数を追加。メインライト呼び出しのみ有効・追加ライトは 0）。床の照り返し・空からの回り込み等をシーンのライト追加なしで構成できる。0 で計算ごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
+- **シェーディング法線（Shade Normal）**（`EasyPbrShadeNormalBaker` → `_ShadeNormalMap` / `_ShadeNormalStrength`）。頂点法線を**位置溶接**（UV 継ぎ目・硬エッジで分割された頂点を量子化位置でグループ化）した隣接グラフ上でラプラシアン平滑化し、接線空間に焼く（法線マップと同一の符号化・スキン変形追従・レイ不要）。ランタイムは**拡散の陰ランプだけ**をこの法線で駆動し（スペキュラ・リム・SSS はディテール法線のまま）、シワ・ファセット起伏で陰のグラデーションが汚く割れるのを防いで陰の輪郭を一本の綺麗な曲線として通す。滑らかなランプほど起伏が目立つソフトグラデーション基調の絵作りで特に有効。ベイクで Strength 自動 1。0 でサンプルごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
+- **キャラ用ライト整形（Light Conditioning）**（`_LightColorInfluence` / `_LightSaturationLimit` / `_LightMinBrightness`、`Common/Common_Color.hlsl`: `ConditionLightColor`）。メインライトの色をキャラの可読性側へ整形する防御層で、Anti-Blowout（上限）と対になる「下限と色の防御」。Light Color Influence（0 で同輝度の白色光扱い＝原色照明でもキャラの色設計を保持）、Light Saturation Limit（色相を保持したまま彩度を上限で抑える）、Light Min Brightness（輝度下限。暗所でも完全黒に沈まない）。`_ConditionAdditionalLights`（Toggle・既定 OFF）で追加ライトにも Color Influence / Saturation Limit を適用可（Min Brightness は灯数ぶん持ち上がるのを防ぐためメインライト限定）。既定値（1 / 1 / 0 / OFF）で完全素通し・整形ごとスキップ。**新規キーワードなし（uniform 動的分岐）。**
+- **スペキュラのスタイライズ（Toon Specular / Shade Dimming）**（`_ToonSpecular` / `_ToonSpecularStep` / `_ToonSpecularFeather` / `_SpecularShadeInfluence`）。Toon Specular はスペキュラのトーンマップ後輝度（`lum/(1+lum)`）をしきい値で切り、縁のパキッとした様式的ハイライトにする（内側のグラデーション保持・fwidth で最低 1px の AA・0〜1 で連続とブレンド・両ローブ共通）。Specular Shade Dimming は陰ランプ（1影・2影の `min(finalShade, shade2)`）に入った面のスペキュラを減衰（落ち影はローブ内で従来から適用済み。角度ベースの陰でも消すアニメ的に厳密な絵作り向け）。全ライトに適用。いずれも 0 で整形ごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
+- **間接光の整形（Indirect Light）**（`_IndirectFlatten` / `_IndirectIntensity` / `_IndirectTint`）。ライトプローブ / アンビエントの SH をキャラ向けに整える。Flatten は SH の方向成分を潰して定数項（`SampleSH(0)`＝平均環境光）へ寄せ、会場 GI の方向ムラが顔に出るのを防いでキャラ全体を均一なアンビエントで包む（Bent Normal の方向補正とはトレードオフ）。Intensity / Tint で間接光の寄与と色味を調整（メインライト非干渉）。既定値（0 / 1 / 白）で素通し。Flatten 0 のとき 2 回目の SH 評価ごとスキップ。**新規キーワードなし（uniform 動的分岐）。**
+- **2影（2nd Shadow）**（`_Shadow2Color`（A=Enable）/ `_Shadow2Step` / `_Shadow2Feather`）。1影より深い位置に第2の陰ランプを重ねるアニメ塗りの 2 段構成（明 → 1影 → 2影）。光角度ベースで駆動し、落ち影（shadow map）は 1影のまま。顔 SDF 領域では SDF 由来の連続値で駆動し、SDF が消した法線由来の陰バンドを顔に再発させない。色は Hue Shift / Saturation 補正を 1影と共有した上で `_Shadow2Color` を乗算（`DollSurfaceData.shadow2Albedo` として事前計算）。境界は `ToonRamp`（smoothstep + fwidth AA）を Toon / Smooth 共通で使用。Skin Scatter 有効時は 1影・2影両方の境界に散乱が乗る。A=0 で 2影ランプごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
+- **スキンスキャッタ（Skin Scatter）**（`_SkinScatterColor` / `_SkinScatterIntensity` / `_SkinScatterWidth` / `_SkinScatterCurvatureMask`、`Common/BRDF/BRDF_Diffuse.hlsl`: `ApplyTerminatorScatter`）。明暗境界（ターミネータ）に散乱色を滲ませる pre-integrated skin scattering の近似。バンドは最終陰影値（`finalShade`）の遷移域から取るため、トゥーンランプ・落ち影ペナンブラ・顔 SDF 境界のいずれにも同じ式で乗る。Curvature Mask でベイク済み `_CurvatureMap` と連動し、薄い・曲率の高い部位（耳・鼻・指）ほど強く散乱（0 で均一・曲率未使用時も動作）。マスク不要。0 で計算ごとスキップ・既定 OFF。**新規キーワードなし（uniform 動的分岐）。**
+
+### Changed
+- **インスペクターをタブ分割 UI に刷新**: 縦一列だった 11 セクションを最上部の固定タブバー（基本 / 陰・影 / ライト / スペキュラ / 質感 / 演出 / Baking）でページ分割し、縦の長さと「どこに何があるか」を同時に解消。選択タブは記憶される。あわせて**プロパティ検索**を追加——検索ボックスに入力するとタブを横断して表示名・プロパティ名に部分一致する項目をフラットに列挙する。肥大していた Light and Shadow は「陰・影（階調 / セルフシャドウ / 顔）」と「ライト（整形 / フィル / 間接光 / 白飛び防止）」へ、Optional Effects は「質感（コートとグリッター / 肌と縁 / ベイクマップ）」へ再編成。タブ内セクションは既定で展開。
+- **ベイク出力を同名上書きに変更**: 生成 PNG のファイル名を固定（従来は `GenerateUniqueAssetPath` により再ベイクのたび `_1, _2…` と連番で増加）。同名ファイルを上書きするため `Baked/` が肥大しない。GUID が維持されるので、アサイン済みの参照はそのまま新しい内容に更新される（以前の結果へ戻すには焼き直すかバージョン管理で戻す）。
+- **ハイライト系カラーの HDR 化**: `_SpecularColor`（Primary）/ `_SecSpecularColor`（Secondary）/ `_RimColor` / `_FuzzColor` / `_MatCapColor` に `[HDR]` を付与（既存の保存値は不変・UI のみ拡張）。`_ReflectionStrength` の上限を 1.0 → **2.0** に拡張（1 超は様式的なブースト）。ハイライトを 1 超の輝度にして Bloom を誘発する様式的な強い反射表現を全ハイライト系（Specular / Rim / Peach Fuzz / MatCap / 環境反射。Aniso / Glitter / Dissolve は従来から HDR）で構成可能に。
+- **陰色の事前計算（挙動不変の最適化）**: 陰側の最終色（Shadow Color 乗算後）を `GatherSurface` でライト非依存に 1 回だけ算出し `DollSurfaceData.shadowAlbedo` に保持（従来はライトごとに算出）。`DollLighting.hlsl` の未使用になった `GetShadedAlbedo` ラッパーを削除（汎用 `ShadedAlbedo` は `Common/BRDF/BRDF_Diffuse.hlsl` に残置）。
+
+### Fixed
+- **SRP Batcher 互換性の穴を修正**: `_UseOutline` / `_ShadowMode` / `_OutlineStencilRef` / `_OutlineStencilComp` / `_OutlineStencilPass` / `_OutlineStencilFail` / `_OutlineStencilZFail` の 7 プロパティが `UnityPerMaterial` CBUFFER に未登録だった（通常側の `_StencilRef` 等は登録済みで非対称だった）。これらは ShaderLab の Stencil ブロックや KeywordEnum が参照し HLSL からは直接読まないが、CBUFFER に含めないと SRP Batcher が incompatible 判定になりうるため追加（挙動・見た目は不変）。これで Properties の全プロパティが CBUFFER / テクスチャに網羅登録された。
+- **間接光が Anti-Blowout に食われて無効化される問題を修正**: 従来は「直接光＋間接光」の合算に Diffuse Light Limit（既定 1.0）の輝度クランプを掛けていたため、標準的な強度 1 のライト下では間接光の寄与が丸ごと削られていた（Indirect Light の調整も見た目に反映されない）。直接光のみをクランプし間接光をその後に加算する形へ変更。**挙動変化**: 直接光が上限に達しているシーンでは、環境光のぶんだけ従来よりわずかに明るくなる（間接光側の上限管理は Indirect Intensity で行う）。
+- `package.json` の `version` が `0.3.7` のまま v0.4.0 リリースに追従していなかったのを修正。
+
 ## [0.4.0] - 2026-06-28
 
 > **破壊的変更を含む**（`_SSSMask` → `_SSSMap` のプロパティ名・チャンネル構成変更）。移行は [MIGRATION](MIGRATION.md) を参照。

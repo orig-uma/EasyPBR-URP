@@ -59,6 +59,14 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Light and Shadow)]
         [Enum(Smooth, 0, Toon, 1)] _ShadingStyle ("Shading Style", Float) = 0
         _ShadowColor ("Shadow Color", Color) = (0.7, 0.7, 0.75, 1)
+        _ShadowHueShift ("Shadow Hue Shift", Range(-0.5, 0.5)) = 0.0
+        _ShadowSaturation ("Shadow Saturation", Range(0.0, 2.0)) = 1.0
+        _Shadow2Color ("2nd Shadow Color (A = Enable)", Color) = (0.55, 0.5, 0.62, 0)
+        _Shadow2Step ("2nd Shadow Threshold", Range(0.0, 1.0)) = 0.25
+        _Shadow2Feather ("2nd Shadow Softness", Range(0.0, 1.0)) = 0.2
+        _CastShadowColor ("Cast Shadow Color (A = Enable)", Color) = (0.6, 0.62, 0.75, 0)
+        [NoScaleOffset] _ShadeNormalMap ("Shade Normal Map", 2D) = "bump" {}
+        _ShadeNormalStrength ("Shade Normal Strength", Range(0.0, 1.0)) = 0.0
         [Toggle] _UseFaceSDF ("Enable Face SDF Shadow", Float) = 0
         [NoScaleOffset] _FaceSDFMap ("Face SDF Map", 2D) = "white" {}
         [Toggle] _FaceSDFFlip ("Face SDF Flip Forward", Float) = 0
@@ -74,6 +82,18 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _ShadowMapSoftness ("Shadow Softness", Range(0.0, 1.0)) = 0.4
         _ShadowDither ("Shadow Edge Dither", Range(0.0, 1.0)) = 0.5
         _HalfLambertWrap ("Light Wrap", Range(0.0, 1.0)) = 0.0
+        _LightColorInfluence ("Light Color Influence", Range(0.0, 1.0)) = 1.0
+        _LightSaturationLimit ("Light Saturation Limit", Range(0.0, 1.0)) = 1.0
+        _LightMinBrightness ("Light Min Brightness", Range(0.0, 1.0)) = 0.0
+        [Toggle] _ConditionAdditionalLights ("Condition Additional Lights", Float) = 0
+        [HDR] _FillColor ("Fill Light Color (HDR)", Color) = (0.4, 0.45, 0.6, 1)
+        _FillIntensity ("Fill Light Intensity", Range(0.0, 2.0)) = 0.0
+        _FillPitch ("Fill Light Pitch", Range(-90.0, 90.0)) = -60.0
+        _FillYaw ("Fill Light Yaw", Range(-180.0, 180.0)) = 0.0
+        _FillShadeOnly ("Fill Shade Side Only", Range(0.0, 1.0)) = 1.0
+        _IndirectFlatten ("Indirect Flatten", Range(0.0, 1.0)) = 0.0
+        _IndirectIntensity ("Indirect Intensity", Range(0.0, 2.0)) = 1.0
+        _IndirectTint ("Indirect Tint", Color) = (1, 1, 1, 1)
         _DiffuseLightLimit ("Diffuse Light Limit", Range(0.1, 5.0)) = 1.0
         [Enum(Add, 0, Max, 1)] _AdditionalLightBlendMode ("Additional Light Blend", Float) = 1
         [Space(10)]
@@ -90,18 +110,22 @@ Shader "Origuma/EasyPBR_URP/Doll"
         _SpecularAA ("Specular Anti-Aliasing", Range(0.0, 1.0)) = 1.0
         _SpecularF0 ("Fresnel (F0)", Range(0.0, 1.0)) = 0.04
         _SpecularMask ("Specular Mask (R)", 2D) = "white" {}
+        _ToonSpecular ("Toon Specular", Range(0.0, 1.0)) = 0.0
+        _ToonSpecularStep ("Toon Specular Threshold", Range(0.01, 0.95)) = 0.35
+        _ToonSpecularFeather ("Toon Specular Softness", Range(0.0, 1.0)) = 0.1
+        _SpecularShadeInfluence ("Specular Shade Dimming", Range(0.0, 1.0)) = 0.0
         [Space(10)]
-        _SpecularColor ("Primary Specular Color", Color) = (1, 1, 1, 1)
+        [HDR] _SpecularColor ("Primary Specular Color (HDR)", Color) = (1, 1, 1, 1)
         _Smoothness ("Primary Smoothness", Range(0.01, 1.0)) = 0.8
         _SpecularIntensity ("Primary Intensity", Range(0.0, 5.0)) = 0.0
         _PriSpecularLightLimit ("Primary Light Limit", Range(0.1, 10.0)) = 2
         [Space(10)]
-        _SecSpecularColor ("Secondary Specular Color", Color) = (1, 1, 1, 1)
+        [HDR] _SecSpecularColor ("Secondary Specular Color (HDR)", Color) = (1, 1, 1, 1)
         _SecSmoothness ("Secondary Smoothness", Range(0.01, 1.0)) = 0.2
         _SecSpecularIntensity ("Secondary Intensity", Range(0.0, 5.0)) = 0.0
         _SecSpecularLightLimit ("Secondary Light Limit", Range(0.1, 5.0)) = 1.2
         [Space(10)]
-        _ReflectionStrength ("Environment Reflection", Range(0.0, 1.0)) = 0.0
+        _ReflectionStrength ("Environment Reflection", Range(0.0, 2.0)) = 0.0
         [Header(Anisotropic Highlight)]
         [HDR] _AnisoColor ("Aniso Color", Color) = (0, 0, 0, 0)
         _AnisoThickness ("Aniso Thickness", Range(0.0, 1.0)) = 0.2
@@ -119,7 +143,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Toggle] _UseMatCap ("Enable MatCap", Float) = 0
         [Enum(Add, 0, Multiply, 1)] _MatCapBlend ("MatCap Blend Mode", Float) = 0
         [NoScaleOffset] _MatCapTex ("MatCap Texture (RGB)", 2D) = "black" {}
-        _MatCapColor ("MatCap Tint", Color) = (1, 1, 1, 1)
+        [HDR] _MatCapColor ("MatCap Tint (HDR)", Color) = (1, 1, 1, 1)
         _MatCapIntensity ("MatCap Intensity", Range(0.0, 5.0)) = 1.0
         _MatCapLightInfluence ("MatCap Light Influence", Range(0.0, 1.0)) = 0.0
 
@@ -170,17 +194,22 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [NoScaleOffset] _CurvatureMap ("Curvature Map", 2D) = "gray" {}
         _CurvatureStrength ("Curvature Strength", Range(0.0, 2.0)) = 0.0
         [Space(10)]
+        _SkinScatterColor ("Skin Scatter Color", Color) = (0.9, 0.3, 0.2, 1)
+        _SkinScatterIntensity ("Skin Scatter Intensity", Range(0.0, 1.0)) = 0.0
+        _SkinScatterWidth ("Skin Scatter Width", Range(0.0, 1.0)) = 0.5
+        _SkinScatterCurvatureMask ("Skin Scatter Curvature Mask", Range(0.0, 1.0)) = 0.0
+        [Space(10)]
         [NoScaleOffset] _SSSMap ("SSS Map (RGB=trans dir, A=thickness)", 2D) = "bump" {}
         _SSSColor ("SSS Color", Color) = (1, 1, 1, 1)
         _SSSIntensity ("SSS Intensity", Range(0.0, 5.0)) = 0.0
         _SSSPower ("SSS Falloff", Range(0.1, 10.0)) = 4.0
         _SSSDistortion ("SSS Distortion", Range(0.0, 1.0)) = 0.1
         [Space(10)]
-        _FuzzColor ("Peach Fuzz Color", Color) = (1.0, 0.95, 0.9, 1.0)
+        [HDR] _FuzzColor ("Peach Fuzz Color (HDR)", Color) = (1.0, 0.95, 0.9, 1.0)
         _FuzzIntensity ("Peach Fuzz Intensity", Range(0.0, 5.0)) = 0.0
         _FuzzPower ("Peach Fuzz Width", Range(0.1, 10.0)) = 4.0
         [Space(10)]
-        _RimColor ("Rim Light Color", Color) = (1, 1, 1, 1)
+        [HDR] _RimColor ("Rim Light Color (HDR)", Color) = (1, 1, 1, 1)
         _RimIntensity ("Rim Light Intensity", Range(0.0, 5.0)) = 0.0
         _RimThickness ("Rim Light Thickness", Range(0.0, 1.0)) = 0.2
         [Space(10)]
@@ -190,6 +219,7 @@ Shader "Origuma/EasyPBR_URP/Doll"
         [Header(Outline)]
         [Toggle] _UseOutline ("Enable Outline", Float) = 0
         _OutlineColor ("Outline Color", Color) = (0.2, 0.1, 0.1, 1)
+        _OutlineAlbedoBlend ("Outline Albedo Blend", Range(0.0, 1.0)) = 0.0
         _OutlineWidth ("Outline Width", Range(0.0, 10.0)) = 1.0
         _OutlineCutoffShift ("Outline Cutoff Shift", Range(-1, 1)) = 0
         

@@ -76,12 +76,21 @@ half4 frag(Varyings input) : SV_Target
         Light mainLight = GetMainLight(shadowCoord, input.positionWS, half4(1,1,1,1));
     #endif
 
+    // キャラ用ライト整形: メインライトの色を可読性側へ寄せる防御層
+    // （色影響度 / 彩度上限 / 輝度下限）。既定値では素通し。
+    UNITY_BRANCH
+    if (_LightColorInfluence < 1.0 || _LightSaturationLimit < 1.0 || _LightMinBrightness > 0.0)
+    {
+        mainLight.color = ConditionLightColor(mainLight.color,
+            _LightColorInfluence, _LightSaturationLimit, _LightMinBrightness);
+    }
+
     half sdfMask;
     float sdfLit = ComputeFaceSDF(input, mainLight, objectForwardWS, sdfMask);
 
     finalColor += CalculateSingleLight(
         mainLight, s, viewDirectionWS, objectForwardWS,
-        s.indirectLight, sdfLit, sdfMask);
+        s.indirectLight, sdfLit, sdfMask, _FillIntensity);
 
     UNITY_BRANCH
     if (_ClearcoatStrength > 0.0)
@@ -108,12 +117,23 @@ half4 frag(Varyings input) : SV_Target
 
         uint pixelLightCount = GetAdditionalLightsCount();
 
+        // 追加ライトのライト整形は色影響度・彩度上限のみ（輝度下限は適用しない:
+        // 下限は「シーンに 1 本のメインライト」の責務で、灯数ぶん持ち上がるのを防ぐ）。
+        bool conditionAdditional = (_ConditionAdditionalLights > 0.5)
+            && (_LightColorInfluence < 1.0 || _LightSaturationLimit < 1.0);
+
         #define DOLL_ACCUMULATE_ADDITIONAL_LIGHT(index)                                   \
             {                                                                             \
                 Light addLight = GetAdditionalLight(index, input.positionWS, half4(1,1,1,1)); \
+                UNITY_BRANCH                                                              \
+                if (conditionAdditional)                                                  \
+                {                                                                         \
+                    addLight.color = ConditionLightColor(addLight.color,                  \
+                        _LightColorInfluence, _LightSaturationLimit, 0.0);                \
+                }                                                                         \
                 half3 addContrib = CalculateSingleLight(                                  \
                     addLight, s, viewDirectionWS, objectForwardWS,                      \
-                    half3(0,0,0), -1.0, 1.0);                                           \
+                    half3(0,0,0), -1.0, 1.0, 0.0);                                      \
                 finalColor = (_AdditionalLightBlendMode > 0.5)                            \
                     ? max(finalColor, addContrib)                                         \
                     : finalColor + addContrib;                                            \

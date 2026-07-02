@@ -40,4 +40,40 @@ half3 ApplyColorCorrection(half3 color, half hueShift, half saturation, half val
     return HsvToRgb(hsv);
 }
 
+// -----------------------------------------------------------------------------
+//  ConditionLightColor
+//   ライト色の整形（キャラの可読性をライト環境から守る防御層）。
+//    influence:     0 = 同輝度の白色光として扱う（キャラの色設計を保持）
+//    satLimit:      ライト彩度の上限（1 = 制限なし。色相は保持したまま減衰）
+//    minBrightness: 輝度の下限（0 = なし。暗所でも最低限の明るさを保証）
+//   すべて既定値（1 / 1 / 0）のとき素通し。
+// -----------------------------------------------------------------------------
+half3 ConditionLightColor(half3 lightColor, half influence, half satLimit, half minBrightness)
+{
+    const half3 kLumWeights = half3(0.2126, 0.7152, 0.0722);
+
+    half lum = dot(lightColor, kLumWeights);
+    half3 color = lerp(half3(lum, lum, lum), lightColor, influence);
+
+    // 彩度上限: HSV の S（(max-min)/max）が satLimit に収まるまでグレー側へ。
+    half maxC = max(color.r, max(color.g, color.b));
+    half minC = min(color.r, min(color.g, color.b));
+    half sat = (maxC > 1e-4) ? (maxC - minC) / maxC : 0.0;
+    if (sat > satLimit)
+    {
+        half gray = dot(color, kLumWeights);
+        color = lerp(color, half3(gray, gray, gray), 1.0 - satLimit / sat);
+    }
+
+    // 輝度下限: 色相比を保ったままスケールアップ（完全黒は白色光で持ち上げ）。
+    half lumOut = dot(color, kLumWeights);
+    if (lumOut < minBrightness)
+    {
+        color = (lumOut > 1e-4)
+            ? color * (minBrightness / lumOut)
+            : half3(minBrightness, minBrightness, minBrightness);
+    }
+    return color;
+}
+
 #endif // EASYPBR_COMMON_COLOR_INCLUDED

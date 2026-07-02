@@ -375,8 +375,11 @@ namespace Origuma.EasyPBR.URP.Editor
             if (!AssetDatabase.IsValidFolder(bakedDir))
                 AssetDatabase.CreateFolder(dir, "Baked");
 
+            // 同名ファイルは上書き（連番で増やさない）。GUID が維持されるため、
+            // アサイン済みの参照はそのまま新しい内容に更新される。
+            // 以前の結果に戻したい場合は焼き直すか、バージョン管理で戻す。
             string baseName = Sanitize($"{meshName}_{material.name}_{suffix}");
-            string path = AssetDatabase.GenerateUniqueAssetPath($"{bakedDir}/{baseName}.png");
+            string path = $"{bakedDir}/{baseName}.png";
 
             File.WriteAllBytes(path, tex.EncodeToPNG());
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
