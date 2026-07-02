@@ -67,7 +67,10 @@ half4 frag_outline(Varyings input) : SV_Target
             ApplyDissolveClip(input.uv, input.positionWS, input.positionOS, cleanNormalWS, albedo.rgb, dummyEmission);
         #endif
 
-        return _OutlineColor;
+        // アルベド連動: その場のアルベド × Outline Color を線の色にブレンド。
+        // 髪には髪の、肌には肌の系統色の線が付き、固定単色より馴染む。
+        half3 lineColor = lerp(_OutlineColor.rgb, albedo.rgb * _OutlineColor.rgb, _OutlineAlbedoBlend);
+        return half4(lineColor, _OutlineColor.a);
         
     #else
         return half4(0,0,0,0);
