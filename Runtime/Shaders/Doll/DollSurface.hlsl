@@ -51,6 +51,19 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
 
     s.detailNormalWS = GetGrainNormal(cleanNormalWS, noiseVec, _GrainIntensity);
 
+    // シェーディング法線: ベイクした平滑化法線で拡散の陰ランプだけを駆動し、
+    // シワ・ファセット起伏がグラデーションを汚すのを防ぐ（スペキュラ・リム・
+    // SSS はディテール法線のまま）。未ベイク（bump / Strength 0）で無効。
+    s.shadeNormalWS = s.detailNormalWS;
+    UNITY_BRANCH
+    if (_ShadeNormalStrength > 0.0)
+    {
+        half4 shadeSample = SAMPLE_TEXTURE2D(_ShadeNormalMap, sampler_MainTex, input.uv);
+        half3 shadeTS = shadeSample.xyz * 2.0 - 1.0;
+        half3 shadeWS = normalize(shadeTS.x * input.tangentWS + shadeTS.y * input.bitangentWS + shadeTS.z * input.normalWS);
+        s.shadeNormalWS = normalize(lerp(s.detailNormalWS, shadeWS, _ShadeNormalStrength));
+    }
+
     s.receiveShadowMask = SAMPLE_TEXTURE2D(_ReceiveShadowMask, sampler_MainTex, input.uv).r;
     s.specMask = SAMPLE_TEXTURE2D(_SpecularMask, sampler_MainTex, input.uv).r;
 
@@ -81,6 +94,7 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
     albedo.rgb *= lerp(1.0, s.cavity, _CavityStrength);
 
     s.curvRidge = 0.0;
+    s.scatterCurvMask = 1.0;
     UNITY_BRANCH
     if (_CurvatureStrength > 0.0)
     {
@@ -88,6 +102,10 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
         half signedCurv = (curv * 2.0 - 1.0) * _CurvatureStrength;
         s.curvRidge  = saturate( signedCurv);
         albedo.rgb *= 1.0 - saturate(-signedCurv);
+
+        // スキンスキャッタ用の曲率マスク: 曲率の大きい（＝細い/薄い）部位ほど
+        // 散乱を強く。0 で曲率非依存の均一適用。
+        s.scatterCurvMask = lerp(1.0, saturate(abs(signedCurv) * 4.0), _SkinScatterCurvatureMask);
     }
 
     s.specAAVariance = (_SpecularAA > 0.0)
@@ -96,6 +114,18 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
 
     s.cleanNormalWS = cleanNormalWS;
     s.albedo = albedo.rgb;
+
+    // 陰側の最終色をライト非依存に 1 回だけ算出（per-light の再計算を排除）。
+    // Hue Shift / Saturation は「ただ暗い影」を彩度と色相の残る影にする（既定は素通し）。
+    half3 shadowBase = albedo.rgb;
+    UNITY_BRANCH
+    if (abs(_ShadowHueShift) > 0.0001 || abs(_ShadowSaturation - 1.0) > 0.0001)
+    {
+        shadowBase = ApplyColorCorrection(shadowBase, _ShadowHueShift, _ShadowSaturation, 1.0);
+    }
+    s.shadowAlbedo  = shadowBase * _ShadowColor.rgb;
+    s.shadow2Albedo = shadowBase * _Shadow2Color.rgb;
+    s.castShadowAlbedo = shadowBase * _CastShadowColor.rgb;
     s.baseProceduralMask = GetProceduralMaskBase(cleanNormalWS, objectForwardWS, _FrontMaskStrength, _UpMaskStrength, _MaskFalloff);
     s.NdotV = saturate(dot(s.detailNormalWS, viewDirectionWS));
     GetFresnelTerms(s.NdotV, _RimIntensity, _RimThickness, _FuzzIntensity, _FuzzPower, s.rimFresnel, s.fuzzFresnel);
@@ -125,7 +155,16 @@ DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 obje
         _GlitterIntensity, _GlitterSparsity,
         s.glitterGeom);
 
-    s.indirectLight = SampleSH(s.bentNormalWS);
+    // 間接光（SH）: 平坦化で方向成分を潰し、キャラ全体を均一なアンビエントで包む。
+    // SampleSH(0) は SH の定数項（平均環境光）のみを返す。ベント法線由来の
+    // 方向補正（0 側）と平坦化（1 側）はトレードオフの関係。
+    half3 indirect = SampleSH(s.bentNormalWS);
+    UNITY_BRANCH
+    if (_IndirectFlatten > 0.0)
+    {
+        indirect = lerp(indirect, SampleSH(half3(0.0, 0.0, 0.0)), _IndirectFlatten);
+    }
+    s.indirectLight = indirect * (_IndirectTint.rgb * _IndirectIntensity);
 
     return s;
 }

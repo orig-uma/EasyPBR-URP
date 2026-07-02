@@ -25,6 +25,10 @@ Inspector で **⚡ マーク**の付くプロパティ。値が割れると別�
 
 全キーワードとバリアント数は [VARIANTS](VARIANTS.md) を参照。
 
+### 1.5 MaterialPropertyBlock（ランタイム制御時の注意）
+
+`MaterialPropertyBlock` を設定したレンダラーは **SRP Batcher の対象から外れる**。ランタイムでプロパティを動かす場合は、MPB ではなく**マテリアルインスタンス**（`renderer.materials`）経由で値を書くこと——別マテリアル同士は同一バリアントである限り SRP Batcher でバッチされる。パッケージ同梱の `DollLiveDirector`（Black Out / Dissolve / Fill Light の一括制御）はこの方式で実装されており、Play 中のバッチングを分断しない（Edit モードのプレビューのみ非破壊の MPB を使用）。
+
 ### 2. Surface 設定（描画状態）
 
 Surface Options の **Render Mode（Opaque / Cutout / Transparent）** は、レンダーキュー・ブレンド・ZWrite・`_ALPHATEST_ON` を一括で変える。**描画状態やキューが違うとキーワード以前にバッチがまとまらない**。不透明・Cutout・半透明の混在は構造上分かれるので、せめて**同種のパーツ内では Surface 設定を揃える**。

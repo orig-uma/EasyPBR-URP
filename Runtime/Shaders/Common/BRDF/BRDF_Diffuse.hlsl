@@ -39,6 +39,21 @@ half3 ShadedAlbedo(half3 baseColor, half3 shadowColorTint, float finalShade)
 }
 
 // -----------------------------------------------------------------------------
+//  ApplyTerminatorScatter
+//   明暗境界（ターミネータ）を scatterColor 方向へ滲ませる pre-integrated
+//   skin scattering の近似。finalShade（0=影, 1=光）が 0.5 を跨ぐ遷移域で
+//   バンドが立ち、トゥーンランプ・落ち影ペナンブラ・SDF 顔影のどの境界にも
+//   同じ式で乗る。width: 0 = 細い、1 = 広い（バンド形状の指数を制御）。
+// -----------------------------------------------------------------------------
+half3 ApplyTerminatorScatter(half3 diffuseColor, half3 albedo, half3 scatterColor,
+                             float finalShade, float width, float amount)
+{
+    float band = saturate(4.0 * finalShade * (1.0 - finalShade));
+    band = pow(band, lerp(4.0, 0.5, width));
+    return lerp(diffuseColor, albedo * scatterColor, band * amount);
+}
+
+// -----------------------------------------------------------------------------
 //  ResolveCastShadow
 //   落ち影(shadow map)専用のソフトランプ。0(影)..1(光)。
 //   penumbraReady = true（PCF/PCSS で連続ペナンブラ生成済み）の場合は

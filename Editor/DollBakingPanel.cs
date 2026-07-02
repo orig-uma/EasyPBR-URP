@@ -16,7 +16,7 @@ namespace Origuma.EasyPBR.URP.Editor
     public class DollBakingPanel
     {
         private GameObject _bakeRoot;
-        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _bentOpen, _hairFlowOpen, _sssOpen;
+        private bool _aoOpen, _sdfOpen, _cavityOpen, _curvatureOpen, _bentOpen, _hairFlowOpen, _sssOpen, _shadeNormalOpen;
 
         private EasyPbrAoBaker.Settings        _aoSettings        = EasyPbrAoBaker.Default;
         private EasyPbrFaceSdfBaker.Settings   _sdfSettings       = EasyPbrFaceSdfBaker.Default;
@@ -25,6 +25,7 @@ namespace Origuma.EasyPBR.URP.Editor
         private EasyPbrBentNormalBaker.Settings _bentSettings      = EasyPbrBentNormalBaker.Default;
         private EasyPbrHairFlowBaker.Settings  _hairFlowSettings   = EasyPbrHairFlowBaker.Default;
         private EasyPbrSssBaker.Settings      _sssSettings       = EasyPbrSssBaker.Default;
+        private EasyPbrShadeNormalBaker.Settings _shadeNormalSettings = EasyPbrShadeNormalBaker.Default;
 
         private static readonly int[] s_BakeResEn = { 512, 1024, 2048 };
         private static readonly string[] s_BakeResLabels = { "512", "1024", "2048" };
@@ -70,6 +71,24 @@ namespace Origuma.EasyPBR.URP.Editor
 
                     using (new EditorGUI.DisabledScope(_bakeRoot == null))
                     {
+                        // --- Bake All（共通マップの一括ベイク）---
+                        EditorGUILayout.Space(2);
+                        if (GUILayout.Button(jp ? "共通マップを一括ベイク（AO / Bent / Shade Normal / Cavity / Curvature / SSS）"
+                                                : "Bake All Common Maps (AO / Bent / Shade Normal / Cavity / Curvature / SSS)",
+                                GUILayout.Height(28)))
+                            BakeAllTargets(materialEditor, m =>
+                                EasyPbrAoBaker.Bake(_bakeRoot, m, _aoSettings)
+                                & EasyPbrBentNormalBaker.Bake(_bakeRoot, m, _bentSettings)
+                                & EasyPbrShadeNormalBaker.Bake(_bakeRoot, m, _shadeNormalSettings)
+                                & EasyPbrCavityBaker.Bake(_bakeRoot, m, _cavitySettings)
+                                & EasyPbrCurvatureBaker.Bake(_bakeRoot, m, _curvatureSettings)
+                                & EasyPbrSssBaker.Bake(_bakeRoot, m, _sssSettings));
+                        EditorGUILayout.HelpBox(
+                            jp ? "各 Foldout の現在の設定で 6 種を順に焼く。Hair Flow（髪）と Face SDF（顔）は対象マテリアルで個別に焼くこと。"
+                               : "Bakes the 6 common maps in order using each foldout's current settings. Bake Hair Flow (hair) and Face SDF (face) individually on those materials.",
+                            MessageType.None);
+                        EditorGUILayout.Space(2);
+
                         // --- Ambient Occlusion ---
                         _aoOpen = EditorGUILayout.Foldout(_aoOpen, jp ? "Ambient Occlusion（→ Occlusion Map）" : "Ambient Occlusion (→ Occlusion Map)", true);
                         if (_aoOpen)
@@ -103,6 +122,22 @@ namespace Origuma.EasyPBR.URP.Editor
                                 EditorGUILayout.HelpBox(
                                     jp ? "接線空間で焼く(スキン追従)。アンビエント/SH を幾何法線の代わりにこの方向で評価すると、くぼみの陰が方向まで正しくなる。AO(強度)と併用。タンジェント必須。"
                                        : "Tangent space (follows skinning). Evaluate ambient/SH along this instead of the geometric normal. Pairs with AO. Requires tangents.",
+                                    MessageType.None);
+                            }
+
+                        // --- Shade Normal ---
+                        _shadeNormalOpen = EditorGUILayout.Foldout(_shadeNormalOpen, jp ? "Shade Normal（→ Shade Normal Map）" : "Shade Normal (→ Shade Normal Map)", true);
+                        if (_shadeNormalOpen)
+                            using (new EditorGUI.IndentLevelScope())
+                            {
+                                _shadeNormalSettings.resolution = ResField(_shadeNormalSettings.resolution);
+                                _shadeNormalSettings.smoothIterations = EditorGUILayout.IntSlider(kit.Label("Smooth Normals", "Laplacian smoothing iterations on welded vertex normals. Higher = softer, cleaner shade gradation", "位置溶接した頂点法線のラプラシアン平滑化回数。高いほど陰のグラデーションが滑らかで綺麗に"), _shadeNormalSettings.smoothIterations, 0, 64);
+                                _shadeNormalSettings.blur = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _shadeNormalSettings.blur, 0, 4);
+                                if (BakeButton(jp ? "Shade Normal をベイク" : "Bake Shade Normal"))
+                                    BakeAllTargets(materialEditor, m => EasyPbrShadeNormalBaker.Bake(_bakeRoot, m, _shadeNormalSettings));
+                                EditorGUILayout.HelpBox(
+                                    jp ? "平滑化した法線を接線空間に焼き、拡散の陰ランプだけをこの法線で駆動する（スペキュラ・リム・SSSはディテール法線のまま）。シワ・ファセット起伏で陰のグラデーションが汚く割れるのを防ぎ、陰の輪郭を一本の綺麗な曲線として通す。UV継ぎ目・硬エッジは位置溶接して平滑化するので継ぎ目で陰が割れない。レイ不要で高速。服・髪で特に効く。"
+                                       : "Bakes smoothed normals into tangent space; only the diffuse shade ramp uses them (specular, rim and SSS keep the detail normal). Stops wrinkles and facets from breaking the shade gradation, so the shade boundary reads as one clean curve. Vertices are position-welded before smoothing so UV seams and hard edges don't split the shade. No rays, fast. Most visible on clothes and hair.",
                                     MessageType.None);
                             }
 
@@ -188,6 +223,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                        : "Bake on the face material, then enable Face SDF Shadow under Light and Shadow. Bakes 4 channels (R/G/B/A = right/left/up/down) so asymmetric faces work.",
                                     MessageType.None);
                             }
+
                     }
 
                     EditorGUILayout.Space(2);

@@ -59,12 +59,14 @@ Editor/
   DollShaderGUI.cs              カスタムインスペクター
   DollBakingPanel.cs            マップベイク UI（Baking セクション）
   DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
+  MaterialReplacerWindow.cs     マテリアル一括置換 Window
   Baking/
     EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch・チャンネル別 clearValue）
     EasyPbrAoBaker.cs           AO ベイク
     EasyPbrCavityBaker.cs       Cavity ベイク
     EasyPbrCurvatureBaker.cs    Curvature ベイク（符号付き曲率）
     EasyPbrBentNormalBaker.cs   Bent Normal ベイク（RGBA: 方向＋開き具合）
+    EasyPbrShadeNormalBaker.cs  Shade Normal ベイク（位置溶接＋ラプラシアン平滑化）
     EasyPbrSssBaker.cs          SSS ベイク（RGBA: 透過方向＋厚み）
     EasyPbrHairFlowBaker.cs     Hair Flow ベイク（倍角エンコード＋信頼度）
     EasyPbrFaceSdfBaker.cs      Face SDF ベイク（RGBA 4ch）
@@ -87,14 +89,17 @@ Editor/
 | `Runtime/Shaders/Doll/Passes/DepthNormalsPass.hlsl` | DepthNormals パス |
 | `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス（LightMode = `DollOutline`） |
 | `Runtime/DollOutlineFeature.cs` | `DollOutline` パスを後段でまとめて描く RendererFeature（ForwardLit のバッチング維持） |
+| `Runtime/Scripts/DollLiveDirector.cs` | 演出系プロパティ（Black Out / Dissolve / Fill Light）のキャラ単位一括制御。Play=マテリアルインスタンス（SRP Batcher 維持）/ Edit=非破壊 MPB プレビュー |
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 | `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
+| `Editor/MaterialReplacerWindow.cs` | マテリアル一括置換 Window（配下 Renderer を同名マテリアルへ差し替え） |
 | `Editor/Baking/EasyPbrBakeCore.cs` | ベイク共通パイプライン `RunBake` |
 | `Editor/Baking/EasyPbrAoBaker.cs` | Ambient Occlusion → `_OcclusionMap` |
 | `Editor/Baking/EasyPbrCavityBaker.cs` | Cavity → `_CavityMap` |
 | `Editor/Baking/EasyPbrCurvatureBaker.cs` | Curvature → `_CurvatureMap` |
 | `Editor/Baking/EasyPbrBentNormalBaker.cs` | Bent Normal → `_BentNormalMap`（RGBA） |
+| `Editor/Baking/EasyPbrShadeNormalBaker.cs` | Shade Normal → `_ShadeNormalMap`（接線空間。位置溶接＋ラプラシアン平滑化・レイ不要） |
 | `Editor/Baking/EasyPbrSssBaker.cs` | SSS → `_SSSMap`（RGBA） |
 | `Editor/Baking/EasyPbrHairFlowBaker.cs` | Hair Flow → `_HairFlowMap` |
 | `Editor/Baking/EasyPbrFaceSdfBaker.cs` | Face SDF → `_FaceSDFMap`（RGBA 4ch） |
@@ -113,7 +118,7 @@ GatherSurface()           ← テクスチャサンプル・デコード一式�
   → ApplyPostEffects()         ← MatCap / Emission / Dissolve / BlackOut
 ```
 
-* **`DollSurfaceData`**（`DollSurfaceTypes.hlsl`）: アルベド・各種法線（clean / detail / bent / coat）・各マスク（receiveShadow / spec / occlusion / cavity / curvRidge / clearcoat）・SSS（透過方向 / 厚み）・bent openness・ビュー依存の前計算（NdotV / fresnel / AnisoPrecomp / GlitterGeom）・`indirectLight`（`SampleSH(bentNormalWS)`）等をまとめた構造体。型名を `DollSurfaceData` としているのは URP `Lighting.hlsl` の `SurfaceData` との衝突回避のため。
+* **`DollSurfaceData`**（`DollSurfaceTypes.hlsl`）: アルベド（`albedo` / `shadowAlbedo`・`shadow2Albedo`＝Shadow Color / 2nd Shadow Color と Hue Shift/Saturation を適用済みの 1影・2影の最終色。ライト非依存に 1 回だけ算出し per-light の再計算を排除）・各種法線（clean / detail / bent / coat）・各マスク（receiveShadow / spec / occlusion / cavity / curvRidge / clearcoat）・SSS（透過方向 / 厚み）・bent openness・ビュー依存の前計算（NdotV / fresnel / AnisoPrecomp / GlitterGeom）・`indirectLight`（`SampleSH(bentNormalWS)` に Flatten / Intensity / Tint の整形を適用済み）等をまとめた構造体。型名を `DollSurfaceData` としているのは URP `Lighting.hlsl` の `SurfaceData` との衝突回避のため。
 * **`CalculateSingleLight`**（`DollLighting.hlsl`）: 引数を `DollSurfaceData` で受ける形に集約（旧来の 20 引数超を解消）。追加ライトは `indirectLight=0, sdfLit=-1, sdfMask=1` を渡す。
 * **環境反射の 1 フェッチ共有**: `ApplyEnvironmentAndCoat` は `EasyPBR_SampleEnvironment` を **1 回**だけ呼び、下地反射（`_SpecularF0` のフレネル＋スペキュラ遮蔽）とクリアコート反射（F0=0.04 のフレネル＋イリデッセンス＋マスク）で重みだけ別々に適用する。下地反射の挙動は分割前と同一。コート反射は同一の反射ベクトル・mip を共有する（コート専用に別 mip を引かない軽量化）。
 * **include 設計**: `DollLighting` は `DollSurfaceTypes.hlsl`（型のみ）を include。`DollSurface.hlsl`（実装）は `Varyings` 定義後に `#define DOLL_SURFACE_IMPL` してから include する。Unity は include パス文字列でファイルを識別するため、`DollSurfaceTypes` は 1 箇所からのみ include して二重定義を避ける。
@@ -132,11 +137,12 @@ flowchart LR
     Cav[EasyPbrCavityBaker]
     Curv[EasyPbrCurvatureBaker]
     Bent[EasyPbrBentNormalBaker]
+    Shade[EasyPbrShadeNormalBaker]
     Sss[EasyPbrSssBaker]
     Hair[EasyPbrHairFlowBaker]
     Sdf[EasyPbrFaceSdfBaker]
-    Panel --> Ao & Cav & Curv & Bent & Sss & Hair & Sdf
-    Ao & Cav & Curv & Bent & Sss & Hair & Sdf --> Core
+    Panel --> Ao & Cav & Curv & Bent & Shade & Sss & Hair & Sdf
+    Ao & Cav & Curv & Bent & Shade & Sss & Hair & Sdf --> Core
 ```
 
 各 Baker は `Settings` / `Default` / `Bake(...)` の同一 API。マップ固有の頂点計算だけを Baker 内に閉じ、保存・ラスタライズ・後処理は `EasyPbrBakeCore.RunBake` に委譲する。
@@ -147,7 +153,7 @@ flowchart LR
 2. SkinnedMesh は現在ポーズを `BakeMesh` で一時メッシュ化（Read/Write 必須）
 3. レイ遮蔽が必要な Baker（AO / Bent Normal / SSS / Face SDF）は全パーツに一時 `MeshCollider` を立て、遮蔽源とする（レイヤ 31 で隔離）
 4. Renderer ごとに頂点値を計算 → 頂点平滑化 → **対象サブメッシュのみ** UV 空間へ CPU ラスタライズ（複数メッシュを 1 枚に累積）
-5. Dilate → Blur → PNG 保存（Linear・無圧縮）→ マテリアル隣 `Baked/` へ出力し該当スロットへ自動アサイン
+5. Dilate → Blur → PNG 保存（Linear・無圧縮）→ マテリアル隣 `Baked/` へ出力し該当スロットへ自動アサイン（同名ファイルは上書き・GUID 維持）
 
 1 マテリアルを複数メッシュで共有していても 1 テクスチャに焼ける。Strength / Intensity 等が 0 のときはベイク成功時に 1 へ自動有効化する。
 
@@ -216,11 +222,11 @@ flowchart LR
 | :--- | :--- |
 | `Common/Common.hlsl` | アンブレラ。これ 1 本で BRDF / Effects の純粋関数を依存順に内包 |
 | `Common/Common_Math.hlsl` | `Hash21`、`IGN`、`EasyPBR_Remap`、`Luminance601`、`ApplyLuminanceClamp` |
-| `Common/Common_Color.hlsl` | `RgbToHsv`、`HsvToRgb`、`HueToRGB`、`ApplyColorCorrection` |
+| `Common/Common_Color.hlsl` | `RgbToHsv`、`HsvToRgb`、`HueToRGB`、`ApplyColorCorrection`、`ConditionLightColor`（ライト色の影響度・彩度上限・輝度下限の整形） |
 | `Common/Common_Sampling.hlsl` | `VogelDisk` |
 | `Common/BRDF/BRDF_GGX.hlsl` | `D_GGX`、`V_SmithGGX`、`F_Schlick`、`GGXLobe`、`BlinnPhongLobe`、`ComputeSpecularAAVariance` / `ApplySpecularAA` |
 | `Common/BRDF/BRDF_Specular.hlsl` | `DualLobeSpecularGGX` / `DualLobeSpecularBlinn` |
-| `Common/BRDF/BRDF_Diffuse.hlsl` | `HalfLambert`、`ToonRamp`、`ShadeRamp`、`ShadedAlbedo`、`ResolveCastShadow` |
+| `Common/BRDF/BRDF_Diffuse.hlsl` | `HalfLambert`、`ToonRamp`、`ShadeRamp`、`ShadedAlbedo`、`ApplyTerminatorScatter`（明暗境界の散乱にじみ）、`ResolveCastShadow` |
 | `Common/BRDF/BRDF_RimFuzz.hlsl` | `GetFresnelTerms`、`CalculateRimLight`、`CalculatePeachFuzz` |
 | `Common/BRDF/BRDF_Translucency.hlsl` | `CalculateSSS`（透過方向 `sssTransWS` で歪み軸を駆動） |
 | `Common/BRDF/BRDF_Anisotropic.hlsl` | `AnisoPrecomp`、`PrecomputeAnisoTangent`（ヘアフロー倍角を統合）、`CalculateAnisotropicSpecular` |
@@ -232,7 +238,6 @@ flowchart LR
 | `Common/Effects/Fx_Dissolve.hlsl` | `ResolveDissolve`（`DissolveInput` 構造体・サンプリングは外部） |
 | `Common/URP/Shadow_HQ_URP.hlsl` | `EasyPBR_SampleMainShadowHQ`、`EasyPBR_FindBlocker` |
 | `Common/URP/Reflection_URP.hlsl` | `EasyPBR_SampleEnvironment`（生フェッチ）、`EasyPBR_EnvironmentReflection`（フレネル適用）。1 フェッチを下地・コートで共有する基盤 |
-
 ### include 順
 
 ```

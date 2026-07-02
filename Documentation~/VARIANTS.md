@@ -14,6 +14,8 @@
 
 > MatCap / Emission / Color Correction は keyword を廃止し、`_UseMatCap` / `_UseEmission` / `_UseColorCorrection`（Float）による `UNITY_BRANCH` の動的分岐にしている。無効時はテクスチャサンプルごとスキップされ、バリアントは増えない。**環境反射（`_ReflectionStrength`）も同様の uniform 動的分岐**で、0 のとき cube サンプルごとスキップされバリアントを増やさない。Specular AA / Occlusion / Detail Normal は常時計算（または既定テクスチャで無影響）でキーワードを持たない。**顔 SDF シャドウ（`_UseFaceSDF` 他）も uniform 動的分岐**（OFF 時はサンプルごとスキップ）でバリアント非増。
 >
+> **0.5.0 のライティングコア強化（Shadow Hue Shift / 2nd Shadow / Cast Shadow Color / Skin Scatter / Fill Light / Light Conditioning / Indirect Light / Shade Normal / Toon Specular）もすべて uniform 動的分岐**でキーワードを持たない。`_ShadowHueShift` / `_ShadowSaturation` は既定値（0 / 1）のとき HSV 変換をスキップし、`_Shadow2Color` はアルファ 0 のとき 2影ランプごとスキップ、`_CastShadowColor` はアルファ 0 のとき落ち影分離パスごとスキップ、`_SkinScatterIntensity` は 0 のときバンド計算ごとスキップする。Light Conditioning（`_LightColorInfluence` / `_LightSaturationLimit` / `_LightMinBrightness`）も既定値（1 / 1 / 0）のとき整形ごとスキップし、Indirect Light の `_IndirectFlatten` も 0 のとき 2 回目の SH 評価ごとスキップし、スペキュラのスタイライズ（`_ToonSpecular` / `_SpecularShadeInfluence`）も 0 のとき整形ごとスキップし、Shade Normal（`_ShadeNormalStrength`）も 0 のときサンプルごとスキップし、Fill Light（`_FillIntensity`）も 0 のとき計算ごとスキップする。
+>
 > **0.4.0 で追加したマップ系もすべて uniform 動的分岐**で、新規キーワードを持たない（＝バリアント数・バッチング分断要因ともに増えない）。`_BentNormalStrength` / `_CurvatureStrength` / `_HairFlowStrength` / `_ClearcoatStrength` はいずれも 0 のときに対応ブロックを `UNITY_BRANCH` でスキップする。SSS（`_SSSMap`）は厚み＋透過方向の常時サンプル（既定 `bump`/`white` で無影響）。ベイカーは Editor 専用ツールでランタイム・バリアントに影響しない。
 >
 > Shading Style（Smooth / Toon）/ Specular Model（BlinnPhong / GGX）/ Alpha Blend（Transparent）も同様に keyword を廃止し、`_ShadingStyle` / `_SpecularModel` の uniform 動的分岐、および Alpha 出力の常時化に移行した（0.3.5）。これらはマテリアル間で値が割れやすく、keyword 分岐のままだと**同時描画時に SRP Batcher のバッチが分断される**ため。分岐自体は軽量（threshold vs ramp / 関数選択 / 1 行）なので、バリアント削減のメリットが上回る。
@@ -40,7 +42,7 @@
 | Outline | 2·2·2·3 = **24** | — | **24** |
 | **総計** | | | **6,984** |
 
-> 0.4.0 の新機能は keyword を持たないため、上のバリアント数は据え置き。
+> 0.4.0 / 0.5.0 の新機能は keyword を持たないため、上のバリアント数は据え置き。
 >
 > `shader_feature_local` はプロジェクト内のマテリアルが実際に使う組み合わせのみビルドに含まれる（1 マテリアルは機能キーワードの 1 通りを選ぶだけ）。一方 `multi_compile` は常に全展開されるため、**実ビルドのバリアント数は概ね「使用中の機能組み合わせ数 × システム 144（ForwardLit）」程度**に収まり、上の理論最大には達しない。
 >

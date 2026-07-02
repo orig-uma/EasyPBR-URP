@@ -30,6 +30,7 @@ TEXTURE2D(_CavityMap);
 TEXTURE2D(_CurvatureMap);
 TEXTURE2D(_HairFlowMap);
 TEXTURE2D(_FaceSDFMap);
+TEXTURE2D(_ShadeNormalMap);
 
 // --- 変数宣言 (SRP Batcher対応のため一つにまとめる) --- 
 CBUFFER_START(UnityPerMaterial)
@@ -90,6 +91,13 @@ CBUFFER_START(UnityPerMaterial)
     half _MaskFalloff;
     half _ShadingStyle;
     half4 _ShadowColor;
+    half _ShadowHueShift;
+    half _ShadowSaturation;
+    half4 _Shadow2Color;
+    half _Shadow2Step;
+    half _Shadow2Feather;
+    half4 _CastShadowColor;
+    half _ShadeNormalStrength;
     half _UseFaceSDF;
     half _FaceSDFFlip;
     half _FaceSDFSoftness;
@@ -101,6 +109,18 @@ CBUFFER_START(UnityPerMaterial)
     half _ShadowMapSoftness;
     half _ShadowDither;
     half _HalfLambertWrap;
+    half _LightColorInfluence;
+    half _LightSaturationLimit;
+    half _LightMinBrightness;
+    half _ConditionAdditionalLights;
+    half4 _FillColor;
+    half _FillIntensity;
+    half _FillPitch;
+    half _FillYaw;
+    half _FillShadeOnly;
+    half _IndirectFlatten;
+    half _IndirectIntensity;
+    half4 _IndirectTint;
     half _DiffuseLightLimit;
     half _AdditionalLightBlendMode;
     half _ToonStep;
@@ -116,6 +136,10 @@ CBUFFER_START(UnityPerMaterial)
 
     half _SpecularModel;
     half _SpecularAA;
+    half _ToonSpecular;
+    half _ToonSpecularStep;
+    half _ToonSpecularFeather;
+    half _SpecularShadeInfluence;
     half4 _SpecularColor;
     half _Smoothness;
     half _SpecularIntensity;
@@ -159,6 +183,11 @@ CBUFFER_START(UnityPerMaterial)
     half _IridescenceThickness;
     half _IridescenceShift;
 
+    half4 _SkinScatterColor;
+    half _SkinScatterIntensity;
+    half _SkinScatterWidth;
+    half _SkinScatterCurvatureMask;
+
     half4 _SSSColor;
     half _SSSIntensity;
     half _SSSPower;
@@ -174,9 +203,21 @@ CBUFFER_START(UnityPerMaterial)
 
     half _BlackOut;
 
+    half _UseOutline;
     half4 _OutlineColor;
+    half _OutlineAlbedoBlend;
     half _OutlineWidth;
     half _OutlineCutoffShift;
+    half _OutlineStencilRef;
+    half _OutlineStencilComp;
+    half _OutlineStencilPass;
+    half _OutlineStencilFail;
+    half _OutlineStencilZFail;
+
+    // ShaderLab の Stencil / KeywordEnum が参照する値。HLSL からは直接参照しない
+    // （キーワードや描画ステートで使う）が、SRP Batcher compatible を保つため
+    // UnityPerMaterial に含める。
+    half _ShadowMode;
 CBUFFER_END
 
 #endif // EASYPBR_INPUT_INCLUDED
