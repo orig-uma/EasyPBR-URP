@@ -1167,13 +1167,14 @@ namespace Origuma.EasyPBR.URP.Editor
                 using (new EditorGUI.IndentLevelScope())
                 {
                     // アウトラインは独自パス（LightMode=DollOutline）。RendererFeature が必要。
-                    EditorGUILayout.HelpBox(
-                        _jp
-                            ? "アウトラインの表示には Doll Outline Feature を Renderer に追加する必要があります（ForwardLit のバッチング維持のため独自パス化）。"
-                            : "Outline requires the Doll Outline Feature on your Renderer (separated pass keeps ForwardLit batching).",
-                        MessageType.Info);
-                    if (GUILayout.Button(_jp ? "Outline セットアップを開く" : "Open Outline Setup"))
-                        DollOutlineSetupWindow.Open();
+                    // 未追加検知は EasyShaderCore の FeatureSetup に委譲（追加済みなら Info、未追加なら Warning）。
+                    FeatureSetup.DrawFeatureGuard<DollOutlineFeature>(
+                        _jp ? "Doll Outline Feature は追加済みです。"
+                            : "Doll Outline Feature is set up.",
+                        _jp ? "Doll Outline Feature が Renderer に追加されていません。アウトラインの表示にはセットアップウィンドウから追加してください（ForwardLit のバッチング維持のため独自パス化）。"
+                            : "Doll Outline Feature is NOT on the active Renderer. Add it via the setup window to draw outlines (separated pass keeps ForwardLit batching).",
+                        _jp ? "Outline セットアップを開く" : "Open Outline Setup",
+                        DollOutlineSetupWindow.Open);
                     EditorGUILayout.Space(2);
 
                     P(materialEditor, "_OutlineColor", "Color",

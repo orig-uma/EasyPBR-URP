@@ -13,7 +13,9 @@
 - `Runtime/Shaders/Common/**`（BRDF / Effects / URP / 純粋関数 HLSL）を `com.origuma.easyshader-core` へ移管。HLSL の include パスが `Packages/com.origuma.easypbr-urp/Runtime/Shaders/Common/...` → `Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/...` に変わった（Doll 内部は修正済み。**ユーザーシェーダーが EasyPBR の Common を直接 include していた場合はパス修正が必要**）
 - `Editor/Baking/**`（EasyPbr*Baker / EasyPbrBakeCore）と `Editor/ShaderGuiKit.cs` を EasyShaderCore へ移管。名前空間が `Origuma.EasyPBR.URP.Editor` → `Origuma.EasyShaderCore.Editor` に変わり、Baker 群は `internal` → `public` に
 - `Editor/AssemblyInfo.cs`（InternalsVisibleTo）を削除（不要になったため）
-- dependencies に `com.origuma.easyshader-core: 0.1.0` を追加
+- dependencies に `com.origuma.easyshader-core` を追加
+- `Editor/MaterialReplacerWindow.cs` を EasyShaderCore へ移管。メニューが `Window > EasyPBR > Material Replacer` → `Window > Origuma > Material Replacer` に変わった（旧メニューパスは廃止）
+- `DollOutlineSetupWindow` を EasyShaderCore の `FeatureSetupWindowBase` ベースに刷新（アクティブな URP Asset からの Renderer Data 自動収集・Compatibility Mode 警告に対応）。メニューが `Window > EasyPBR > Doll Outline Setup` → `Window > Origuma > Doll Outline Setup` に変わった（Window メニューの占有を Origuma 1 枠に集約）
 
 ## [0.5.0] - 2026-07-02
 
