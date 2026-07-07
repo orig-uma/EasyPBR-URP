@@ -26,6 +26,13 @@
 
 ## インストール
 
+**先に共通基盤パッケージ `com.origuma.easyshader-core`（EasyShaderCore）をインストールすること**（v0.6.0 から必須の依存。インストール順: core → pbr）。
+EasyPBR を先に入れてしまった場合は、エディタ起動時に EasyShaderCore のインストール案内ウィンドウが表示され、ワンクリックで導入できる。
+
+```
+https://github.com/orig-uma/EasyShaderCore-URP.git
+```
+
 ### Package Manager（Git URL）
 
 `Window > Package Manager > + > Add package from git URL...` に以下を入力する。
