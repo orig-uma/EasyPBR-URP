@@ -8,7 +8,7 @@
 //  ForwardLit 同士が SRP Batcher でまとまる。アウトラインはこの Feature が
 //  別の DrawRenderers として後段でまとめて描くため、Outline 同士もバッチされる。
 //
-//  セットアップは Window > EasyPBR > Doll Outline Setup から
+//  セットアップは Window > Origuma > Doll Outline Setup から
 //  対象の UniversalRendererData に追加する。
 //
 //  ※ Render Graph 前提（URP 17 / Unity 6）。Compatibility Mode では動作しない。

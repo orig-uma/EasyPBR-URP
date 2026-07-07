@@ -59,7 +59,6 @@ Editor/
   DollShaderGUI.cs              カスタムインスペクター
   DollBakingPanel.cs            マップベイク UI（Baking セクション）
   DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
-  MaterialReplacerWindow.cs     マテリアル一括置換 Window
   Baking/
     EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch・チャンネル別 clearValue）
     EasyPbrAoBaker.cs           AO ベイク
@@ -93,7 +92,6 @@ Editor/
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 | `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
-| `Editor/MaterialReplacerWindow.cs` | マテリアル一括置換 Window（配下 Renderer を同名マテリアルへ差し替え） |
 | `Editor/Baking/EasyPbrBakeCore.cs` | ベイク共通パイプライン `RunBake` |
 | `Editor/Baking/EasyPbrAoBaker.cs` | Ambient Occlusion → `_OcclusionMap` |
 | `Editor/Baking/EasyPbrCavityBaker.cs` | Cavity → `_CavityMap` |
