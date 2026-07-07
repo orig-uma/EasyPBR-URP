@@ -38,7 +38,7 @@ namespace Origuma.EasyPBR.URP.Editor
             _kit = kit;
             var material = materialEditor.target as Material;
             if (material == null) return;
-            bool jp = kit.Jp;
+            var jp = kit.Jp;
 
             EditorGUILayout.Space(4);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
@@ -63,7 +63,7 @@ namespace Origuma.EasyPBR.URP.Editor
                                : "Assign a Source Root (selecting the character in the Hierarchy auto-fills it).",
                             MessageType.Info);
 
-                    int matCount = materialEditor.targets.Length;
+                    var matCount = materialEditor.targets.Length;
                     if (matCount > 1)
                         EditorGUILayout.HelpBox(
                             jp ? $"{matCount} 個のマテリアルを選択中。ベイクは選択中の全マテリアルに対して実行されます。"
@@ -245,7 +245,7 @@ namespace Origuma.EasyPBR.URP.Editor
         // 解像度ポップアップ（512 / 1024 / 2048）。4 ベイカー共通。
         private int ResField(int current)
         {
-            int idx = Mathf.Max(0, Array.IndexOf(s_BakeResEn, current));
+            var idx = Mathf.Max(0, Array.IndexOf(s_BakeResEn, current));
             idx = EditorGUILayout.Popup(_kit.Label("Resolution", "Output texture size", "出力テクスチャの解像度"),
                 idx, s_BakeResLabels);
             return s_BakeResEn[Mathf.Clamp(idx, 0, s_BakeResEn.Length - 1)];

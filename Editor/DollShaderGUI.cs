@@ -1115,7 +1115,7 @@ namespace Origuma.EasyPBR.URP.Editor
                     using (new EditorGUI.IndentLevelScope())
                     {
                         materialEditor.EnableInstancingField();
-                        bool anyInstancing = false;
+                        var anyInstancing = false;
                         foreach (Material mat in materialEditor.targets)
                             if (mat.enableInstancing) { anyInstancing = true; break; }
                         if (anyInstancing)

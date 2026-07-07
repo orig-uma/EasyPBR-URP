@@ -103,14 +103,14 @@ namespace Origuma.EasyPBR.URP.Editor
 
             Undo.RegisterCreatedObjectUndo(feature, "Add Doll Outline Feature");
             AssetDatabase.AddObjectToAsset(feature, data);
-            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId);
+            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out var localId);
 
             var so = new SerializedObject(data);
             so.Update();
             var listProp = so.FindProperty("m_RendererFeatures");
             var mapProp  = so.FindProperty("m_RendererFeatureMap");
 
-            int idx = listProp.arraySize;
+            var idx = listProp.arraySize;
             listProp.arraySize = idx + 1;
             listProp.GetArrayElementAtIndex(idx).objectReferenceValue = feature;
             mapProp.arraySize = idx + 1;
@@ -132,7 +132,7 @@ namespace Origuma.EasyPBR.URP.Editor
             var mapProp  = so.FindProperty("m_RendererFeatureMap");
 
             var toDestroy = new List<Object>();
-            for (int i = listProp.arraySize - 1; i >= 0; i--)
+            for (var i = listProp.arraySize - 1; i >= 0; i--)
             {
                 if (listProp.GetArrayElementAtIndex(i).objectReferenceValue is DollOutlineFeature feat)
                 {
