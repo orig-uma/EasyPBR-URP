@@ -13,7 +13,7 @@
 #ifndef DOLL_LIGHTING_INCLUDED
 #define DOLL_LIGHTING_INCLUDED
 
-#include "../Common/Common.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Common.hlsl"
 #include "DollSurfaceTypes.hlsl"
 
 // 旧 Hash2DTo1D を直接呼んでいた箇所のための後方互換エイリアス。

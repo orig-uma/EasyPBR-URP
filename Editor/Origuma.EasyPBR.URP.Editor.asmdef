@@ -3,6 +3,7 @@
     "rootNamespace": "Origuma.EasyPBR.URP.Editor",
     "references": [
         "Origuma.EasyPBR.URP.Runtime",
+        "Origuma.EasyShaderCore.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime"
     ],

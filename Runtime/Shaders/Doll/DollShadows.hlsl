@@ -11,7 +11,7 @@
 #ifndef DOLL_SHADOWS_INCLUDED
 #define DOLL_SHADOWS_INCLUDED
 
-#include "../Common/URP/Shadow_HQ_URP.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/URP/Shadow_HQ_URP.hlsl"
 
 // 旧タップ数定義との互換（指定があれば汎用側へ反映）。
 #if defined(DOLL_SHADOW_TAPS) && !defined(EASYPBR_SHADOW_TAPS)

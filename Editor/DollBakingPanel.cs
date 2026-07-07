@@ -10,6 +10,7 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using Origuma.EasyShaderCore.Editor;
 
 namespace Origuma.EasyPBR.URP.Editor
 {

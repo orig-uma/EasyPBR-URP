@@ -1,6 +1,7 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using Origuma.EasyShaderCore.Editor;
 
 namespace Origuma.EasyPBR.URP.Editor
 {
@@ -104,8 +105,15 @@ namespace Origuma.EasyPBR.URP.Editor
             {
                 foreach (var prop in properties)
                 {
+                    // MaterialProperty.propertyFlags は新しい 6000.x で追加された API。
+                    // それ以前のエディタでは従来の flags で判定する。
+#if UNITY_6000_3_OR_NEWER
                     if ((prop.propertyFlags & UnityEngine.Rendering.ShaderPropertyFlags.HideInInspector) != 0)
                         continue;
+#else
+                    if ((prop.flags & MaterialProperty.PropFlags.HideInInspector) != 0)
+                        continue;
+#endif
                     if (prop.displayName.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0 &&
                         prop.name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
                         continue;
