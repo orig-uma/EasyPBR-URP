@@ -6,7 +6,7 @@
 
 ### 必要な作業
 
-1. **EasyShaderCore を先にインストール**する（`com.origuma.easyshader-core` >= 0.1.0。インストール順: core → pbr）
+1. **EasyShaderCore は自動で導入される**（`com.origuma.easyshader-core` >= 0.2.0）。EasyPBR 0.6.0 以降は、Package Manager で本パッケージを追加した直後（同一エディタセッション内・再起動不要）に Installer が Core を自動インストールするため、**手動インストールは不要**（git が必要）。手動で先に入れても問題ない。自動導入に失敗した場合のみ手動手順つきの案内ウィンドウが表示される
 2. **ユーザーシェーダーが EasyPBR の Common を直接 include していた場合**、パスを修正する:
 
    ```hlsl
