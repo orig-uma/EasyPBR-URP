@@ -44,7 +44,7 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.5.0
+https://github.com/orig-uma/EasyPBR-URP.git#v0.6.0
 ```
 
 ### Embedded
