@@ -15,7 +15,7 @@ URP の不透明描画は `UniversalForward` と `SRPDefaultUnlit` を**同じ�
 
 ## セットアップ
 
-1. メニューから **`Window > EasyPBR > Doll Outline Setup`** を開く。
+1. メニューから **`Window > Origuma > Doll Outline Setup`** を開く。
 2. **Universal Renderer Data**（URP Asset が参照している Renderer）を割り当てる。
 3. **「Feature を追加」** を押す。
 

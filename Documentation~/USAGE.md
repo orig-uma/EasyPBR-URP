@@ -66,7 +66,7 @@ Custom UI は最上部の**タブバー**（基本 / 陰・影 / ライト / ス
 
 ## マテリアル一括置換（Material Replacer）
 
-`Window > EasyPBR > Material Replacer` で、対象オブジェクト配下の全 Renderer のマテリアルを、指定フォルダ内の**同名マテリアル**へ一括で差し替えられる（Undo 可・アセット非破壊）。元モデルのマテリアルと同じ名前で EasyPBR 版マテリアルを 1 フォルダに用意しておけば、モデル一式の移行がワンクリックで済む。
+`Window > Origuma > Material Replacer`（v0.6.0 で EasyShaderCore へ移管・メニュー変更）で、対象オブジェクト配下の全 Renderer のマテリアルを、指定フォルダ内の**同名マテリアル**へ一括で差し替えられる（Undo 可・アセット非破壊）。元モデルのマテリアルと同じ名前で EasyPBR 版マテリアルを 1 フォルダに用意しておけば、モデル一式の移行がワンクリックで済む。
 
 ## ライブ演出のランタイム制御（DollLiveDirector）
 

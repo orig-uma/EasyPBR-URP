@@ -9,7 +9,7 @@
 #if defined(DOLL_SURFACE_IMPL) && !defined(DOLL_SURFACE_IMPL_INCLUDED)
 #define DOLL_SURFACE_IMPL_INCLUDED
 
-#include "../Common/URP/Reflection_URP.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/URP/Reflection_URP.hlsl"
 
 DollSurfaceData GatherSurface(Varyings input, half3 viewDirectionWS, float3 objectForwardWS, out half alpha)
 {

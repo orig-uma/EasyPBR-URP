@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Package Manager からの追加直後にも EasyShaderCore の自動インストールが走るように修正**: 本体 Editor asmdef（`Origuma.EasyPBR.URP.Editor`）を versionDefines + defineConstraints（シンボル `EASYSHADERCORE_PRESENT`）で Core 不在時にコンパイル対象から除外した。従来は Core 不在時のコンパイルエラーでドメインリロードが完了せず、PM 追加直後に `InitializeOnLoad`（Installer）が走らないため、エディタを再起動するまで Core が自動導入されなかった。除外により PM 追加直後（同一エディタセッション内・再起動不要）に Installer が走り、ゼロクリックで Core が導入される。
+
+## [0.6.0]
+
+> **破壊的変更**（→ [MIGRATION](Documentation~/MIGRATION.md)）: 共通基盤を新パッケージ `com.origuma.easyshader-core` へ移管した。EasyShaderCore は初回エディタ起動時に**自動でインストールされる**（失敗時は案内ウィンドウ）。
+
+### Changed (Breaking)
+
+- `Runtime/Shaders/Common/**`（BRDF / Effects / URP / 純粋関数 HLSL）を `com.origuma.easyshader-core` へ移管。HLSL の include パスが `Packages/com.origuma.easypbr-urp/Runtime/Shaders/Common/...` → `Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/...` に変わった（Doll 内部は修正済み。**ユーザーシェーダーが EasyPBR の Common を直接 include していた場合はパス修正が必要**）
+- `Editor/Baking/**`（EasyPbr*Baker / EasyPbrBakeCore）と `Editor/ShaderGuiKit.cs` を EasyShaderCore へ移管。名前空間が `Origuma.EasyPBR.URP.Editor` → `Origuma.EasyShaderCore.Editor` に変わり、Baker 群は `internal` → `public` に
+- `Editor/AssemblyInfo.cs`（InternalsVisibleTo）を削除（不要になったため）
+- EasyShaderCore を初回エディタ起動時に自動インストールする仕組みを追加（package.json の dependencies には宣言しない。宣言すると UPM がレジストリ解決に失敗し git URL からの単体インストール自体ができなくなるため）
+- `Editor/MaterialReplacerWindow.cs` を EasyShaderCore へ移管。メニューが `Window > EasyPBR > Material Replacer` → `Window > Origuma > Material Replacer` に変わった（旧メニューパスは廃止）
+- `DollOutlineSetupWindow` を EasyShaderCore の `FeatureSetupWindowBase` ベースに刷新（アクティブな URP Asset からの Renderer Data 自動収集・Compatibility Mode 警告に対応）。メニューが `Window > EasyPBR > Doll Outline Setup` → `Window > Origuma > Doll Outline Setup` に変わった（Window メニューの占有を Origuma 1 枠に集約）
+
 ## [0.5.0] - 2026-07-02
 
 > **破壊的変更なし・移行作業不要**（→ [MIGRATION](MIGRATION.md)）。新機能はすべて既定で素通し（OFF）、新規シェーダーキーワードなし（すべて uniform 動的分岐・バリアント数不変）。挙動変化は「間接光がクランプに食われる不具合の修正（環境光のあるシーンでわずかに明るくなる）」と「一部スライダー上限の拡張・カラーの HDR 化（保存値不変）」のみ。

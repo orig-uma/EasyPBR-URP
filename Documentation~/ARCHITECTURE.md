@@ -19,6 +19,28 @@
 * **SRP Batcher を意識した設計（基本思想）**
   3D ライブのように同種マテリアルを大量に同時描画する用途を前提に、**動的分岐にすると不利な処理だけをバリアントに残し、それ以外はバリアント化を避けてバッチ分断を最小化する**ことを設計方針としている。具体的には (1) 全マテリアルプロパティを単一 CBUFFER にまとめて SRP Batcher 互換を保つ、(2) マテリアル間で値が割れやすく動的化のデメリットが小さいスイッチ（Shading Style / Specular Model / Alpha Blend / MatCap / Emission / Color Correction）は keyword をやめて uniform 動的分岐にする、(3) **動的分岐にすると損するスイッチだけ** keyword として残す（Self Shadow Mode＝全経路コンパイルで occupancy 低下、Alpha Clip / Dissolve＝早期Z喪失や常時サンプル化）。Inspector では **⚡ マーク**で「バリアントを生む＝混在でバッチが切れる」ことを可視化する、(4) アウトラインは独自 LightMode（`DollOutline`）＋ RendererFeature に逃がし、ForwardLit と交互描画させない。詳細は [SRP_BATCHER](SRP_BATCHER.md) / [VARIANTS](VARIANTS.md)。
 
+## パッケージ間依存
+
+```
+com.origuma.easyshader-core (共通基盤・>= 0.2.0)
+    ↑                      ↑
+com.origuma.easypbr-urp    com.origuma.easytoon-urp
+（本パッケージ）
+・HLSL: Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/** を絶対パス include
+・依存宣言は package.json に置かず、PM 追加直後（および起動時）に Installer が自動導入
+  （UPM は git 依存を解決できないため。→ Editor/Installer/EasyShaderCoreInstaller.cs）
+・本体 Editor asmdef（Origuma.EasyPBR.URP.Editor）は versionDefines + defineConstraints
+  （シンボル EASYSHADERCORE_PRESENT）で Core 不在時にコンパイル対象から除外。コンパイル
+  エラーでドメインリロードが止まらず、PM 追加直後に Installer が走れる（再起動不要でゼロクリック導入）
+・C# Editor: asmdef 参照 Origuma.EasyShaderCore.Editor で Baker 群 (EasyPbr*Baker, public) /
+  ShaderGuiKit を再利用
+```
+
+- **EasyPBR は `com.origuma.easyshader-core` のみに依存する**（EasyToon には依存しない。EasyToon 側は Doll→Idol 変換の変換対象としてのみ EasyPBR に触れ、コード依存はない）。
+- **依存を package.json に宣言しない理由**: UPM は git 依存をレジストリ解決できず、宣言すると本パッケージ自体の git URL インストールが拒否される。代わりに `Editor/Installer/EasyShaderCoreInstaller.cs`（参照ゼロの独立 asmdef）が Core 不在を検知し、ピン留め URL `https://github.com/orig-uma/EasyShaderCore.git#v0.2.0` で自動導入する（失敗時のみ手動手順つきの案内ウィンドウ）。
+- **asmdef 除外の意味**: Core 不在時に本体 Editor asmdef がコンパイルエラーを出すと Unity はドメインリロードを完了できず、PM 追加直後に `InitializeOnLoad` が走らない（＝再起動まで自動導入されない）。EASYSHADERCORE_PRESENT による除外でこれを回避する。
+- **Common HLSL は「純粋関数のみ・特定シェーダー非依存」を維持する**（層の詳細は [汎用ライブラリ構成（Common）](#汎用ライブラリ構成common)）。`Doll` 固有の方針（陰ランプ・キーワード運用等）を core に入れるのは禁止。Baker の呼び出し面（`Bake(root, material, Settings)`）は互換維持。
+
 ## ライブラリの分離方針
 
 切り分けの軸は **機能ではなく依存の方向**である。汎用ライブラリ（計算本体）を `Common/` に純粋関数として切り出し、`Doll` 固有の方針はポリシー層に集約することで、他シェーダーへの流用を容易にする。
@@ -59,7 +81,6 @@ Editor/
   DollShaderGUI.cs              カスタムインスペクター
   DollBakingPanel.cs            マップベイク UI（Baking セクション）
   DollOutlineSetupWindow.cs     Outline Feature の追加/削除 Window
-  MaterialReplacerWindow.cs     マテリアル一括置換 Window
   Baking/
     EasyPbrBakeCore.cs          共通パイプライン RunBake（最大 RGBA 4ch・チャンネル別 clearValue）
     EasyPbrAoBaker.cs           AO ベイク
@@ -93,7 +114,6 @@ Editor/
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 | `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
-| `Editor/MaterialReplacerWindow.cs` | マテリアル一括置換 Window（配下 Renderer を同名マテリアルへ差し替え） |
 | `Editor/Baking/EasyPbrBakeCore.cs` | ベイク共通パイプライン `RunBake` |
 | `Editor/Baking/EasyPbrAoBaker.cs` | Ambient Occlusion → `_OcclusionMap` |
 | `Editor/Baking/EasyPbrCavityBaker.cs` | Cavity → `_CavityMap` |

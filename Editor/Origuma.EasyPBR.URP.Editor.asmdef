@@ -3,6 +3,7 @@
     "rootNamespace": "Origuma.EasyPBR.URP.Editor",
     "references": [
         "Origuma.EasyPBR.URP.Runtime",
+        "Origuma.EasyShaderCore.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime"
     ],
@@ -14,7 +15,15 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
-    "versionDefines": [],
+    "defineConstraints": [
+        "EASYSHADERCORE_PRESENT"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.origuma.easyshader-core",
+            "expression": "",
+            "define": "EASYSHADERCORE_PRESENT"
+        }
+    ],
     "noEngineReferences": false
 }

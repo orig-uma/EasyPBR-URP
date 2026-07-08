@@ -11,10 +11,10 @@
 #ifndef EASYPBR_EFFECTS_INCLUDED
 #define EASYPBR_EFFECTS_INCLUDED
 
-#include "../Common/Common_Color.hlsl"
-#include "../Common/Effects/Fx_MatCap.hlsl"
-#include "../Common/Effects/Fx_Emission.hlsl"
-#include "../Common/Effects/Fx_Dissolve.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Common_Color.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Effects/Fx_MatCap.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Effects/Fx_Emission.hlsl"
+#include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Effects/Fx_Dissolve.hlsl"
 
 // -----------------------------------------------------------------------------
 // [Dissolve] サンプリング + キーワード解決（プロジェクト固有）→ 汎用ロジックへ委譲。

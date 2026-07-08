@@ -1,5 +1,25 @@
 # EasyPBR for URP — マイグレーション
 
+## v0.5.x → v0.6.0
+
+**破壊的変更あり**。共通基盤（Common HLSL / Baker 群 / ShaderGuiKit）を新パッケージ `com.origuma.easyshader-core` へ移管した。
+
+### 必要な作業
+
+1. **EasyShaderCore は自動で導入される**（`com.origuma.easyshader-core` >= 0.2.0）。EasyPBR 0.6.0 以降は、Package Manager で本パッケージを追加した直後（同一エディタセッション内・再起動不要）に Installer が Core を自動インストールするため、**手動インストールは不要**（git が必要）。手動で先に入れても問題ない。自動導入に失敗した場合のみ手動手順つきの案内ウィンドウが表示される
+2. **ユーザーシェーダーが EasyPBR の Common を直接 include していた場合**、パスを修正する:
+
+   ```hlsl
+   // 旧
+   #include "Packages/com.origuma.easypbr-urp/Runtime/Shaders/Common/Common.hlsl"
+   // 新
+   #include "Packages/com.origuma.easyshader-core/Runtime/Shaders/Common/Common.hlsl"
+   ```
+
+3. **ユーザーの Editor 拡張が Baker / ShaderGuiKit を参照していた場合**、名前空間を `Origuma.EasyPBR.URP.Editor` → `Origuma.EasyShaderCore.Editor` に変更し、asmdef の参照を `Origuma.EasyShaderCore.Editor` に切り替える（Baker 群は `public` になったため InternalsVisibleTo は不要）
+
+Doll シェーダー・マテリアルへの影響はない（.meta / GUID は移管元のまま維持しており、テクスチャ・マテリアル参照は壊れない。Doll 内部の include は修正済み）。
+
 ## v0.4.0 → v0.5.0
 
 **破壊的変更なし・移行作業不要**。プロパティの削除・リネーム・既定値変更は無い。新機能（2nd Shadow / Cast Shadow Color / Shadow Hue Shift / Skin Scatter / Fill Light / Light Conditioning / Indirect Light / Shade Normal / Toon Specular / Outline Albedo Blend）はすべて既定で素通し（OFF）で、既存マテリアルの見た目を変えない。新規シェーダーキーワードも無い（すべて uniform 動的分岐 → [VARIANTS](VARIANTS.md)）。

@@ -37,17 +37,26 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.5.0
+https://github.com/orig-uma/EasyPBR-URP.git#v0.6.0
+```
+
+依存する共通基盤パッケージ [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore)（`com.origuma.easyshader-core`）は、
+インストール直後（同一エディタセッション内・再起動不要）に**自動でインストールされる**（git が必要）。自動導入に失敗した場合のみ
+手動手順つきの案内ウィンドウが表示される。手動で先に入れる場合:
+
+```
+https://github.com/orig-uma/EasyShaderCore.git#v0.2.0
 ```
 
 ### Embedded
 
-`Packages/com.origuma.easypbr-urp` に配置すると embedded package として認識される。
+`Packages/com.origuma.easypbr-urp` に配置すると embedded package として認識される（EasyShaderCore も同様に配置する）。
 
 ## 動作環境
 
 * Unity 6 (6000.3) 以降
 * Universal RP 17.3 以降
+* [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore) 0.2.0 以降（自動インストールされる）
 * Render Graph 有効（既定）。Render Graph Compatibility Mode ではアウトライン用の `DollOutlineFeature` が動作しません
 
 ## 機能
