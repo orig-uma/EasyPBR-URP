@@ -37,7 +37,7 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.6.0
+https://github.com/orig-uma/EasyPBR-URP.git#v0.7.0
 ```
 
 依存する共通基盤パッケージ [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore)（`com.origuma.easyshader-core`）は、
@@ -45,7 +45,7 @@ https://github.com/orig-uma/EasyPBR-URP.git#v0.6.0
 手動手順つきの案内ウィンドウが表示される。手動で先に入れる場合:
 
 ```
-https://github.com/orig-uma/EasyShaderCore.git#v0.2.0
+https://github.com/orig-uma/EasyShaderCore.git#v0.3.1
 ```
 
 ### Embedded
@@ -56,7 +56,7 @@ https://github.com/orig-uma/EasyShaderCore.git#v0.2.0
 
 * Unity 6 (6000.3) 以降
 * Universal RP 17.3 以降
-* [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore) 0.2.0 以降（自動インストールされる）
+* [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore) 0.3.0 以降（自動インストールされる）
 * Render Graph 有効（既定）。Render Graph Compatibility Mode ではアウトライン用の `DollOutlineFeature` が動作しません
 
 ## 機能
@@ -81,7 +81,7 @@ https://github.com/orig-uma/EasyShaderCore.git#v0.2.0
 | Glitter | マスク付きスパンコール。Iridescence、Sparsity、Base Reflection |
 | Outline | 背面法線拡張。Albedo Blend（アルベド×Color を線の色に＝部位ごとに馴染む線）。Alpha Clip / Dissolve 同期。Outline 専用 Stencil。描画には `DollOutlineFeature` が必要（→ [OUTLINE](Documentation~/OUTLINE.md)） |
 | Black Out | 最終色の暗転 |
-| Live Director（Runtime） | `DollLiveDirector` コンポーネント。配下の Doll マテリアルの Black Out / Dissolve / Fill Light をキャラ単位で一括制御。Play 中はマテリアルインスタンス経由で **SRP Batcher を維持**（MPB 不使用）、Edit 中は非破壊の MPB プレビュー。Timeline の Animation Track からフィールド直キーで駆動可 |
+| Live Director（Runtime） | `DollLiveDirector` コンポーネント。配下の Doll マテリアルの Black Out / Fill Light をキャラ単位で一括制御（暗転だけなら EasyShaderCore の `BlackOutController` でも可。同じキャラで併用しない）。Play 中はマテリアルインスタンス経由で **SRP Batcher を維持**（MPB 不使用）、Edit 中は非破壊の MPB プレビュー。Timeline の Animation Track からフィールド直キーで駆動可。※ Dissolve の制御は EasyShaderCore の `DissolveController`（入れ替わりは `DissolveSwapController`）へ移管 |
 | Skin Scatter | 明暗境界（ターミネータ）を赤方向へ滲ませる pre-integrated 風の肌散乱近似。トゥーン境界・落ち影ペナンブラ・顔 SDF 境界のいずれにも乗る。ベイク済み曲率マップ併用で薄い部位ほど強く。マスクレス・既定 OFF |
 | Optional | SSS（厚み＋透過方向）/ Rim Light（フレネル式）/ Peach Fuzz / Grain / Occlusion / Cavity（既定 OFF、Intensity 0 / 未ベイクで計算スキップ） |
 | Shade Normal | ベイクした平滑化法線で**拡散の陰だけ**を駆動（スペキュラ・リム・SSS はディテール法線のまま）。シワ・ファセットで陰のグラデーションが割れるのを防ぎ、陰の輪郭を一本の綺麗な曲線に整える。位置溶接ベイクで UV 継ぎ目・硬エッジでも割れない。既定 OFF |

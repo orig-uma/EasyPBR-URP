@@ -212,9 +212,15 @@ namespace Origuma.EasyPBR.URP.Editor
                                 _sdfSettings.resolution = ResField(_sdfSettings.resolution);
                                 _sdfSettings.flipForward   = EditorGUILayout.Toggle(kit.Label("Flip Forward", "Enable if the face looks along -Z", "顔が-Z向きならON"), _sdfSettings.flipForward);
                                 _sdfSettings.angleSteps    = EditorGUILayout.IntSlider(kit.Label("Angle Steps", "Sweep resolution", "スイープ分割数"), _sdfSettings.angleSteps, 30, 180);
+                                _sdfSettings.xAxisTilt     = EditorGUILayout.Slider(kit.Label("X Axis Tilt", "Elevation of the left/right (R/G) sweep light in degrees. Raise it when the neck / under-jaw shadow looks unnatural", "左右(R/G)スイープ光の仰角(度)。首・顎下の影が不自然なモデルで上げる"), _sdfSettings.xAxisTilt, -45f, 45f);
                                 _sdfSettings.useCastShadow = EditorGUILayout.Toggle(kit.Label("Cast Shadow", "Include nose/brow cast shadows", "鼻・眉の落ち影を含める"), _sdfSettings.useCastShadow);
                                 using (new EditorGUI.DisabledScope(!_sdfSettings.useCastShadow))
                                     _sdfSettings.castDistance = EditorGUILayout.Slider(kit.Label("Cast Distance", "Cast ray length (m)", "落ち影レイ長(m)"), _sdfSettings.castDistance, 0.02f, 0.5f);
+                                // 距離場ブレンド（T-346）: 頂点補間の等値線はポリゴン割りと法線ノイズで
+                                // ガタつく。等値線ごとの符号付き距離場で丸め直すと外部ツール無しで滑らかな線になる。
+                                _sdfSettings.dfBlend = EditorGUILayout.Toggle(kit.Label("DF Blend", "Reshape shadow-boundary iso-lines with signed distance fields. Smooth hand-authored-grade lines without external tools", "距離場ブレンド。影境界の等値線を距離場で丸め直し、外部ツール無しで滑らかな線にする"), _sdfSettings.dfBlend);
+                                using (new EditorGUI.DisabledScope(!_sdfSettings.dfBlend))
+                                    _sdfSettings.dfSpread = EditorGUILayout.Slider(kit.Label("Line Softness", "Rounding radius in texels. Higher = smoother, loses fine detail", "線の丸め半径(texel)。大きいほど滑らか・細部が消える"), _sdfSettings.dfSpread, 1f, 16f);
                                 _sdfSettings.smooth = EditorGUILayout.IntSlider(kit.Label("Smooth", "Vertex smoothing", "頂点平滑化"), _sdfSettings.smooth, 0, 6);
                                 _sdfSettings.blur   = EditorGUILayout.IntSlider(kit.Label("Blur", "Texture blur", "ブラー"), _sdfSettings.blur, 0, 4);
                                 if (BakeButton(jp ? "顔 SDF をベイク" : "Bake Face SDF"))
