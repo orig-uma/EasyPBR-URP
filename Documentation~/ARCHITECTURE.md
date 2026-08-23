@@ -22,7 +22,7 @@
 ## パッケージ間依存
 
 ```
-com.origuma.easyshader-core (共通基盤・>= 0.2.0)
+com.origuma.easyshader-core (共通基盤・>= 0.3.0)
     ↑                      ↑
 com.origuma.easypbr-urp    com.origuma.easytoon-urp
 （本パッケージ）
@@ -110,7 +110,7 @@ Editor/
 | `Runtime/Shaders/Doll/Passes/DepthNormalsPass.hlsl` | DepthNormals パス |
 | `Runtime/Shaders/Doll/Passes/OutlinePass.hlsl` | Outline パス（LightMode = `DollOutline`） |
 | `Runtime/DollOutlineFeature.cs` | `DollOutline` パスを後段でまとめて描く RendererFeature（ForwardLit のバッチング維持） |
-| `Runtime/Scripts/DollLiveDirector.cs` | 演出系プロパティ（Black Out / Dissolve / Fill Light）のキャラ単位一括制御。Play=マテリアルインスタンス（SRP Batcher 維持）/ Edit=非破壊 MPB プレビュー |
+| `Runtime/Scripts/DollLiveDirector.cs` | 演出系プロパティ（Black Out / Fill Light）のキャラ単位一括制御。Play=マテリアルインスタンス（SRP Batcher 維持）/ Edit=非破壊 MPB プレビュー。Dissolve 制御は EasyShaderCore の `DissolveController` へ移管 |
 | `Runtime/Shaders/Common/` | キーワード・マテリアルプロパティに非依存の汎用ライブラリ（後述） |
 | `Editor/DollShaderGUI.cs` | カスタムインスペクター |
 | `Editor/DollBakingPanel.cs` | マップベイク UI（`DollShaderGUI` の Baking セクション） |
@@ -199,6 +199,8 @@ flowchart LR
 
 ベイク（`EasyPbrFaceSdfBaker`）: 各頂点で **正面（`transform.forward`、Flip Forward で反転可）** から指定ローカル軸方向へ 180° スイープし、光が当たる→影に入る境界角度を 0..1 で記録。Cast Shadow ON 時は鼻・眉などの落ち影をレイで考慮。
 
+**X Axis Tilt**（`Settings.xAxisTilt`・度）は R/G のスイープ軸を顔 Up 方向へ倒し、左右チャンネルを「やや上から差す光」として焼くベイク時オプション（既定 0＝水平）。左右とも同じ「上」へ倒すため左右対称は保たれ、傾けた軸は Forward と直交のまま＝格納値の意味（`cosθ*0.5+0.5`）が変わらないためランタイム側の変更は不要。B/A は対象外。
+
 | チャンネル | スイープ軸（ローカル） | 意味 |
 | :--- | :--- | :--- |
 | **R** | +X（右） | 右側からの光 |
@@ -206,7 +208,7 @@ flowchart LR
 | **B** | +Y（上） | 上からの光 |
 | **A** | -Y（下） | 下からの光 |
 
-ランタイム（`ForwardPass.hlsl` → `ComputeFaceSDF`）: メインライト方向を顔ローカル（Forward / Up / Right）へ投影し、右・左・上・下各方向の **ウェイト付き平均**で 4 チャンネルを合成した SDF 値を得る。`frontness`（正面成分）と比較して顔影を生成。UV ミラー不要で **左右非対称の顔**（傷・マーク等）にも対応。詳細は [SHADOWS](SHADOWS.md) の Face SDF 節。
+ランタイム（`ForwardPass.hlsl` → `ComputeFaceSDF`）: メインライト方向を顔ローカル（Forward / Up / Right）へ投影し、右・左・上・下各方向の **ウェイト付き平均**で 4 チャンネルを合成した SDF 値を得る。`frontness`（正面成分）と比較して顔影を生成。UV ミラー不要で **左右非対称の顔**（傷・マーク等）にも対応。ウェイトは Forward 軸まわりの方位だけで決まり、光が軸上（真正面・真後ろ）を通ると退化するため、軸から約 14.5° 以内では 4 チャンネルの平均へフェードして連続化している。詳細は [SHADOWS](SHADOWS.md) の Face SDF 節。
 
 ## Pass / LightMode
 
