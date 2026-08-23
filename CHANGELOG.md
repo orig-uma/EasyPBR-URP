@@ -4,11 +4,17 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-24
+
+### Fixed
+
+- **本体 Editor asmdef の `versionDefines` 式 `[0.3.0,)` が Unity に無効と判定され（`ExpressionNotValidException`）、Editor アセンブリごとコンパイルされず Inspector のカスタム UI が出なかった問題を修正。** Unity の式は開区間を受け付けず、素の `0.3.0` が「0.3.0 以上」を意味する。0.7.0 で入れた Core 最低バージョン連動の意図はそのまま。
+
 ## [0.7.0] - 2026-08-23
 
 ### Fixed
 
-- **旧 EasyShaderCore が入ったまま本パッケージを更新すると、Core が更新されず本体 Editor がコンパイルエラーになる問題を修正。** Installer は「Core が存在するか」しか見ておらず、0.7.0 が要求する Core 0.3.0 の新 API（`BlackOutController` / ベイカー拡張）が無い 0.2.0 のままでも無音だった。Installer に必要最低バージョン（0.3.0）の比較を入れ、古ければピン留め URL（`#v0.3.1`）へ差し替える。本体 Editor asmdef の `versionDefines` も `[0.3.0,)` に揃え、古い Core では本体を除外してコンパイルエラーを出さず Installer が走れるようにした。
+- **旧 EasyShaderCore が入ったまま本パッケージを更新すると、Core が更新されず本体 Editor がコンパイルエラーになる問題を修正。** Installer は「Core が存在するか」しか見ておらず、0.7.0 が要求する Core 0.3.0 の新 API（`BlackOutController` / ベイカー拡張）が無い 0.2.0 のままでも無音だった。Installer に必要最低バージョン（0.3.0）の比較を入れ、古ければピン留め URL（`#v0.3.1`）へ差し替える。本体 Editor asmdef の `versionDefines` も `0.3.0`（= 0.3.0 以上）に揃え、古い Core では本体を除外してコンパイルエラーを出さず Installer が走れるようにした。
 
 ### Added
 - **暗転をキャラ単位で駆動する `BlackOutController` が使えるようになった**（EasyShaderCore に新設。T-364）。`_BlackOut` は Doll / EasyToon Idol で同名・同義なので Doll でもそのまま使える（Play = マテリアルインスタンス / Edit = 非破壊 MPB・Timeline の Animation Track 対応）。**`DollLiveDirector` の Black Out override と同じキャラで併用しないこと**（同じプロパティを奪い合う）。Dissolve のときと同様、いずれ Controller 側へ一本化する余地がある。

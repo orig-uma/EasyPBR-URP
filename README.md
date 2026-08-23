@@ -37,7 +37,7 @@ https://github.com/orig-uma/EasyPBR-URP.git
 特定バージョンを指定する場合:
 
 ```
-https://github.com/orig-uma/EasyPBR-URP.git#v0.7.0
+https://github.com/orig-uma/EasyPBR-URP.git#v0.7.1
 ```
 
 依存する共通基盤パッケージ [EasyShaderCore](https://github.com/orig-uma/EasyShaderCore)（`com.origuma.easyshader-core`）は、
