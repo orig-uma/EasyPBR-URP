@@ -34,8 +34,11 @@ namespace Origuma.EasyPBR.URP.Editor
         private int _tab = -1;
         private string _search = "";
 
-        private static readonly string[] s_TabsEn = { "Base", "Shading", "Lighting", "Specular", "Effects", "FX", "Baking" };
-        private static readonly string[] s_TabsJp = { "基本", "陰・影", "ライト", "スペキュラ", "質感", "演出", "Baking" };
+        // 8 タブ（4 列 × 2 段）。詳細（Advanced）は T-354 で Baking から独立させた
+        // ── ベイクと高度な設定は別物という利用者の指摘（EasyToon Idol と同時変更・
+        // タブ構成同一の原則）。
+        private static readonly string[] s_TabsEn = { "Base", "Shading", "Lighting", "Specular", "Effects", "FX", "Advanced", "Baking" };
+        private static readonly string[] s_TabsJp = { "基本", "陰・影", "ライト", "スペキュラ", "質感", "演出", "詳細", "Baking" };
 
         // UI 表示名（Render Mode / Self Shadow Mode）。キーワード等のロジックは DollMaterialSetup へ。
         private static readonly string[] s_RenderModeEn = { "Opaque", "Cutout", "Transparent" };
@@ -88,7 +91,8 @@ namespace Origuma.EasyPBR.URP.Editor
                 case 3: DrawTabSpecular(materialEditor); break;
                 case 4: DrawTabEffects(materialEditor); break;
                 case 5: DrawTabFx(materialEditor, properties); break;
-                case 6: DrawTabBaking(materialEditor); break;
+                case 6: DrawTabAdvanced(materialEditor); break;
+                case 7: DrawTabBaking(materialEditor); break;
             }
         }
 
@@ -310,6 +314,18 @@ namespace Origuma.EasyPBR.URP.Editor
                                     "Emission strength", "発光の強度");
                                 materialEditor.LightmapEmissionProperty();
                             }
+                    }
+            }
+
+            // 輪郭線は「キャラの基本の見た目」（マテリアルごとの恒久設定）で
+            // あって演出ではないので基本タブに置く（T-353。Idol も同じ棚）。
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("v2.outline", true, "Outline", "アウトライン（輪郭線）", "", ""))
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        DrawOutlineSetup(materialEditor, properties);
                     }
             }
         }
@@ -1003,16 +1019,8 @@ namespace Origuma.EasyPBR.URP.Editor
         // ================================================================
         private void DrawTabFx(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-            {
-                if (Section("v2.outline", true, "Outline", "アウトライン（輪郭線）", "", ""))
-                    using (new EditorGUI.IndentLevelScope())
-                    {
-                        DrawOutlineSetup(materialEditor, properties);
-                    }
-            }
-
-            EditorGUILayout.Space(4);
+            // アウトラインは基本タブへ移動した（T-353）。演出＝時間で変化する
+            // 効果（ディゾルブ / 暗転）だけが残る。
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 if (Section("v2.dissolve", true, "Dissolve / Black Out", "ディゾルブ / 暗転", "", ""))
@@ -1077,15 +1085,39 @@ namespace Origuma.EasyPBR.URP.Editor
 
                         EditorGUILayout.Space(2);
                         EditorGUILayout.HelpBox(
-                            _jp ? "Black Out / Dissolve / Fill Light は DollLiveDirector コンポーネントでキャラ単位に一括制御できます（Timeline 対応）。"
-                                : "Black Out / Dissolve / Fill Light can be driven per character via the DollLiveDirector component (Timeline-friendly).",
+                            _jp ? "キャラ単位の一括制御: 暗転は BlackOutController、Dissolve は DissolveController（どちらも EasyShaderCore・Timeline 対応）。Fill Light は DollLiveDirector です。※DollLiveDirector の Black Out override と BlackOutController を同じキャラで併用しないこと（書き込み合戦になります）。"
+                                : "Per-character control: Black Out via BlackOutController, Dissolve via DissolveController (both in EasyShaderCore, Timeline-friendly). Fill Light stays on DollLiveDirector. Do not run DollLiveDirector's Black Out override and BlackOutController on the same character - they fight over the same property.",
                             MessageType.None);
                     }
             }
         }
 
         // ================================================================
-        //  Tab 6: Baking（マップ生成）＋ その他（Blue Noise / Advanced）
+        //  Tab 6: 詳細（Advanced Options。T-354 で Baking から独立）
+        // ================================================================
+        private void DrawTabAdvanced(MaterialEditor materialEditor)
+        {
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                if (Section("v2.advanced", true, "Advanced Options", "高度な設定", "", ""))
+                    using (new EditorGUI.IndentLevelScope())
+                    {
+                        materialEditor.EnableInstancingField();
+                        var anyInstancing = false;
+                        foreach (Material mat in materialEditor.targets)
+                            if (mat.enableInstancing) { anyInstancing = true; break; }
+                        if (anyInstancing)
+                            EditorGUILayout.HelpBox(
+                                _jp ? "GPU Instancing は SkinnedMeshRenderer には効かず、ON のレンダラーは SRP Batcher の対象から外れます。キャラ用途では通常 OFF を推奨（→ SRP_BATCHER.md）。"
+                                    : "GPU Instancing does not work with SkinnedMeshRenderer, and renderers using it are excluded from the SRP Batcher. Usually keep it OFF for characters (see SRP_BATCHER.md).",
+                                MessageType.Warning);
+                        materialEditor.DoubleSidedGIField();
+                    }
+            }
+        }
+
+        // ================================================================
+        //  Tab 7: Baking（マップ生成）＋ Blue Noise（ベイク素材）
         // ================================================================
         private void DrawTabBaking(MaterialEditor materialEditor)
         {
@@ -1108,24 +1140,6 @@ namespace Origuma.EasyPBR.URP.Editor
                     }
             }
 
-            EditorGUILayout.Space(4);
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-            {
-                if (Section("v2.advanced", true, "Advanced Options", "高度な設定", "", ""))
-                    using (new EditorGUI.IndentLevelScope())
-                    {
-                        materialEditor.EnableInstancingField();
-                        var anyInstancing = false;
-                        foreach (Material mat in materialEditor.targets)
-                            if (mat.enableInstancing) { anyInstancing = true; break; }
-                        if (anyInstancing)
-                            EditorGUILayout.HelpBox(
-                                _jp ? "GPU Instancing は SkinnedMeshRenderer には効かず、ON のレンダラーは SRP Batcher の対象から外れます。キャラ用途では通常 OFF を推奨（→ SRP_BATCHER.md）。"
-                                    : "GPU Instancing does not work with SkinnedMeshRenderer, and renderers using it are excluded from the SRP Batcher. Usually keep it OFF for characters (see SRP_BATCHER.md).",
-                                MessageType.Warning);
-                        materialEditor.DoubleSidedGIField();
-                    }
-            }
         }
 
         // ================================================================

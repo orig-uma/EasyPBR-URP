@@ -1,6 +1,6 @@
 {
   "name": "com.origuma.easypbr-urp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "displayName": "EasyPBR for URP",
   "description": "Stylized PBR + Toon hybrid character shader for URP. Includes Auto Face Shadow Fix, dual-lobe specular, anisotropic highlight, glitter, outline pass, dissolve, and optional SSS / Rim / Peach Fuzz / MatCap effects.",
   "unity": "6000.3",

@@ -199,10 +199,22 @@ float ComputeFaceSDF(Varyings input, Light mainLight, float3 objectForwardWS, ou
 
         float weightSum = weightRight + weightLeft + weightUp + weightDown + 0.0001;
 
-        float sdf = (sdfRGBA.r * weightRight +
-                     sdfRGBA.g * weightLeft +
-                     sdfRGBA.b * weightUp +
-                     sdfRGBA.a * weightDown) / weightSum;
+        float sdfDir = (sdfRGBA.r * weightRight +
+                        sdfRGBA.g * weightLeft +
+                        sdfRGBA.b * weightUp +
+                        sdfRGBA.a * weightDown) / weightSum;
+
+        // **4ch の重みは顔 Forward 軸まわりの方位だけで決まる。** 光が真正面／真後ろを
+        // 通る瞬間は dirX・dirY が同時に 0 へ落ちて方位が決まらず、無限小の符号で R↔G が
+        // 入れ替わる ＝ 段差になる。真正面は顔全面が光るので見えないが、真後ろは陰の
+        // 遷移帯（|f - sdf| < soft）に入るため「急に左右が切り替わる」形で出る。
+        // lateral（無次元 0..1 = |sin(光と顔 Forward のなす角)|）を方位の確からしさとして、
+        // 軸に寄るほど 4ch の平均（方位に依らない値）へフェードさせて連続にする。
+        // 0.25 = 軸から約 14.5 度。この内側は全面が光るか全面が陰るかのどちらかなので、
+        // 平均へ寄せても絵は変わらない。
+        float lateral = length(float2(dirX, dirY));
+        float sdfFlat = (sdfRGBA.r + sdfRGBA.g + sdfRGBA.b + sdfRGBA.a) * 0.25;
+        float sdf     = lerp(sdfFlat, sdfDir, smoothstep(0.0, 0.25, lateral));
 
         float baseSoft = max(_FaceSDFSoftness, fwidth(sdf));
         float soft = max(baseSoft, _HalfLambertWrap * 0.5);

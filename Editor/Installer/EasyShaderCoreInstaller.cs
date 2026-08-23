@@ -27,7 +27,7 @@ namespace Origuma.EasyPBR.URP.Installer
         private const string CorePackageName = "com.origuma.easyshader-core";
         private const string CoreGitUrl = "https://github.com/orig-uma/EasyShaderCore.git";
         // 動作検証済みバージョンにピン留めした自動インストール用 URL。
-        private const string CoreGitUrlPinned = CoreGitUrl + "#v0.2.0";
+        private const string CoreGitUrlPinned = CoreGitUrl + "#v0.3.0";
         private const string SessionDismissKey = "Origuma.EasyPBR.URP.Installer.Dismissed";
         private const string SessionAutoAddKey = "Origuma.EasyPBR.URP.Installer.AutoAddAttempted";
 
