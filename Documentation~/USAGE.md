@@ -75,11 +75,11 @@ Custom UI は最上部の**タブバー**（基本 / 陰・影 / ライト / ス
 | グループ | 制御対象 | 用途 |
 | :--- | :--- | :--- |
 | Black Out | `_BlackOut` | 曲間の暗転・カットイン |
-| Dissolve | `_DissolveAmount` | 登場・消失演出（マテリアル側で Enable Dissolve が必要。Amount 0 で待機） |
 | Fill Light | `_FillColor` / `_FillIntensity` | 曲ごとの照り返し色の切り替え（サビで暖色を注ぐ等） |
 
 - 各グループは **Override トグルが ON のあいだだけ**上書きし、OFF に戻すとマテリアルの元値へ復元する。
-- **Timeline / Animation**: 専用トラックは不要。Animation Track で本コンポーネントのフィールド（`blackOut` 等）を直接キー打ちすれば駆動できる。スクリプトからは `SetBlackOut()` / `SetDissolve()` / `SetFill()` / `ClearOverrides()`。
+- **Timeline / Animation**: 専用トラックは不要。Animation Track で本コンポーネントのフィールド（`blackOut` 等）を直接キー打ちすれば駆動できる。スクリプトからは `SetBlackOut()` / `SetFill()` / `ClearOverrides()`。
+- **Dissolve の制御は本コンポーネントには含まれない**。Dissolve（登場・消失演出）は EasyShaderCore の `DissolveController`（司令塔）で制御し、2 キャラの入れ替わりは `DissolveSwapController` を使う（マテリアルへ直接書く経路を Controller 1 点へ一本化するため移管）。使い方は EasyShaderCore の `Documentation~/VFX_DISSOLVE.md` を参照。
 - **SRP Batcher 維持の設計**: Play 中はマテリアルインスタンス経由で値を書く（別マテリアル同士は SRP Batcher でバッチされる）。`MaterialPropertyBlock` はレンダラーをバッチから外すため**使わない**。Edit モードのプレビューだけは非破壊の MaterialPropertyBlock（共有マテリアル資産を汚さない）。詳細 → [SRP_BATCHER](SRP_BATCHER.md)。
 
 > **ベイク（マップ生成）**: DCC 不要でメッシュからマップを焼く Editor 機能（内部実装は [ARCHITECTURE](ARCHITECTURE.md) の「ベイク」節）。マテリアル Inspector の Baking セクションで **Source Root**（Root 配下の全メッシュが対象）を指定し、種別ごとに 1 ボタンで焼く。生成 PNG はマテリアル隣の `Baked/` に保存され、該当スロットへ自動アサイン。**再ベイクは同名ファイルを上書き**する（連番で増えない。GUID 維持のためアサイン済み参照へ即反映。以前の結果へ戻すには焼き直すかバージョン管理で戻す）。書き込みは編集中マテリアルのサブメッシュのみ。マテリアル複数選択時は選択中すべてに実行。**焼くと対応機能を自動で有効化**（Strength / Intensity を OFF なら ON に）。
@@ -99,8 +99,9 @@ Custom UI は最上部の**タブバー**（基本 / 陰・影 / ライト / ス
 | Curvature | Resolution, Intensity, Smooth, Blur | `_CurvatureMap` | 符号付き曲率（0.5=平坦/明=凸/暗=凹）。1 枚で稜線・くぼみ両マスク |
 | SSS | Resolution, Samples, Max Distance, Intensity, Smooth, Blur | `_SSSMap` | RGB=透過方向 / A=厚み（薄い＝SSS 強）。旧 Thickness を統合・置換 |
 | Hair Flow | Resolution, Curvature Mode, Smooth, Blur | `_HairFlowMap` | 形状から毛流れ軸を推定（倍角＋信頼度）。髪/布の異方性を安定化 |
-| Face SDF Shadow | Resolution, Flip Forward, Angle Steps, Cast Shadow, Cast Distance, Smooth, Blur | `_FaceSDFMap` | **RGBA 4ch**（下記）。顔マテリアルで焼き、Light and Shadow の Face SDF Shadow を有効化 |
+| Face SDF Shadow | Resolution, Flip Forward, Angle Steps, X Axis Tilt, Cast Shadow, Cast Distance, Smooth, Blur | `_FaceSDFMap` | **RGBA 4ch**（下記）。顔マテリアルで焼き、Light and Shadow の Face SDF Shadow を有効化 |
 **Face SDF マップ（4 チャンネル）**: `EasyPbrFaceSdfBaker` が **R=右 / G=左 / B=上 / A=下** の 4 方向スイープを 1 枚に焼く。ランタイムはメインライト方向に応じて 4ch を加重ブレンドし顔影を駆動（シャドウマップ非依存・左右非対称の顔も可）。影の挙動は [SHADOWS](SHADOWS.md) を参照。
+**X Axis Tilt（左右スイープ光の仰角・度）**: 左右（R/G）チャンネルを「やや上から差す光」として焼く。0（既定）は水平光前提のスイープで、この場合モデルによっては顎下〜首の境界が実際のライトとずれて首まわりの影が不自然になる——そのときに 10〜20 度程度から上げて合わせる。上下（B/A）チャンネルとランタイムの挙動は変わらない。
 
 > **タンジェント必須のマップ**: Bent Normal / SSS（透過方向）/ Hair Flow は接線空間に焼くため、メッシュにタンジェント（または UV）が必要。無い場合は方向が幾何法線へフォールバックする（厚み等のスカラ成分は有効）。
 

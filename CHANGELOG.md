@@ -4,7 +4,29 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-23
+
 ### Fixed
+
+- **旧 EasyShaderCore が入ったまま本パッケージを更新すると、Core が更新されず本体 Editor がコンパイルエラーになる問題を修正。** Installer は「Core が存在するか」しか見ておらず、0.7.0 が要求する Core 0.3.0 の新 API（`BlackOutController` / ベイカー拡張）が無い 0.2.0 のままでも無音だった。Installer に必要最低バージョン（0.3.0）の比較を入れ、古ければピン留め URL（`#v0.3.1`）へ差し替える。本体 Editor asmdef の `versionDefines` も `[0.3.0,)` に揃え、古い Core では本体を除外してコンパイルエラーを出さず Installer が走れるようにした。
+
+### Added
+- **暗転をキャラ単位で駆動する `BlackOutController` が使えるようになった**（EasyShaderCore に新設。T-364）。`_BlackOut` は Doll / EasyToon Idol で同名・同義なので Doll でもそのまま使える（Play = マテリアルインスタンス / Edit = 非破壊 MPB・Timeline の Animation Track 対応）。**`DollLiveDirector` の Black Out override と同じキャラで併用しないこと**（同じプロパティを奪い合う）。Dissolve のときと同様、いずれ Controller 側へ一本化する余地がある。
+- **顔 SDF ベイクに距離場ブレンド整形（DF Blend）を追加**（Baking > Face SDF Shadow、既定 ON。T-346）。頂点スイープの生の出力は影境界の等値線にポリゴン割りと法線ノイズがそのまま出て線がガタつく。手描き SDF ツールの本質工程（白黒マスク → 距離場変換 → ブレンド）を Core ベイカーが画像空間で内蔵し、等値線を距離幾何で丸め直すことで**外部ツール無しで滑らかな線**を焼けるようにした。丸め半径は Line Softness（texel）で調整。4ch の意味・ランタイム・シェーダーは不変（**再ベイクするだけで品質が上がる**。従来出力は DF Blend OFF）。実体は EasyShaderCore の `EasyPbrFaceSdfBaker`（`Settings.dfBlend` / `dfSpread`）。
+- **顔 SDF ベイクに X Axis Tilt を追加**（Baking > Face SDF Shadow、既定 0・-45〜45 度）。左右（R/G）チャンネルのスイープ光に仰角を与えて焼く。水平スイープ前提だと顎下〜首の境界が実際のライト（通常は上方から）とずれ、モデルによっては首まわりの影が SDF によって不自然になるため。上下（B/A）チャンネルとランタイムの合成式は不変で、**シェーダー変更なし・新規キーワードなし**（ベイク時のみの調整）。既定 0 で従来と同一の焼き上がり。実体は EasyShaderCore の `EasyPbrFaceSdfBaker`（`Settings.xAxisTilt`）。
+
+### Changed (Breaking)
+- **DollLiveDirector の Dissolve override を削除**。Dissolve のランタイム制御は EasyShaderCore の `DissolveController` に一本化した（マテリアルへ直接書く経路を Controller 1 点へ集約するため。2 キャラの入れ替わり演出は新設の `DissolveSwapController`）。`overrideDissolve` / `dissolveAmount` フィールドと `SetDissolve()` API を削除。**これらを使用していた場合は `DissolveController`（対象キャラのルートに追加し `amount` を駆動）への移行が必要**（詳細は EasyShaderCore の `Documentation~/VFX_DISSOLVE.md`）。
+
+### Changed
+- **詳細（Advanced）タブを新設し、Advanced Options を Baking タブから移動**（T-354。EasyToon Idol と同時・タブ構成同一の原則）。ベイクと高度な設定（GPU Instancing / Double Sided GI）は別物という指摘への対応。8 タブ（4 列 × 2 段）になり、Blue Noise はベイク素材なので Baking タブに残る。foldout の節 id（v2.advanced）は不変。
+- **アウトラインを演出（FX）タブ → 基本タブへ移動**（Doll GUI。EasyToon Idol と同時・同じ棚 = タブ構成同一の原則）。輪郭線はマテリアルごとの恒久設定＝キャラの基本の見た目であって、時間で変化する演出（ディゾルブ / 暗転）とは性質が違うため。演出タブにはディゾルブ系だけが残る。foldout の節 id（v2.outline）は不変＝開閉状態は引き継がれる。
+- **セルフシャドウ（PCF (Vogel) / PCSS）の毎タップ sincos を除去**（EasyShaderCore 側の `VogelDisk` 位相回転化による。Doll 側のシェーダー変更なし・見た目不変）。実測（fxc / D3D11・ForwardLit フラグメント）: Vogel PCF **1,412 → 1,404 命令**、PCSS **1,474 → 1,463 命令**。数値等価の変形（加法定理）なので影のパターンは 1 ビットも変わらない。
+- `DollInput.hlsl` / `Passes/OutlinePass.hlsl` から UTF-8 BOM を除去（コンパイル結果不変。BOM を受け付けない外部 HLSL ツールとの相互運用のため）。
+
+### Fixed
+- **暗転（Black Out）が輪郭線に掛かっていなかったのを修正**（T-361。EasyToon Idol への輸入時に判明）。本体だけに掛けていたため、**暗転しきったキャラの輪郭線だけが明るく残って宙に浮いていた**。輪郭パスにも同じ `_BlackOut` を掛けるようにした（ディゾルブが輪郭も切っているのと同じ理屈）。`_BlackOut` を使っていない材質（既定 0）は不変。
+- **顔 SDF: 光が真後ろ（および真正面）を通るとき左右チャンネルが段差で入れ替わる不具合を修正**（`Runtime/Shaders/Doll/DollSurface.hlsl` の `ComputeFaceSDF`）。4ch の重み（`max(0, ±dirX)` / `max(0, ±dirY)`）は顔 Forward 軸まわりの**方位だけ**で決まるため、光が Forward 軸上を通る瞬間は両成分が同時に 0 へ落ちて方位が定まらず、無限小の符号で R↔G が瞬時に入れ替わっていた。真正面は顔全面が光るので見えないが、真後ろは陰の遷移帯（`|f - sdf| < soft`）に入るため「急に左右が切り替わる」段差として出る（既定の Softness 0.5 では顔の広い範囲が遷移帯に入るため顕著）。横成分の長さ `lateral = |sin(光と顔 Forward のなす角)|` を方位の確からしさとし、軸から約 14.5°（`lateral < 0.25`）の内側では 4ch の平均（方位に依らない値）へ `smoothstep` でフェードして連続化した。この錐の内側は「全面が光る／全面が陰る」領域なので通常の絵は変わらない。**新規プロパティ・キーワードなし・再ベイク不要。**
 - **Package Manager からの追加直後にも EasyShaderCore の自動インストールが走るように修正**: 本体 Editor asmdef（`Origuma.EasyPBR.URP.Editor`）を versionDefines + defineConstraints（シンボル `EASYSHADERCORE_PRESENT`）で Core 不在時にコンパイル対象から除外した。従来は Core 不在時のコンパイルエラーでドメインリロードが完了せず、PM 追加直後に `InitializeOnLoad`（Installer）が走らないため、エディタを再起動するまで Core が自動導入されなかった。除外により PM 追加直後（同一エディタセッション内・再起動不要）に Installer が走り、ゼロクリックで Core が導入される。
 
 ## [0.6.0]

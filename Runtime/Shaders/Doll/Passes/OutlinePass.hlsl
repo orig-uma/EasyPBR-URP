@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 //  OutlinePass.hlsl
 // =============================================================================
 #ifndef DOLL_OUTLINE_PASS_INCLUDED
@@ -70,6 +70,11 @@ half4 frag_outline(Varyings input) : SV_Target
         // アルベド連動: その場のアルベド × Outline Color を線の色にブレンド。
         // 髪には髪の、肌には肌の系統色の線が付き、固定単色より馴染む。
         half3 lineColor = lerp(_OutlineColor.rgb, albedo.rgb * _OutlineColor.rgb, _OutlineAlbedoBlend);
+
+        // 暗転は輪郭にも掛ける（T-361）。本体だけに掛けていたので、
+        // **暗転しきったキャラの輪郭線だけが明るく残って宙に浮いていた。**
+        lineColor = lerp(lineColor, half3(0, 0, 0), _BlackOut);
+
         return half4(lineColor, _OutlineColor.a);
         
     #else
