@@ -37,7 +37,7 @@ com.origuma.easypbr-urp    com.origuma.easytoon-urp
 ```
 
 - **EasyPBR は `com.origuma.easyshader-core` のみに依存する**（EasyToon には依存しない。EasyToon 側は Doll→Idol 変換の変換対象としてのみ EasyPBR に触れ、コード依存はない）。
-- **依存を package.json に宣言しない理由**: UPM は git 依存をレジストリ解決できず、宣言すると本パッケージ自体の git URL インストールが拒否される。代わりに `Editor/Installer/EasyShaderCoreInstaller.cs`（参照ゼロの独立 asmdef）が Core 不在を検知し、ピン留め URL `https://github.com/orig-uma/EasyShaderCore.git#v0.2.0` で自動導入する（失敗時のみ手動手順つきの案内ウィンドウ）。
+- **依存を package.json に宣言しない理由**: UPM は git 依存をレジストリ解決できず、宣言すると本パッケージ自体の git URL インストールが拒否される。代わりに `Editor/Installer/EasyShaderCoreInstaller.cs`（参照ゼロの独立 asmdef）が Core 不在を検知し、ピン留め URL `https://github.com/orig-uma/EasyShaderCore-URP.git#v0.2.0` で自動導入する（失敗時のみ手動手順つきの案内ウィンドウ）。
 - **asmdef 除外の意味**: Core 不在時に本体 Editor asmdef がコンパイルエラーを出すと Unity はドメインリロードを完了できず、PM 追加直後に `InitializeOnLoad` が走らない（＝再起動まで自動導入されない）。EASYSHADERCORE_PRESENT による除外でこれを回避する。
 - **Common HLSL は「純粋関数のみ・特定シェーダー非依存」を維持する**（層の詳細は [汎用ライブラリ構成（Common）](#汎用ライブラリ構成common)）。`Doll` 固有の方針（陰ランプ・キーワード運用等）を core に入れるのは禁止。Baker の呼び出し面（`Bake(root, material, Settings)`）は互換維持。
 
